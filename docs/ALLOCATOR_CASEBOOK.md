@@ -35,6 +35,10 @@ node, object pointer, spill cost, current degree and color, flags, complete
 neighbor list, and the simplify-stack order passed into color selection. Taking
 both snapshots around one allocation pass gives us the replay input and the
 exact compiler result needed to find the first divergent state transition.
+Use `python3 tools/compare_coloring_snapshots.py before.json after.json` to
+report virtual registers added or removed, object-binding and graph-field
+changes, color changes, and movement in simplify-stack order between source
+variants.
 
 The initial snapshot deliberately stops short of object names and class ranges.
 Those fields will be added after their exact target layouts are recovered. The
@@ -105,6 +109,71 @@ cannot explain changes that have already happened in those stages.
   carrier copy was eliminated before coalescing and reproduced the late,
   low-ranked counter allocation. These observations agree with the recovered
   dead-definition-before-coalescing order.
+
+### `it_8026C75C`
+
+- Source: `src/melee/it/itspawn.c`
+- Symptom: the table pointer and the `chk2` flag were exchanged between r28
+  and r29, with every opcode and lifetime boundary otherwise identical.
+- Prediction: introducing a source object for the incoming table pointer will
+  change the coalescing root or equal-degree insertion order without retaining
+  a copy instruction. Once that object exists, declaration order should
+  control the three-way clique formed by the table, saved weight, and flag.
+- Result: confirmed at Melee commit `(rev withheld)`. `ItemPickTable* tbl = table`
+  moved the table into retail r28 and raised the function from 96.2500% to
+  99.6710%. Declaring the remaining long-lived objects in `saved`, `chk2`,
+  `tbl` order selected retail r30, r29, r28 and produced a 100.0000% match.
+- Moving `tbl` ahead of the scalar declarations rotated the same clique to
+  r30, r29, r28 in declaration order. Merely exchanging two uninitialized
+  boolean declarations was neutral. The initializer-bearing pointer object,
+  not textual declaration order by itself, is the frontend boundary.
+- Changing `saved` from `int` to the superficially natural `u16` erased the
+  pointer-alias effect and restored the original r28/r29 swap. Replay input
+  therefore needs source-object/type bindings in addition to the final
+  interference graph: equal emitted integer values are not sufficient.
+
+### `lbRefract_800222A4`
+
+- Source: `src/melee/lb/lbrefract.c`
+- Symptom: retail assigns the data-section base and three zero-derived loop
+  offsets to r30, r29, r28, r31; the reconstruction rotates them to r31, r30,
+  r29, r28 while preserving the instruction stream.
+- Counter declaration order, nested versus function scope, and a declaration
+  initializer were neutral. Giving the initial count clear and `j` the same
+  explicit source owner also canonicalized to the baseline.
+- A named `imagedesc0` pointer survived as an extra saved register. A typed
+  pointer to the global state allowed field-pointer folding, removed three
+  retail saved webs, and shrank the frame. Neither represents the retail
+  frontend shape.
+- Replacing `i` and `j` initialization with a chained assignment made `j`
+  opaque and emitted a real `mulli` for a provably zero induction value. This
+  independently confirms the const-propagation-opacity rule from
+  `ft_800C85B8`, but rejects it for this function.
+- Named static arrays for the two archive strings preserved `.data` at 100%
+  and were allocation-neutral. Here the rotation is not caused by anonymous
+  versus named string objects, unlike `lb_8001044C`.
+
+### `fn_8016E2BC`
+
+- Source: `src/melee/gm/gm_16AE.c`
+- Symptom: the single-player `is_teams` result colored to r24 instead of r27,
+  and the loop's final flag load folded from retail `addi` plus `lbzx` into an
+  equivalent `lbz` through a running pointer.
+- Prediction: the single-player and multiplayer values are mutually exclusive
+  source objects even though the reconstruction reused one local. Splitting
+  them should let the first branch coalesce with the later r27 constant web
+  without changing emitted instructions.
+- Result: confirmed at Melee commit `(rev withheld)`. A separate
+  `single_is_teams` local removed the complete r27/r24 mismatch and raised the
+  function from 99.1192% to 99.1710%. Only the two-instruction access-form
+  residual remains.
+- A typed two-argument load-only inline was frame-neutral but canonicalized to
+  the same running-pointer load. A helper-local base pointer billed eight
+  bytes and shifted both addressed vectors. A function-scope base alias
+  survived as an extra saved register. A synchronized second scalar index also
+  survived and rotated the entire saved set. These reject allocator-only
+  explanations for the remaining rows: the open boundary is add propagation
+  across the inlined `getSpawnPoint` pointer web.
 
 ### `grCorneria_801E25C4`
 
