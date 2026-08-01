@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -27,21 +28,23 @@ def main() -> None:
         for name, source, test in tests:
             executable = Path(temp_dir) / f"test_{name}"
             command = [
-            compiler,
-            "-std=c90",
-            "-pedantic",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-DMWCC_SKIP_LAYOUT_ASSERTS",
-            "-Iinclude",
-            source,
-            test,
-            "-o",
-            str(executable),
+                compiler,
+                "-std=c90",
+                "-pedantic",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-DMWCC_SKIP_LAYOUT_ASSERTS",
+                "-Iinclude",
+                source,
+                test,
+                "-o",
+                str(executable),
             ]
             subprocess.run(command, check=True)
             subprocess.run([str(executable)], check=True)
+
+    subprocess.run([sys.executable, "tests/test_allocator_snapshot.py"], check=True)
 
     if args.stamp:
         args.stamp.parent.mkdir(parents=True, exist_ok=True)

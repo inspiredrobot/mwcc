@@ -21,6 +21,19 @@ instruction opcodes and flags, 12-byte operand records, virtual-register
 counts, class ranges, and object bindings. A source experiment is not counted
 as model-backed unless its prediction is written down before recompilation.
 
+`tools/allocator_snapshot.py` implements the version-pinned memory reader and
+snapshot validator. `tools/gdb/allocator_snapshot.py` registers a
+`mwcc-snapshot PATH` command for a GDB session stopped at
+`Coloring_AllocateRegisters` (`0x004cdef0`). The wrapper reads the function
+pointer from the first stack argument and emits raw PCode without requiring
+mnemonic-table guesses. Source it only inside the offline emulator sandbox;
+the command does not make executing the compiler on the host acceptable.
+
+The initial snapshot deliberately stops short of object names and class ranges.
+Those fields will be added after their exact target layouts are recovered. The
+raw 12-byte operand encoding is retained so snapshots taken now can be enriched
+later without rerunning the compiler.
+
 ## Initial Melee cases
 
 ### `efAsync_Dispatch`

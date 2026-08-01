@@ -25,7 +25,10 @@ No project-wide license has been selected yet.
 - `mwcc-debugger` commit
   `bad9cea2423bed957188c930086f9dabe669d30c` has no published license. A
   locally patched audit copy may be used for experiments, but none of its code
-  may be copied here without permission.
+  may be copied here without permission. The allocator snapshot reader in this
+  repository was written independently from offsets established in the
+  verified GC/1.2.5 executable; the external tool only corroborates PCode
+  snapshots as a useful debugging interface.
 - Ninji/Ash Wolf's MWCC decomp at `https://git.wuffs.org/MWCC/` is a valuable
   read-only naming and structural reference. No license was established, so no
   source or comments are copied from it.
