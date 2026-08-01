@@ -113,7 +113,7 @@ pipeline: initialization, two construction/coalescing stages, an optional
 class-specific dump, and two finalization stages. The internal roles retain
 address-suffixed names until their individual state transitions are recovered.
 
-Two of those internal stages are now identified. `SpillCode_MarkLastUses` at
+Four of those internal stages are now identified. `SpillCode_MarkLastUses` at
 `0x00530a80` initializes a bitset from each block’s live-out state, then walks
 the block backward through the instruction link at `PCodeBlock + 0x18`.
 Definitions (operand flag `0x02`) leave the live set; uses (flag `0x01`) enter
@@ -128,6 +128,24 @@ coalescing-parent map. A non-root node receives flag `0x04` and stores its root
 index in the physical-register field; the root receives flag `0x08`. Tests
 cover last-use marking, live-out preservation, neighbor materialization,
 degrees, and coalescing-root resolution.
+
+`SpillCode_ConstructInterference` at `0x00531290` allocates and clears the
+triangular matrix, makes physical registers 0 through 31 a clique, and then
+walks every block backward from its live-out set. Each definition interferes
+with every currently live register. Instruction flag `0x0800` excludes the
+register in operand 1 from that edge set, preserving the source/destination
+coalescing opportunity. Uses enter the live set after definition edges are
+created and receive the same last-use marker described above.
+
+The GPR path also records target constraints. Instructions selected by flag
+mask `0x0018` constrain operand 1, and flag `0x8000` additionally makes
+operands 0 and 1 interfere. Opcodes `0x3f` and `0x42` constrain operand 1;
+opcodes `0x37` through `0x3b` constrain operand 0. Flag `0x0020` applies a
+fixed-register constraint to operands 50 onward by making each interfere with
+physical GPRs 3 through 12. A constrained virtual register is represented by
+the otherwise-unused diagonal bit at index `reg * reg / 2`; this special index
+is not the ordinary off-diagonal pair formula. Tests cover the physical clique,
+live-definition edges, copy-source exclusion, and diagonal encoding.
 
 `SpillCode_CoalesceCopies` at `0x00530e00` identifies the class-specific copy
 opcodes (`0x8b`, `0x9e`, and `0x18e` for GPR, FPR, and VR respectively). A copy

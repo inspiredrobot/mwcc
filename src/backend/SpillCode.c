@@ -26,7 +26,6 @@ extern short gVRCoalesceLast;                   /* 0x0058846a */
 
 extern void SpillCode_005301b0(PCodeFunction* function, int reg_class,
                                int register_count);
-extern void SpillCode_00531290(int reg_class, int register_count);
 extern void SpillCode_DumpInterference(const char* format,
                                        int register_count); /* 0x004c4bc0 */
 extern void* SpillCode_Allocate(unsigned int size);         /* 0x00441f20 */
@@ -56,7 +55,7 @@ void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
 {
     SpillCode_005301b0(function, reg_class, register_count);
     SpillCode_MarkLastUses(reg_class, register_count);
-    SpillCode_00531290(reg_class, register_count);
+    SpillCode_ConstructInterference(reg_class, register_count);
     if (gCOptimizerDumpEnabled) {
         SpillCode_DumpInterference(SpillCode_RegisterFormat(reg_class),
                                    register_count);
@@ -132,44 +131,198 @@ void SpillCode_MarkLastUses(int reg_class, int register_count)
     }
 }
 
-static int SpillCode_Interferes(int first, int second)
+static unsigned int SpillCode_MatrixIndex(int first, int second)
 {
     unsigned int index;
     int larger;
     int smaller;
+
+    if (first == second) {
+        return (unsigned int) ((first * first) / 2);
+    }
+    if (first > second) {
+        larger = first;
+        smaller = second;
+    } else {
+        larger = second;
+        smaller = first;
+    }
+    index = (unsigned int) ((larger * larger) / 2 + smaller);
+    return index;
+}
+
+static int SpillCode_Interferes(int first, int second)
+{
+    unsigned int index;
 
     if (first == second) {
         return 0;
     }
-    if (first > second) {
-        larger = first;
-        smaller = second;
-    } else {
-        larger = second;
-        smaller = first;
-    }
-    index = (unsigned int) ((larger * larger) / 2 + smaller);
+    index = SpillCode_MatrixIndex(first, second);
     return (gInterferenceBits[index >> 5] & (1U << (index & 31))) != 0;
+}
+
+static void SpillCode_SetMatrixBit(int first, int second)
+{
+    unsigned int index;
+
+    index = SpillCode_MatrixIndex(first, second);
+    gInterferenceBits[index >> 5] |= 1U << (index & 31);
 }
 
 static void SpillCode_SetInterference(int first, int second)
 {
-    unsigned int index;
-    int larger;
-    int smaller;
+    if (first != second) {
+        SpillCode_SetMatrixBit(first, second);
+    }
+}
 
-    if (first == second) {
-        return;
+static void SpillCode_ClearWords(unsigned int* bits, int bit_count)
+{
+    int word;
+    int word_count;
+
+    word_count = (bit_count + 31) >> 5;
+    for (word = 0; word < word_count; word++) {
+        bits[word] = 0;
     }
-    if (first > second) {
-        larger = first;
-        smaller = second;
-    } else {
-        larger = second;
-        smaller = first;
+}
+
+static void SpillCode_PrecolorPhysicalRegisters(void)
+{
+    int first;
+    int second;
+
+    for (first = 0; first < 32; first++) {
+        for (second = 0; second < 32; second++) {
+            SpillCode_SetInterference(first, second);
+        }
     }
-    index = (unsigned int) ((larger * larger) / 2 + smaller);
-    gInterferenceBits[index >> 5] |= 1U << (index & 31);
+}
+
+static int SpillCode_CopySourceExcluded(PCodeInstruction* instruction, int reg)
+{
+    return (instruction->flags & PCodeInstruction_CopySourceExclusion) != 0 &&
+           instruction->operands[1].reg == reg;
+}
+
+static void SpillCode_AddDefinitionEdges(PCodeInstruction* instruction,
+                                         int reg_class, unsigned int* live,
+                                         int register_count)
+{
+    int index;
+
+    for (index = 0; index < instruction->operand_count; index++) {
+        PCodeOperand* operand;
+        int other;
+
+        operand = &instruction->operands[index];
+        if (operand->kind != reg_class ||
+            (operand->flags & PCodeOperand_Definition) == 0)
+        {
+            continue;
+        }
+
+        SpillCode_ClearLive(live, operand->reg);
+        for (other = 0; other < register_count; other++) {
+            if (SpillCode_IsLive(live, (short) other) &&
+                !SpillCode_CopySourceExcluded(instruction, other))
+            {
+                SpillCode_SetInterference(operand->reg, other);
+            }
+        }
+    }
+}
+
+static void SpillCode_AddUses(PCodeInstruction* instruction, int reg_class,
+                              unsigned int* live)
+{
+    int index;
+
+    for (index = 0; index < instruction->operand_count; index++) {
+        PCodeOperand* operand;
+
+        operand = &instruction->operands[index];
+        if (operand->kind == reg_class &&
+            (operand->flags & PCodeOperand_Use) != 0)
+        {
+            if (!SpillCode_IsLive(live, operand->reg)) {
+                operand->flags |= PCodeOperand_LastUse;
+            }
+            SpillCode_SetLive(live, operand->reg);
+        }
+    }
+}
+
+static void SpillCode_MarkConstrainedRegister(short reg)
+{
+    if (reg >= 32) {
+        SpillCode_SetMatrixBit(reg, reg);
+    }
+}
+
+static void SpillCode_AddGPRConstraints(PCodeInstruction* instruction)
+{
+    if ((instruction->flags & PCodeInstruction_GPRResultMask) != 0) {
+        SpillCode_MarkConstrainedRegister(instruction->operands[1].reg);
+        if ((instruction->flags & PCodeInstruction_GPRPairInterference) != 0) {
+            SpillCode_SetInterference(instruction->operands[0].reg,
+                                      instruction->operands[1].reg);
+        }
+    } else if (instruction->opcode == 0x3f || instruction->opcode == 0x42) {
+        SpillCode_MarkConstrainedRegister(instruction->operands[1].reg);
+    } else if (instruction->opcode >= 0x37 && instruction->opcode <= 0x3b) {
+        SpillCode_MarkConstrainedRegister(instruction->operands[0].reg);
+    }
+
+    if ((instruction->flags & PCodeInstruction_GPRFixedRange) != 0) {
+        int index;
+
+        for (index = 50; index < instruction->operand_count; index++) {
+            int physical;
+            short reg;
+
+            reg = instruction->operands[index].reg;
+            SpillCode_MarkConstrainedRegister(reg);
+            for (physical = 3; physical <= 12; physical++) {
+                SpillCode_SetInterference(reg, physical);
+            }
+        }
+    }
+}
+
+/* 0x00531290; high-level equivalent; binary match unmeasured. */
+void SpillCode_ConstructInterference(int reg_class, int register_count)
+{
+    unsigned int* live;
+    int matrix_bit_count;
+    PCodeBlock* block;
+
+    matrix_bit_count = (register_count * register_count) / 2;
+    gInterferenceBits =
+        SpillCode_Allocate((unsigned int) (((matrix_bit_count + 31) >> 5) *
+                                           sizeof(*gInterferenceBits)));
+    SpillCode_ClearWords(gInterferenceBits, matrix_bit_count);
+    SpillCode_PrecolorPhysicalRegisters();
+
+    live = SpillCode_Allocate(
+        (unsigned int) (((register_count + 31) >> 5) * sizeof(*live)));
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        PCodeInstruction* instruction;
+
+        SpillCode_CopyLiveSet(live, gPCodeBlockLiveness[block->index].live_out,
+                              register_count);
+        for (instruction = block->reverse_instructions; instruction != 0;
+             instruction = instruction->previous)
+        {
+            SpillCode_AddDefinitionEdges(instruction, reg_class, live,
+                                         register_count);
+            SpillCode_AddUses(instruction, reg_class, live);
+            if (reg_class == 0) {
+                SpillCode_AddGPRConstraints(instruction);
+            }
+        }
+    }
 }
 
 static short SpillCode_CoalesceRoot(short reg)
@@ -255,7 +408,7 @@ void SpillCode_CoalesceCopies(int reg_class, int register_count)
              instruction = instruction->next)
         {
             if (instruction->opcode == SpillCode_CopyOpcode(reg_class) &&
-                (instruction->flags & 0x400) == 0)
+                (instruction->flags & PCodeInstruction_CoalesceDisabled) == 0)
             {
                 short first;
                 short second;

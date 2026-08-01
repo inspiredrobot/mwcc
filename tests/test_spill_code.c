@@ -22,7 +22,7 @@ short gVRCoalesceLast;
 
 static InterferenceNode gNodes[40];
 static InterferenceNode* gNodePointers[40];
-static int gPipeline[3];
+static int gPipeline[2];
 static int gPipelineLength;
 static int gLastClass;
 static int gLastCount;
@@ -39,7 +39,7 @@ static void Check(int condition, const char* message)
 
 static void RecordStage(int stage, int reg_class, int register_count)
 {
-    Check(gPipelineLength < 3, "pipeline stage count");
+    Check(gPipelineLength < 2, "pipeline stage count");
     gPipeline[gPipelineLength++] = stage;
     gLastClass = reg_class;
     gLastCount = register_count;
@@ -52,15 +52,10 @@ void SpillCode_005301b0(PCodeFunction* function, int reg_class,
     RecordStage(1, reg_class, register_count);
 }
 
-void SpillCode_00531290(int reg_class, int register_count)
-{
-    RecordStage(2, reg_class, register_count);
-}
-
 void SpillCode_DumpInterference(const char* format, int register_count)
 {
     gLastFormat = format;
-    RecordStage(3, gLastClass, register_count);
+    RecordStage(2, gLastClass, register_count);
 }
 
 void* SpillCode_Allocate(unsigned int size)
@@ -127,23 +122,17 @@ static void ResetState(void)
 
 static void TestInterferencePipeline(void)
 {
-    int expected[] = {1, 2, 3};
+    int expected[] = {1, 2};
     int index;
-    short coalesced;
-    unsigned int bits;
 
     ResetState();
-    coalesced = 0;
-    bits = 0;
-    gCoalescedRegisters = &coalesced;
-    gInterferenceBits = &bits;
     gCOptimizerDumpEnabled = 1;
-    SpillCode_BuildInterference((PCodeFunction*) 1, 9, 0);
-    Check(gPipelineLength == 3, "external interference pipeline length");
-    for (index = 0; index < 3; index++) {
+    SpillCode_BuildInterference((PCodeFunction*) 1, 9, 40);
+    Check(gPipelineLength == 2, "external interference pipeline length");
+    for (index = 0; index < 2; index++) {
         Check(gPipeline[index] == expected[index], "interference stage order");
     }
-    Check(gLastClass == 9 && gLastCount == 0, "interference arguments");
+    Check(gLastClass == 9 && gLastCount == 40, "interference arguments");
     Check(strcmp(gLastFormat, " vr%ld") == 0, "vector dump format");
 }
 
@@ -217,6 +206,72 @@ static int HasInterference(const unsigned int* bits, int first, int second)
     smaller = first > second ? second : first;
     index = (unsigned int) ((larger * larger) / 2 + smaller);
     return (bits[index >> 5] & (1U << (index & 31))) != 0;
+}
+
+static void TestInterferenceConstruction(void)
+{
+    typedef struct TestInstruction {
+        PCodeInstruction instruction;
+        PCodeOperand second_operand;
+    } TestInstruction;
+
+    TestInstruction definition;
+    PCodeBlock block;
+    PCodeBlockLiveness liveness;
+    unsigned int live_out[2];
+
+    ResetState();
+    memset(&definition, 0, sizeof(definition));
+    memset(&block, 0, sizeof(block));
+    memset(&liveness, 0, sizeof(liveness));
+    memset(live_out, 0, sizeof(live_out));
+
+    live_out[1] = 1U << 2;
+    liveness.live_out = live_out;
+    gPCodeBlockLiveness = &liveness;
+    block.reverse_instructions = &definition.instruction;
+    gPCodeBlocks = &block;
+    definition.instruction.operand_count = 1;
+    definition.instruction.operands[0].kind = 0;
+    definition.instruction.operands[0].flags = PCodeOperand_Definition;
+    definition.instruction.operands[0].reg = 33;
+
+    SpillCode_ConstructInterference(0, 40);
+    Check(HasInterference(gInterferenceBits, 0, 31),
+          "physical registers form a clique");
+    Check(HasInterference(gInterferenceBits, 33, 34),
+          "definition interferes with live-out register");
+
+    ResetState();
+    memset(&definition, 0, sizeof(definition));
+    memset(&block, 0, sizeof(block));
+    memset(&liveness, 0, sizeof(liveness));
+    memset(live_out, 0, sizeof(live_out));
+
+    live_out[1] = 1U << 2;
+    liveness.live_out = live_out;
+    gPCodeBlockLiveness = &liveness;
+    block.reverse_instructions = &definition.instruction;
+    gPCodeBlocks = &block;
+    definition.instruction.flags = PCodeInstruction_CopySourceExclusion;
+    definition.instruction.operand_count = 2;
+    definition.instruction.operands[0].kind = 0;
+    definition.instruction.operands[0].flags = PCodeOperand_Definition;
+    definition.instruction.operands[0].reg = 33;
+    definition.second_operand.kind = 0;
+    definition.second_operand.flags = PCodeOperand_Use;
+    definition.second_operand.reg = 34;
+
+    SpillCode_ConstructInterference(0, 40);
+    Check(!HasInterference(gInterferenceBits, 33, 34),
+          "copy source excluded from destination interference");
+
+    definition.instruction.flags = PCodeInstruction_GPRResultMask;
+    definition.instruction.operands[1].reg = 39;
+    SpillCode_ConstructInterference(0, 40);
+    Check((gInterferenceBits[((39 * 39) / 2) >> 5] &
+           (1U << (((39 * 39) / 2) & 31))) != 0,
+          "GPR constraint uses matrix diagonal encoding");
 }
 
 static void TestCopyCoalescing(void)
@@ -344,6 +399,7 @@ int main(void)
 {
     TestInterferencePipeline();
     TestLastUseMarkers();
+    TestInterferenceConstruction();
     TestCopyCoalescing();
     TestGraphMaterialization();
     TestSpillCosts();

@@ -52,6 +52,17 @@ enum PCodeOperandFlags {
     PCodeOperand_LastUse = 0x04
 };
 
+enum PCodeInstructionFlags {
+    PCodeInstruction_CoalesceDisabled = 0x0400,
+    PCodeInstruction_CopySourceExclusion = 0x0800,
+    PCodeInstruction_GPRFixedRange = 0x0020,
+    PCodeInstruction_GPRPairInterference = 0x8000
+};
+
+enum PCodeInstructionFlagMasks {
+    PCodeInstruction_GPRResultMask = 0x0018
+};
+
 typedef struct PCodeInstruction {
     struct PCodeInstruction* next;     /* 0x00 */
     struct PCodeInstruction* previous; /* 0x04 */

@@ -6,6 +6,7 @@
 void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
                                  int register_count);
 void SpillCode_MarkLastUses(int reg_class, int register_count);
+void SpillCode_ConstructInterference(int reg_class, int register_count);
 void SpillCode_CoalesceCopies(int reg_class, int register_count);
 void SpillCode_MaterializeGraph(int register_count);
 void SpillCode_ComputeSpillCosts(int reg_class);
