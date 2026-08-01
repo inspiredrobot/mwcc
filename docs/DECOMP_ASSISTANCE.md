@@ -29,6 +29,13 @@ At least three of the five cases must yield a confirmed matching improvement.
 A rejected prediction is still useful when its inputs and observed result are
 recorded; unexplained hill climbing is not.
 
+The first operational target is **allocator replay v1**. Given a captured
+pre-coloring PCode snapshot, the host model must report block liveness,
+interference edges, copy-coalescing roots, simplify order, spill ranking,
+selected colors, and final operand rewrites. Every reported decision must cite
+the reconstructed GC/1.2.5 function that made it. The initial validation set is
+defined in `docs/ALLOCATOR_CASEBOOK.md`.
+
 ## Required compiler model
 
 The initial dependency chain is deliberately narrow:

@@ -47,7 +47,9 @@ See [docs/SCOPE.md](docs/SCOPE.md) for priorities and
 [docs/PROVENANCE.md](docs/PROVENANCE.md) for licensing and source provenance.
 The working subsystem map and agent workflow are in
 [docs/CORE_SUBSYSTEMS.md](docs/CORE_SUBSYSTEMS.md) and
-[docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md).
+[docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md). The concrete allocator
+replay target and its first five Melee cases are in
+[docs/ALLOCATOR_CASEBOOK.md](docs/ALLOCATOR_CASEBOOK.md).
 Two useful external references are RootCubed's MIT-licensed
 [mwcc-inspector](https://github.com/RootCubed/mwcc-inspector) and
 [mwcc-debugger](https://github.com/cadmic/mwcc-debugger), whose code is not
