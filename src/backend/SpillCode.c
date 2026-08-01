@@ -15,6 +15,8 @@ extern unsigned char gUniformSpillBlockWeight;  /* 0x005842e2 */
 extern InterferenceNode** gInterferenceGraph;   /* 0x00587e3c */
 extern PCodeBlock* gPCodeBlocks;                /* 0x00587c74 */
 extern PCodeBlockLiveness* gPCodeBlockLiveness; /* 0x00587e74 */
+extern PCodeBlock** gPCodeBlockOrder;           /* 0x00587fbc */
+extern int gPCodeBlockCount;                    /* 0x00587190 */
 extern unsigned int* gInterferenceBits;         /* 0x00583088 */
 extern short* gCoalescedRegisters;              /* 0x0058308c */
 extern short gGPRCoalesceFirst;                 /* 0x005882da */
@@ -33,9 +35,6 @@ extern int
 SpillCode_HandleSpecialInstruction(PCodeInstruction* instruction,
                                    int reg_class,
                                    unsigned int* live); /* 0x00530050 */
-extern void SpillCode_CopyLiveSet(unsigned int* destination,
-                                  const void* source,
-                                  int register_count); /* 0x00533ed0 */
 extern void PCode_RemoveRedundantInstruction(PCodeInstruction* instruction);
 
 static const char* SpillCode_RegisterFormat(int reg_class)
@@ -79,6 +78,31 @@ static void SpillCode_SetLive(unsigned int* live, short reg)
     live[reg >> 5] |= 1U << (reg & 31);
 }
 
+static int SpillCode_WordCount(int register_count)
+{
+    return (register_count + 31) >> 5;
+}
+
+static void SpillCode_CopyBits(unsigned int* destination,
+                               const unsigned int* source, int bit_count)
+{
+    int word;
+
+    for (word = 0; word < SpillCode_WordCount(bit_count); word++) {
+        destination[word] = source[word];
+    }
+}
+
+static void SpillCode_OrBits(unsigned int* destination,
+                             const unsigned int* source, int bit_count)
+{
+    int word;
+
+    for (word = 0; word < SpillCode_WordCount(bit_count); word++) {
+        destination[word] |= source[word];
+    }
+}
+
 /* 0x00530a80; high-level equivalent; binary match unmeasured. */
 void SpillCode_MarkLastUses(int reg_class, int register_count)
 {
@@ -90,8 +114,8 @@ void SpillCode_MarkLastUses(int reg_class, int register_count)
     for (block = gPCodeBlocks; block != 0; block = block->next) {
         PCodeInstruction* instruction;
 
-        SpillCode_CopyLiveSet(live, gPCodeBlockLiveness[block->index].live_out,
-                              register_count);
+        SpillCode_CopyBits(live, gPCodeBlockLiveness[block->index].live_out,
+                           register_count);
         for (instruction = block->reverse_instructions; instruction != 0;
              instruction = instruction->previous)
         {
@@ -182,7 +206,7 @@ static void SpillCode_ClearWords(unsigned int* bits, int bit_count)
     int word;
     int word_count;
 
-    word_count = (bit_count + 31) >> 5;
+    word_count = SpillCode_WordCount(bit_count);
     for (word = 0; word < word_count; word++) {
         bits[word] = 0;
     }
@@ -310,8 +334,8 @@ void SpillCode_ConstructInterference(int reg_class, int register_count)
     for (block = gPCodeBlocks; block != 0; block = block->next) {
         PCodeInstruction* instruction;
 
-        SpillCode_CopyLiveSet(live, gPCodeBlockLiveness[block->index].live_out,
-                              register_count);
+        SpillCode_CopyBits(live, gPCodeBlockLiveness[block->index].live_out,
+                           register_count);
         for (instruction = block->reverse_instructions; instruction != 0;
              instruction = instruction->previous)
         {
@@ -323,6 +347,118 @@ void SpillCode_ConstructInterference(int reg_class, int register_count)
             }
         }
     }
+}
+
+/* 0x00530530; high-level equivalent; binary match unmeasured. */
+void SpillCode_BuildLocalLiveness(int reg_class)
+{
+    PCodeBlock* block;
+
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        PCodeBlockLiveness* liveness;
+        PCodeInstruction* instruction;
+
+        liveness = &gPCodeBlockLiveness[block->index];
+        for (instruction = block->instructions; instruction != 0;
+             instruction = instruction->next)
+        {
+            int index;
+
+            for (index = 0; index < instruction->operand_count; index++) {
+                PCodeOperand* operand;
+
+                operand = &instruction->operands[index];
+                if (operand->kind == reg_class &&
+                    (operand->flags & PCodeOperand_Use) != 0 &&
+                    !SpillCode_IsLive(liveness->def, operand->reg))
+                {
+                    SpillCode_SetLive(liveness->use, operand->reg);
+                }
+            }
+            for (index = 0; index < instruction->operand_count; index++) {
+                PCodeOperand* operand;
+
+                operand = &instruction->operands[index];
+                if (operand->kind == reg_class &&
+                    (operand->flags & PCodeOperand_Definition) != 0 &&
+                    !SpillCode_IsLive(liveness->use, operand->reg))
+                {
+                    SpillCode_SetLive(liveness->def, operand->reg);
+                }
+            }
+        }
+    }
+}
+
+static void SpillCode_CollectSuccessorLiveIn(PCodeBlock* block,
+                                             unsigned int* live_out,
+                                             int register_count)
+{
+    PCodeBlockLink* successor;
+
+    successor = block->successors;
+    if (successor == 0) {
+        return;
+    }
+    SpillCode_CopyBits(live_out,
+                       gPCodeBlockLiveness[successor->block->index].live_in,
+                       register_count);
+    for (successor = successor->next; successor != 0;
+         successor = successor->next)
+    {
+        SpillCode_OrBits(live_out,
+                         gPCodeBlockLiveness[successor->block->index].live_in,
+                         register_count);
+    }
+}
+
+static int SpillCode_UpdateLiveIn(PCodeBlockLiveness* liveness,
+                                  int register_count)
+{
+    int changed;
+    int word;
+
+    changed = 0;
+    for (word = 0; word < SpillCode_WordCount(register_count); word++) {
+        unsigned int live_in;
+
+        live_in = (~liveness->def[word] & liveness->live_out[word]) |
+                  liveness->use[word];
+        if (live_in != liveness->live_in[word]) {
+            liveness->live_in[word] = live_in;
+            changed = 1;
+        }
+    }
+    return changed;
+}
+
+/* 0x00530410; high-level equivalent; binary match unmeasured. */
+void SpillCode_SolveLiveness(int register_count)
+{
+    int changed;
+
+    do {
+        int order_index;
+
+        changed = 0;
+        for (order_index = gPCodeBlockCount - 1; order_index >= 0;
+             order_index--)
+        {
+            PCodeBlock* block;
+            PCodeBlockLiveness* liveness;
+
+            block = gPCodeBlockOrder[order_index];
+            if (block == 0) {
+                continue;
+            }
+            liveness = &gPCodeBlockLiveness[block->index];
+            SpillCode_CollectSuccessorLiveIn(block, liveness->live_out,
+                                             register_count);
+            if (SpillCode_UpdateLiveIn(liveness, register_count)) {
+                changed = 1;
+            }
+        }
+    } while (changed);
 }
 
 static short SpillCode_CoalesceRoot(short reg)

@@ -172,6 +172,8 @@
       "source_anchor": "SpillCode.c",
       "source": "src/backend/SpillCode.c",
       "functions": [
+        { "address": "0x00530410", "name": "SpillCode_SolveLiveness", "role": "solve block live-in and live-out sets to a fixed point", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x00530530", "name": "SpillCode_BuildLocalLiveness", "role": "build upward-exposed use and definition sets", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x00530a00", "name": "SpillCode_BuildInterference", "role": "coordinate graph initialization, interference construction, coalescing, and finalization", "evidence": "inferred", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x00530a80", "name": "SpillCode_MarkLastUses", "role": "backward liveness walk and last-use operand marking", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x00530c00", "name": "SpillCode_MaterializeGraph", "role": "build variable-sized nodes from interference bits and coalescing parents", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },

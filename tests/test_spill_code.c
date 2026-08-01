@@ -11,6 +11,8 @@ unsigned char gUniformSpillBlockWeight;
 InterferenceNode** gInterferenceGraph;
 PCodeBlock* gPCodeBlocks;
 PCodeBlockLiveness* gPCodeBlockLiveness;
+PCodeBlock** gPCodeBlockOrder;
+int gPCodeBlockCount;
 unsigned int* gInterferenceBits;
 short* gCoalescedRegisters;
 short gGPRCoalesceFirst;
@@ -76,15 +78,6 @@ int SpillCode_HandleSpecialInstruction(PCodeInstruction* instruction,
     return 0;
 }
 
-void SpillCode_CopyLiveSet(unsigned int* destination, const void* source,
-                           int register_count)
-{
-    unsigned int word_count;
-
-    word_count = (unsigned int) ((register_count + 31) >> 5);
-    memcpy(destination, source, word_count * sizeof(*destination));
-}
-
 void PCode_RemoveRedundantInstruction(PCodeInstruction* instruction)
 {
     (void) instruction;
@@ -102,6 +95,8 @@ static void ResetState(void)
     gInterferenceGraph = gNodePointers;
     gPCodeBlocks = 0;
     gPCodeBlockLiveness = 0;
+    gPCodeBlockOrder = 0;
+    gPCodeBlockCount = 0;
     gInterferenceBits = 0;
     gCoalescedRegisters = 0;
     gCOptimizerDumpEnabled = 0;
@@ -194,6 +189,94 @@ static void SetInterference(unsigned int* bits, int first, int second)
     smaller = first > second ? second : first;
     index = (unsigned int) ((larger * larger) / 2 + smaller);
     bits[index >> 5] |= 1U << (index & 31);
+}
+
+static int BitIsSet(const unsigned int* bits, int bit)
+{
+    return (bits[bit >> 5] & (1U << (bit & 31))) != 0;
+}
+
+static void TestLocalLiveness(void)
+{
+    typedef struct TestInstruction {
+        PCodeInstruction instruction;
+        PCodeOperand second_operand;
+    } TestInstruction;
+
+    TestInstruction instruction;
+    PCodeBlock block;
+    PCodeBlockLiveness liveness;
+    unsigned int use[2];
+    unsigned int def[2];
+
+    ResetState();
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&block, 0, sizeof(block));
+    memset(&liveness, 0, sizeof(liveness));
+    memset(use, 0, sizeof(use));
+    memset(def, 0, sizeof(def));
+
+    liveness.use = use;
+    liveness.def = def;
+    gPCodeBlockLiveness = &liveness;
+    block.instructions = &instruction.instruction;
+    gPCodeBlocks = &block;
+    instruction.instruction.operand_count = 2;
+    instruction.instruction.operands[0].kind = 0;
+    instruction.instruction.operands[0].flags = PCodeOperand_Use;
+    instruction.instruction.operands[0].reg = 33;
+    instruction.second_operand.kind = 0;
+    instruction.second_operand.flags = PCodeOperand_Definition;
+    instruction.second_operand.reg = 34;
+
+    SpillCode_BuildLocalLiveness(0);
+    Check(BitIsSet(use, 33), "upward-exposed use recorded");
+    Check(BitIsSet(def, 34), "definition recorded");
+    Check(!BitIsSet(use, 34), "definition is not a use");
+    Check(!BitIsSet(def, 33), "use is not a definition");
+}
+
+static void TestLivenessFixedPoint(void)
+{
+    PCodeBlock first;
+    PCodeBlock second;
+    PCodeBlockLink successor;
+    PCodeBlock* order[2];
+    PCodeBlockLiveness liveness[2];
+    unsigned int sets[2][4][2];
+    int block_index;
+
+    ResetState();
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+    memset(&successor, 0, sizeof(successor));
+    memset(liveness, 0, sizeof(liveness));
+    memset(sets, 0, sizeof(sets));
+
+    for (block_index = 0; block_index < 2; block_index++) {
+        liveness[block_index].use = sets[block_index][0];
+        liveness[block_index].def = sets[block_index][1];
+        liveness[block_index].live_in = sets[block_index][2];
+        liveness[block_index].live_out = sets[block_index][3];
+    }
+    first.index = 0;
+    first.successors = &successor;
+    second.index = 1;
+    successor.block = &second;
+    order[0] = &first;
+    order[1] = &second;
+    gPCodeBlockLiveness = liveness;
+    gPCodeBlockOrder = order;
+    gPCodeBlockCount = 2;
+    sets[0][1][1] = 1U << 1;
+    sets[1][0][1] = 1U << 1;
+
+    SpillCode_SolveLiveness(64);
+    Check(BitIsSet(liveness[1].live_in, 33), "successor use reaches live-in");
+    Check(BitIsSet(liveness[0].live_out, 33),
+          "successor live-in reaches predecessor live-out");
+    Check(!BitIsSet(liveness[0].live_in, 33),
+          "predecessor definition kills live-in");
 }
 
 static int HasInterference(const unsigned int* bits, int first, int second)
@@ -398,6 +481,8 @@ static void TestSpillCosts(void)
 int main(void)
 {
     TestInterferencePipeline();
+    TestLocalLiveness();
+    TestLivenessFixedPoint();
     TestLastUseMarkers();
     TestInterferenceConstruction();
     TestCopyCoalescing();

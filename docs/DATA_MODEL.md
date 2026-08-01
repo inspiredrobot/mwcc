@@ -113,6 +113,16 @@ pipeline: initialization, two construction/coalescing stages, an optional
 class-specific dump, and two finalization stages. The internal roles retain
 address-suffixed names until their individual state transitions are recovered.
 
+The four pointers in each 16-byte `PCodeBlockLiveness` record are confirmed as
+`use`, `def`, `live_in`, and `live_out`. `SpillCode_BuildLocalLiveness` at
+`0x00530530` walks instructions forward. A use not preceded by a definition is
+added to the block’s upward-exposed `use` set; a definition not preceded by a
+use is added to `def`. `SpillCode_SolveLiveness` at `0x00530410` walks a
+depth-first block order backward until stable, unions successor `live_in` sets
+to form `live_out`, and applies `live_in = use | (live_out & ~def)`. Behavioral
+tests cover local-set construction, successor propagation, and definition
+kills.
+
 Four of those internal stages are now identified. `SpillCode_MarkLastUses` at
 `0x00530a80` initializes a bitset from each block’s live-out state, then walks
 the block backward through the instruction link at `PCodeBlock + 0x18`.
