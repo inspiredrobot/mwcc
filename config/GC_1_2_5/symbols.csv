@@ -26,6 +26,7 @@ address,size,kind,name,source,status
 0x004ce5f0,,function,Coloring_SetupVRs,vector precolor initialization and object binding,inferred
 0x004ce710,,function,Coloring_SetupFPRs,Coloring.c xref and FPR diagnostic mapping,inferred
 0x004ce850,,function,Coloring_SetupGPRs,GPR precolor initialization and paired-object flags,inferred
+0x005301b0,,function,SpillCode_InitializeLiveness,per-block sets and ABI return-register seeds,inferred
 0x00530410,,function,SpillCode_SolveLiveness,backward fixed-point block liveness,inferred
 0x00530530,,function,SpillCode_BuildLocalLiveness,upward-exposed use and definition sets,inferred
 0x00530a00,,function,SpillCode_BuildInterference,interference graph pipeline coordinator,inferred

@@ -13,6 +13,8 @@ PCodeBlock* gPCodeBlocks;
 PCodeBlockLiveness* gPCodeBlockLiveness;
 PCodeBlock** gPCodeBlockOrder;
 int gPCodeBlockCount;
+PCodeBlock* gReturnBlock;
+PCodeBlock* gCurrentBlock;
 unsigned int* gInterferenceBits;
 short* gCoalescedRegisters;
 short gGPRCoalesceFirst;
@@ -21,6 +23,7 @@ short gFPRCoalesceFirst;
 short gFPRCoalesceLast;
 short gVRCoalesceFirst;
 short gVRCoalesceLast;
+unsigned char gUseGPRForType2Return;
 
 static InterferenceNode gNodes[40];
 static InterferenceNode* gNodePointers[40];
@@ -30,6 +33,9 @@ static int gLastClass;
 static int gLastCount;
 static const char* gLastFormat;
 static int gRemovedInstructions;
+static int gRequiresMemoryReturn;
+
+static int BitIsSet(const unsigned int* bits, int bit);
 
 static void Check(int condition, const char* message)
 {
@@ -47,17 +53,28 @@ static void RecordStage(int stage, int reg_class, int register_count)
     gLastCount = register_count;
 }
 
-void SpillCode_005301b0(PCodeFunction* function, int reg_class,
-                        int register_count)
+void SpillCode_BuildBlockOrder(void)
 {
-    (void) function;
-    RecordStage(1, reg_class, register_count);
+    Check(gPipelineLength < 2, "pipeline stage count");
+    gPipeline[gPipelineLength++] = 1;
+}
+
+int Type_RequiresMemoryReturn(CompilerType* type)
+{
+    (void) type;
+    return gRequiresMemoryReturn;
 }
 
 void SpillCode_DumpInterference(const char* format, int register_count)
 {
     gLastFormat = format;
-    RecordStage(2, gLastClass, register_count);
+    if (strcmp(format, " r%ld") == 0) {
+        RecordStage(2, 0, register_count);
+    } else if (strcmp(format, " f%ld") == 0) {
+        RecordStage(2, 1, register_count);
+    } else {
+        RecordStage(2, 9, register_count);
+    }
 }
 
 void* SpillCode_Allocate(unsigned int size)
@@ -97,6 +114,8 @@ static void ResetState(void)
     gPCodeBlockLiveness = 0;
     gPCodeBlockOrder = 0;
     gPCodeBlockCount = 0;
+    gReturnBlock = 0;
+    gCurrentBlock = 0;
     gInterferenceBits = 0;
     gCoalescedRegisters = 0;
     gCOptimizerDumpEnabled = 0;
@@ -113,22 +132,73 @@ static void ResetState(void)
     gFPRCoalesceLast = 39;
     gVRCoalesceFirst = 32;
     gVRCoalesceLast = 39;
+    gUseGPRForType2Return = 0;
+    gRequiresMemoryReturn = 0;
 }
 
 static void TestInterferencePipeline(void)
 {
+    CompilerType result_type;
+    PCodeFunctionSignature signature;
+    PCodeFunction function;
     int expected[] = {1, 2};
     int index;
 
     ResetState();
+    memset(&result_type, 0, sizeof(result_type));
+    memset(&signature, 0, sizeof(signature));
+    memset(&function, 0, sizeof(function));
+    signature.result_type = &result_type;
+    function.signature = &signature;
     gCOptimizerDumpEnabled = 1;
-    SpillCode_BuildInterference((PCodeFunction*) 1, 9, 40);
+    SpillCode_BuildInterference(&function, 9, 40);
     Check(gPipelineLength == 2, "external interference pipeline length");
     for (index = 0; index < 2; index++) {
         Check(gPipeline[index] == expected[index], "interference stage order");
     }
     Check(gLastClass == 9 && gLastCount == 40, "interference arguments");
     Check(strcmp(gLastFormat, " vr%ld") == 0, "vector dump format");
+}
+
+static void TestLivenessInitialization(void)
+{
+    CompilerType result_type;
+    PCodeFunctionSignature signature;
+    PCodeFunction function;
+    PCodeBlock block;
+    PCodeBlock* order[1];
+
+    ResetState();
+    memset(&result_type, 0, sizeof(result_type));
+    memset(&signature, 0, sizeof(signature));
+    memset(&function, 0, sizeof(function));
+    memset(&block, 0, sizeof(block));
+
+    result_type.kind = 1;
+    result_type.size = 8;
+    signature.result_type = &result_type;
+    function.signature = &signature;
+    block.index = 0;
+    order[0] = &block;
+    gPCodeBlocks = &block;
+    gPCodeBlockOrder = order;
+    gPCodeBlockCount = 1;
+    gReturnBlock = &block;
+    gCurrentBlock = &block;
+
+    SpillCode_InitializeLiveness(&function, 0, 40);
+    Check(gPCodeBlockLiveness != 0, "liveness records allocated");
+    Check(gPCodeBlockLiveness[0].use != 0 && gPCodeBlockLiveness[0].def != 0 &&
+              gPCodeBlockLiveness[0].live_in != 0 &&
+              gPCodeBlockLiveness[0].live_out != 0,
+          "four liveness sets allocated");
+    Check(BitIsSet(gPCodeBlockLiveness[0].use, 3),
+          "primary GPR return register seeded");
+    Check(BitIsSet(gPCodeBlockLiveness[0].use, 4),
+          "secondary GPR return register seeded");
+    Check(BitIsSet(gPCodeBlockLiveness[0].live_in, 3) &&
+              BitIsSet(gPCodeBlockLiveness[0].live_in, 4),
+          "return registers propagated into live-in");
 }
 
 static void TestLastUseMarkers(void)
@@ -481,6 +551,7 @@ static void TestSpillCosts(void)
 int main(void)
 {
     TestInterferencePipeline();
+    TestLivenessInitialization();
     TestLocalLiveness();
     TestLivenessFixedPoint();
     TestLastUseMarkers();

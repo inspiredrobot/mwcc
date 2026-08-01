@@ -3,15 +3,25 @@
 
 #include <stddef.h>
 
-typedef struct PCodeFunction PCodeFunction;
-
 #pragma pack(push, 2)
 
 typedef struct CompilerType {
     unsigned char kind; /* 0x00 */
     unsigned char unknown_01;
     unsigned int size; /* 0x02 */
+    unsigned char unknown_06[8];
+    signed char subtype; /* 0x0e */
 } CompilerType;
+
+typedef struct PCodeFunctionSignature {
+    unsigned char unknown_00[0x0e];
+    CompilerType* result_type; /* 0x0e */
+} PCodeFunctionSignature;
+
+typedef struct PCodeFunction {
+    unsigned char unknown_00[0x0e];
+    PCodeFunctionSignature* signature; /* 0x0e */
+} PCodeFunction;
 
 typedef struct RegisterInfo {
     unsigned char unknown_00[0x24];
@@ -125,6 +135,13 @@ typedef char
     CompilerObject_type_0e[(offsetof(CompilerObject, type) == 0x0e) ? 1 : -1];
 typedef char
     CompilerType_size_02[(offsetof(CompilerType, size) == 0x02) ? 1 : -1];
+typedef char CompilerType_subtype_0e[(offsetof(CompilerType, subtype) == 0x0e)
+                                         ? 1
+                                         : -1];
+typedef char PCodeFunction_signature_0e
+    [(offsetof(PCodeFunction, signature) == 0x0e) ? 1 : -1];
+typedef char PCodeFunctionSignature_result_0e
+    [(offsetof(PCodeFunctionSignature, result_type) == 0x0e) ? 1 : -1];
 typedef char CompilerObject_info_26
     [(offsetof(CompilerObject, register_info_26) == 0x26) ? 1 : -1];
 typedef char CompilerObject_info_2e

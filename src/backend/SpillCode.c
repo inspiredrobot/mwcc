@@ -17,6 +17,8 @@ extern PCodeBlock* gPCodeBlocks;                /* 0x00587c74 */
 extern PCodeBlockLiveness* gPCodeBlockLiveness; /* 0x00587e74 */
 extern PCodeBlock** gPCodeBlockOrder;           /* 0x00587fbc */
 extern int gPCodeBlockCount;                    /* 0x00587190 */
+extern PCodeBlock* gReturnBlock;                /* 0x00587ec8 */
+extern PCodeBlock* gCurrentBlock;               /* 0x005880c4 */
 extern unsigned int* gInterferenceBits;         /* 0x00583088 */
 extern short* gCoalescedRegisters;              /* 0x0058308c */
 extern short gGPRCoalesceFirst;                 /* 0x005882da */
@@ -25,9 +27,10 @@ extern short gFPRCoalesceFirst;                 /* 0x005882dc */
 extern short gFPRCoalesceLast;                  /* 0x005882e0 */
 extern short gVRCoalesceFirst;                  /* 0x00588464 */
 extern short gVRCoalesceLast;                   /* 0x0058846a */
+extern unsigned char gUseGPRForType2Return;     /* 0x00584244 */
 
-extern void SpillCode_005301b0(PCodeFunction* function, int reg_class,
-                               int register_count);
+extern void SpillCode_BuildBlockOrder(void);              /* 0x0049ce40 */
+extern int Type_RequiresMemoryReturn(CompilerType* type); /* 0x004a7af0 */
 extern void SpillCode_DumpInterference(const char* format,
                                        int register_count); /* 0x004c4bc0 */
 extern void* SpillCode_Allocate(unsigned int size);         /* 0x00441f20 */
@@ -52,7 +55,7 @@ static const char* SpillCode_RegisterFormat(int reg_class)
 void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
                                  int register_count)
 {
-    SpillCode_005301b0(function, reg_class, register_count);
+    SpillCode_InitializeLiveness(function, reg_class, register_count);
     SpillCode_MarkLastUses(reg_class, register_count);
     SpillCode_ConstructInterference(reg_class, register_count);
     if (gCOptimizerDumpEnabled) {
@@ -100,6 +103,67 @@ static void SpillCode_OrBits(unsigned int* destination,
 
     for (word = 0; word < SpillCode_WordCount(bit_count); word++) {
         destination[word] |= source[word];
+    }
+}
+
+static unsigned int* SpillCode_AllocateEmptyBits(int register_count)
+{
+    unsigned int* bits;
+    int word;
+
+    bits = SpillCode_Allocate(
+        (unsigned int) (SpillCode_WordCount(register_count) * sizeof(*bits)));
+    for (word = 0; word < SpillCode_WordCount(register_count); word++) {
+        bits[word] = 0;
+    }
+    return bits;
+}
+
+static void SpillCode_AddBlockUse(PCodeBlock* block, short reg)
+{
+    if (block != 0) {
+        SpillCode_SetLive(gPCodeBlockLiveness[block->index].use, reg);
+    }
+}
+
+static int SpillCode_IsDirectGPRScalar(const CompilerType* type)
+{
+    return type->kind == 1 || type->kind == 3 || type->kind == 11 ||
+           (type->kind == 10 && type->size == 4);
+}
+
+static void SpillCode_SeedGPRReturn(CompilerType* type)
+{
+    if (SpillCode_IsDirectGPRScalar(type)) {
+        SpillCode_AddBlockUse(gReturnBlock, 3);
+        if ((type->kind == 1 || type->kind == 3) && type->size == 8) {
+            SpillCode_AddBlockUse(gCurrentBlock, 4);
+        }
+    } else if ((type->kind == 4 || type->kind == 5) &&
+               !Type_RequiresMemoryReturn(type))
+    {
+        SpillCode_AddBlockUse(gReturnBlock, 3);
+        if (type->size > 4) {
+            SpillCode_AddBlockUse(gCurrentBlock, 4);
+        }
+    } else if (gUseGPRForType2Return && type->kind == 2) {
+        SpillCode_AddBlockUse(gReturnBlock, 3);
+        if (type->size == 8) {
+            SpillCode_AddBlockUse(gCurrentBlock, 4);
+        }
+    }
+}
+
+static void SpillCode_SeedReturnRegisters(CompilerType* type, int reg_class)
+{
+    if (reg_class == 0) {
+        SpillCode_SeedGPRReturn(type);
+    } else if (reg_class == 1 && type->kind == 2) {
+        SpillCode_AddBlockUse(gReturnBlock, 1);
+    } else if (reg_class == 9 && type->kind == 4 && type->subtype >= 4 &&
+               type->subtype <= 14)
+    {
+        SpillCode_AddBlockUse(gReturnBlock, 2);
     }
 }
 
@@ -459,6 +523,32 @@ void SpillCode_SolveLiveness(int register_count)
             }
         }
     } while (changed);
+}
+
+/* 0x005301b0; high-level equivalent; binary match unmeasured. */
+void SpillCode_InitializeLiveness(PCodeFunction* function, int reg_class,
+                                  int register_count)
+{
+    CompilerType* result_type;
+    int block_index;
+
+    result_type = function->signature->result_type;
+    SpillCode_BuildBlockOrder();
+    gPCodeBlockLiveness = SpillCode_Allocate(
+        (unsigned int) (gPCodeBlockCount * sizeof(*gPCodeBlockLiveness)));
+    for (block_index = 0; block_index < gPCodeBlockCount; block_index++) {
+        PCodeBlockLiveness* liveness;
+
+        liveness = &gPCodeBlockLiveness[block_index];
+        liveness->use = SpillCode_AllocateEmptyBits(register_count);
+        liveness->def = SpillCode_AllocateEmptyBits(register_count);
+        liveness->live_in = SpillCode_AllocateEmptyBits(register_count);
+        liveness->live_out = SpillCode_AllocateEmptyBits(register_count);
+    }
+
+    SpillCode_BuildLocalLiveness(reg_class);
+    SpillCode_SeedReturnRegisters(result_type, reg_class);
+    SpillCode_SolveLiveness(register_count);
 }
 
 static short SpillCode_CoalesceRoot(short reg)

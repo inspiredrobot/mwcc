@@ -123,6 +123,21 @@ to form `live_out`, and applies `live_in = use | (live_out & ~def)`. Behavioral
 tests cover local-set construction, successor propagation, and definition
 kills.
 
+`SpillCode_InitializeLiveness` at `0x005301b0` establishes the whole dataflow
+problem. It builds a depth-first block order, allocates four cleared bitsets per
+block, constructs the local sets, seeds result-register uses required by the
+function’s ABI return type, then invokes the fixed-point solver. The result type
+is reached through pointers at `PCodeFunction + 0x0e` and its signature
+`+0x0e`; the type’s kind, size, and subtype are at offsets `0x00`, `0x02`, and
+`0x0e`.
+
+The exact return seeds are class dependent. GPR-class scalar returns use r3 and
+8-byte integer-like values additionally use r4. Eligible aggregate returns use
+the same pair, FPR-class type kind 2 uses f1, and VR-class type kind 4 with
+subtype 4 through 14 uses vr2. These are inserted as upward-exposed uses in the
+return block before liveness propagation. Tests cover allocation of all four
+sets and the two-register GPR return case.
+
 Four of those internal stages are now identified. `SpillCode_MarkLastUses` at
 `0x00530a80` initializes a bitset from each block’s live-out state, then walks
 the block backward through the instruction link at `PCodeBlock + 0x18`.
