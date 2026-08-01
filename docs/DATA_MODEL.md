@@ -29,9 +29,29 @@ again.
 `Registers_GetInfo` at `0x004c1720` allocates a zeroed `0x2c`-byte record for
 object kinds 0 and 2, while kind 1 uses an existing record. Together with
 `Coloring_SetupFPRs` at `0x004ce710`, this confirms the record's physical
-register field at `0x24` and its GPR/FPR discriminator at `0x28`. The minimal
-validated layouts now live in `include/mwcc/backend_types.h`; padding remains
-explicit until more fields are understood.
+register field at `0x24` and its GPR/FPR discriminator at `0x28`.
+
+The eight binding/allocation functions at `0x004c1b40` through `0x004c2280`
+add independent evidence for these fields and confirm:
+
+- a secondary physical register at `RegisterInfo + 0x26` for paired GPR
+  values;
+- the FPR-class byte at `RegisterInfo + 0x28`;
+- the vector-class byte at `RegisterInfo + 0x2a`;
+- an object type pointer at `CompilerObject + 0x0e`, whose first byte can
+  override the FPR-class bit when target option `0x00584244` is enabled;
+- 32-byte physical-use tables at `0x00581310`, `0x00581330`, and `0x00581350`
+  for GPR, FPR, and vector registers respectively.
+
+The binding functions rescan class-specific physical ranges whenever a new
+register is marked used. They derive both the save span and the remaining free
+saved-register count. The allocation functions either consume monotonically
+increasing virtual-register numbers or search the physical-use tables from
+register 31 downward. These shared mechanics are reconstructed in
+`src/backend/Registers.c` and covered by a host-side behavioral test.
+
+The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
+remains explicit until more fields are understood.
 
 ## Provisional GC/1.x hypotheses
 

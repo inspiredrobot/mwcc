@@ -10,7 +10,7 @@
  * namespace grows beyond the 32 physical registers.
  */
 
-#include "mwcc/backend_types.h"
+#include "mwcc/Registers.h"
 
 enum RegisterClass {
     RegClass_GPR = 0,
@@ -55,41 +55,47 @@ extern void StackFrame_CheckAltivec(void); /* 0x004a9c80 */
 extern InterferenceNode** gInterferenceGraph; /* 0x00587e3c */
 extern ObjectList* gFPRObjectList1;           /* 0x0058806c */
 extern ObjectList* gFPRObjectList2;           /* 0x00587fb8 */
-extern RegisterInfo* Registers_GetInfo(CompilerObject* object);
+static void Coloring_RunClass(PCodeFunction* function, int reg_class,
+                              int register_count,
+                              int (*available_registers)(void),
+                              void (*setup_class)(void))
+{
+    int retry;
+    int* graph;
 
-#define COLORING_RUN_CLASS(function, reg_class, count, available, setup)      \
-    do {                                                                      \
-        int retry = 1;                                                        \
-        while (retry && (count) > 32) {                                       \
-            int* graph;                                                       \
-            SpillCode_BuildInterference((function), (reg_class), (count));    \
-            setup();                                                          \
-            retry = 0;                                                        \
-            graph = Coloring_004ce400((reg_class), available(), (count));     \
-            if (!Coloring_004ce2d0((reg_class), graph)) {                     \
-                retry = 1;                                                    \
-            }                                                                 \
-            if (retry) {                                                      \
-                SpillCode_00531800((reg_class), (count));                     \
-            } else {                                                          \
-                Coloring_004ce1a0((reg_class), (count));                      \
-            }                                                                 \
-            Coloring_FreeIteration();                                         \
-        }                                                                     \
-    } while (0)
+    retry = 1;
+    while (retry && register_count > 32) {
+        SpillCode_BuildInterference(function, reg_class, register_count);
+        setup_class();
+        retry = 0;
+        graph = Coloring_004ce400(reg_class, available_registers(),
+                                  register_count);
+        if (!Coloring_004ce2d0(reg_class, graph)) {
+            retry = 1;
+        }
+        if (retry) {
+            SpillCode_00531800(reg_class, register_count);
+        } else {
+            Coloring_004ce1a0(reg_class, register_count);
+        }
+        Coloring_FreeIteration();
+    }
+}
 
-#define COLORING_BIND_FPR_OBJECTS(list)                                       \
-    do {                                                                      \
-        ObjectList* item = (list);                                            \
-        while (item != 0) {                                                   \
-            CompilerObject* object = item->object;                            \
-            RegisterInfo* info = Registers_GetInfo(object);                   \
-            if (info->physical_register != 0 && info->is_fpr) {               \
-                gInterferenceGraph[info->physical_register]->object = object; \
-            }                                                                 \
-            item = item->next;                                                \
-        }                                                                     \
-    } while (0)
+static void Coloring_BindFPRObjects(ObjectList* item)
+{
+    while (item != 0) {
+        CompilerObject* object;
+        RegisterInfo* info;
+
+        object = item->object;
+        info = Registers_GetInfo(object);
+        if (info->physical_register != 0 && info->is_fpr) {
+            gInterferenceGraph[info->physical_register]->object = object;
+        }
+        item = item->next;
+    }
+}
 
 /* 0x004cdef0; functionally equivalent; binary match unmeasured. */
 void Coloring_AllocateRegisters(PCodeFunction* function)
@@ -100,8 +106,8 @@ void Coloring_AllocateRegisters(PCodeFunction* function)
         Coloring_Error(0x66, "VR");
         return;
     }
-    COLORING_RUN_CLASS(function, RegClass_VR, gUsedVirtualRegistersVR,
-                       Registers_AvailableVRs, Coloring_SetupVRs);
+    Coloring_RunClass(function, RegClass_VR, gUsedVirtualRegistersVR,
+                      Registers_AvailableVRs, Coloring_SetupVRs);
 
     StackFrame_CheckAltivec();
     if (gCOptimizerDumpEnabled && gHasAltivecFrame) {
@@ -115,8 +121,8 @@ void Coloring_AllocateRegisters(PCodeFunction* function)
         Coloring_Error(0x66, "GPR");
         return;
     }
-    COLORING_RUN_CLASS(function, RegClass_GPR, gUsedVirtualRegistersGPR,
-                       Registers_AvailableGPRs, Coloring_SetupGPRs);
+    Coloring_RunClass(function, RegClass_GPR, gUsedVirtualRegistersGPR,
+                      Registers_AvailableGPRs, Coloring_SetupGPRs);
 
     Registers_SetupFPRs();
     gColoringRegisterCount = gUsedVirtualRegistersFPR;
@@ -127,8 +133,8 @@ void Coloring_AllocateRegisters(PCodeFunction* function)
         Coloring_Error(0x66, "FPR");
         return;
     }
-    COLORING_RUN_CLASS(function, RegClass_FPR, gUsedVirtualRegistersFPR,
-                       Registers_AvailableFPRs, Coloring_SetupFPRs);
+    Coloring_RunClass(function, RegClass_FPR, gUsedVirtualRegistersFPR,
+                      Registers_AvailableFPRs, Coloring_SetupFPRs);
 
     gVirtualRegistersActive = 0;
 }
@@ -149,6 +155,6 @@ void Coloring_SetupFPRs(void)
         gInterferenceGraph[reg]->physical_register = (short) reg;
     }
 
-    COLORING_BIND_FPR_OBJECTS(gFPRObjectList1);
-    COLORING_BIND_FPR_OBJECTS(gFPRObjectList2);
+    Coloring_BindFPRObjects(gFPRObjectList1);
+    Coloring_BindFPRObjects(gFPRObjectList2);
 }

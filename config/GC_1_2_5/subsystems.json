@@ -80,14 +80,14 @@
       "source": "src/backend/Registers.c",
       "functions": [
         { "address": "0x004c1720", "name": "Registers_GetInfo", "role": "get or create an object's register-allocation record", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1b40", "name": "Registers_004c1b40", "role": "register-state helper", "evidence": "inferred" },
-        { "address": "0x004c1c50", "name": "Registers_004c1c50", "role": "register-state helper", "evidence": "inferred" },
-        { "address": "0x004c1d60", "name": "Registers_004c1d60", "role": "register-pair helper", "evidence": "inferred" },
-        { "address": "0x004c1e40", "name": "Registers_004c1e40", "role": "register-state helper", "evidence": "inferred" },
-        { "address": "0x004c1f60", "name": "Registers_004c1f60", "role": "register-range helper", "evidence": "inferred" },
-        { "address": "0x004c2040", "name": "Registers_004c2040", "role": "register-range helper", "evidence": "inferred" },
-        { "address": "0x004c2120", "name": "Registers_004c2120", "role": "register-set helper", "evidence": "inferred" },
-        { "address": "0x004c2280", "name": "Registers_004c2280", "role": "register-set helper", "evidence": "inferred" }
+        { "address": "0x004c1b40", "name": "Registers_BindVR", "role": "mark a physical vector register used and optionally bind it to an object", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c1c50", "name": "Registers_BindFPR", "role": "mark a physical floating-point register used and optionally bind it to an object", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c1d60", "name": "Registers_BindGPRPair", "role": "bind a paired general-purpose register value", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c1e40", "name": "Registers_BindGPR", "role": "mark a physical general-purpose register used and optionally bind it to an object", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c1f60", "name": "Registers_AllocateVR", "role": "allocate and bind one vector register", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c2040", "name": "Registers_AllocateFPR", "role": "allocate and bind one floating-point register", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c2120", "name": "Registers_AllocateGPRPair", "role": "allocate and bind a paired general-purpose register value", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c2280", "name": "Registers_AllocateGPR", "role": "allocate and bind one general-purpose register", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" }
       ]
     },
     {

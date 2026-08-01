@@ -17,6 +17,7 @@ def main() -> None:
         raise FileNotFoundError("clang-format is required")
     paths = sorted(Path("src").rglob("*.c"))
     paths.extend(sorted(Path("include").rglob("*.h")))
+    paths.extend(sorted(Path("tests").rglob("*.c")))
     if not paths:
         raise FileNotFoundError("no C sources or headers found")
 

@@ -15,6 +15,10 @@ python3 tools/check_format.py --fix
 ninja check
 ```
 
+`ninja check` also runs host-side behavioral tests for reconstructed models.
+These tests establish functional invariants; they do not claim that the host
+compiler reproduces the target x86 instruction stream.
+
 The compiler binary is untrusted data. Static analysis does not execute it. Do
 not invoke it on the host or through host Wine/Wibo; follow the sandbox policy
 in `AGENTS.md` if dynamic behavior ever becomes essential.

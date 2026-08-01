@@ -7,20 +7,26 @@ typedef struct PCodeFunction PCodeFunction;
 
 #pragma pack(push, 2)
 
+typedef struct CompilerType {
+    unsigned char kind; /* 0x00 */
+} CompilerType;
+
 typedef struct RegisterInfo {
     unsigned char unknown_00[0x24];
-    short physical_register; /* 0x24 */
-    unsigned char unknown_26[2];
-    unsigned char is_fpr; /* 0x28 */
+    short physical_register;  /* 0x24 */
+    short secondary_register; /* 0x26 */
+    unsigned char is_fpr;     /* 0x28 */
     unsigned char unknown_29;
-    unsigned char flag_2a; /* 0x2a */
+    unsigned char is_vector; /* 0x2a */
     unsigned char unknown_2b;
 } RegisterInfo;
 
 typedef struct CompilerObject {
     unsigned char unknown_00[2];
     unsigned char kind; /* 0x02 */
-    unsigned char unknown_03[0x23];
+    unsigned char unknown_03[0x0b];
+    CompilerType* type; /* 0x0e */
+    unsigned char unknown_12[0x14];
     RegisterInfo* register_info_26; /* 0x26 */
     unsigned char unknown_2a[4];
     RegisterInfo* register_info_2e; /* 0x2e */
@@ -40,14 +46,24 @@ typedef struct InterferenceNode {
 
 #pragma pack(pop)
 
+#ifndef MWCC_SKIP_LAYOUT_ASSERTS
 typedef char RegisterInfo_size_2c[(sizeof(RegisterInfo) == 0x2c) ? 1 : -1];
 typedef char RegisterInfo_physical_24
     [(offsetof(RegisterInfo, physical_register) == 0x24) ? 1 : -1];
+typedef char RegisterInfo_secondary_26
+    [(offsetof(RegisterInfo, secondary_register) == 0x26) ? 1 : -1];
+typedef char
+    RegisterInfo_is_fpr_28[(offsetof(RegisterInfo, is_fpr) == 0x28) ? 1 : -1];
+typedef char RegisterInfo_is_vector_2a
+    [(offsetof(RegisterInfo, is_vector) == 0x2a) ? 1 : -1];
+typedef char
+    CompilerObject_type_0e[(offsetof(CompilerObject, type) == 0x0e) ? 1 : -1];
 typedef char CompilerObject_info_26
     [(offsetof(CompilerObject, register_info_26) == 0x26) ? 1 : -1];
 typedef char CompilerObject_info_2e
     [(offsetof(CompilerObject, register_info_2e) == 0x2e) ? 1 : -1];
 typedef char InterferenceNode_physical_10
     [(offsetof(InterferenceNode, physical_register) == 0x10) ? 1 : -1];
+#endif
 
 #endif

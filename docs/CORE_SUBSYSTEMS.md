@@ -65,6 +65,12 @@ For each class, recover these boundaries independently:
 6. spill-code insertion and retry;
 7. callee-saved register reporting to frame construction.
 
+The shared explicit-binding and automatic-allocation layer is reconstructed in
+`Registers.c`. It accounts for physical use and saved-register ranges for all
+three classes, including paired GPR values. The next allocator target is the
+interference-node lifecycle: census, edge construction, coalescing, simplify,
+color selection, and spill retry state.
+
 ### Stack frame
 
 The generator calls `0x004abe90` immediately before the “AFTER GENERATING
