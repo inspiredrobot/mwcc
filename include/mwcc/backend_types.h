@@ -46,9 +46,16 @@ typedef struct PCodeOperand {
     unsigned char unknown_04[8];
 } PCodeOperand;
 
+enum PCodeOperandFlags {
+    PCodeOperand_Use = 0x01,
+    PCodeOperand_Definition = 0x02,
+    PCodeOperand_LastUse = 0x04
+};
+
 typedef struct PCodeInstruction {
-    struct PCodeInstruction* next; /* 0x00 */
-    unsigned char unknown_04[0x12];
+    struct PCodeInstruction* next;     /* 0x00 */
+    struct PCodeInstruction* previous; /* 0x04 */
+    unsigned char unknown_08[0x0e];
     unsigned int flags;       /* 0x16 */
     short operand_count;      /* 0x1a */
     PCodeOperand operands[1]; /* 0x1c: variable-length array */
@@ -57,10 +64,17 @@ typedef struct PCodeInstruction {
 typedef struct PCodeBlock {
     struct PCodeBlock* next; /* 0x00 */
     unsigned char unknown_04[0x10];
-    PCodeInstruction* instructions; /* 0x14 */
-    unsigned char unknown_18[0x10];
+    PCodeInstruction* instructions;         /* 0x14 */
+    PCodeInstruction* reverse_instructions; /* 0x18 */
+    int index;                              /* 0x1c */
+    unsigned char unknown_20[8];
     int execution_weight; /* 0x28 */
 } PCodeBlock;
+
+typedef struct PCodeBlockLiveness {
+    unsigned char unknown_00[0x0c];
+    void* live_out; /* 0x0c */
+} PCodeBlockLiveness;
 
 typedef struct InterferenceNode {
     struct InterferenceNode* next; /* 0x00: temporary allocator lists */
@@ -108,6 +122,8 @@ typedef char PCodeBlock_instructions_14
     [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
 typedef char PCodeBlock_weight_28
     [(offsetof(PCodeBlock, execution_weight) == 0x28) ? 1 : -1];
+typedef char PCodeBlockLiveness_live_out_0c
+    [(offsetof(PCodeBlockLiveness, live_out) == 0x0c) ? 1 : -1];
 #endif
 
 #endif

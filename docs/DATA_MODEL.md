@@ -113,6 +113,22 @@ pipeline: initialization, two construction/coalescing stages, an optional
 class-specific dump, and two finalization stages. The internal roles retain
 address-suffixed names until their individual state transitions are recovered.
 
+Two of those internal stages are now identified. `SpillCode_MarkLastUses` at
+`0x00530a80` initializes a bitset from each block’s live-out state, then walks
+the block backward through the instruction link at `PCodeBlock + 0x18`.
+Definitions (operand flag `0x02`) leave the live set; uses (flag `0x01`) enter
+it. A use not already present receives flag `0x04`, establishing it as the
+forward last use. The block index at `+0x1c` selects a live-out record whose
+pointer is at offset `0x0c`.
+
+`SpillCode_MaterializeGraph` at `0x00530c00` converts a triangular interference
+bit matrix into the variable-sized node layout above. It records every neighbor
+index, initializes degree from the neighbor count, then applies a 16-bit
+coalescing-parent map. A non-root node receives flag `0x04` and stores its root
+index in the physical-register field; the root receives flag `0x08`. Tests
+cover last-use marking, live-out preservation, neighbor materialization,
+degrees, and coalescing-root resolution.
+
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 

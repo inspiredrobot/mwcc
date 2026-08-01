@@ -13,6 +13,7 @@ enum InterferenceFlags {
     Interference_Spilled = 0x01,
     Interference_Simplified = 0x02,
     Interference_Coalesced = 0x04,
+    Interference_CoalesceTarget = 0x08,
     Interference_SecondOfPair = 0x10,
     Interference_FirstOfPair = 0x20
 };
