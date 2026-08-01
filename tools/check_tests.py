@@ -18,9 +18,14 @@ def main() -> None:
     if compiler is None:
         raise FileNotFoundError(f"C compiler not found: {compiler_name}")
 
+    tests = [
+        ("registers", "src/backend/Registers.c", "tests/test_registers.c"),
+        ("coloring", "src/backend/Coloring.c", "tests/test_coloring.c"),
+    ]
     with tempfile.TemporaryDirectory(prefix="mwcc-tests-") as temp_dir:
-        executable = Path(temp_dir) / "test_registers"
-        command = [
+        for name, source, test in tests:
+            executable = Path(temp_dir) / f"test_{name}"
+            command = [
             compiler,
             "-std=c90",
             "-pedantic",
@@ -29,17 +34,17 @@ def main() -> None:
             "-Werror",
             "-DMWCC_SKIP_LAYOUT_ASSERTS",
             "-Iinclude",
-            "src/backend/Registers.c",
-            "tests/test_registers.c",
+            source,
+            test,
             "-o",
             str(executable),
-        ]
-        subprocess.run(command, check=True)
-        subprocess.run([str(executable)], check=True)
+            ]
+            subprocess.run(command, check=True)
+            subprocess.run([str(executable)], check=True)
 
     if args.stamp:
         args.stamp.parent.mkdir(parents=True, exist_ok=True)
-        args.stamp.write_text("register model tests passed\n", encoding="utf-8")
+        args.stamp.write_text("core model tests passed\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

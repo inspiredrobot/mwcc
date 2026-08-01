@@ -98,7 +98,7 @@ build {optimizer_analysis}: ghidra_export_optimizer tools/ghidra_scripts/ExportO
 build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/ExportSubsystems.java | {ghidra_stamp}
 build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
 build {format_stamp}: check_format tools/check_format.py .clang-format {format_inputs}
-build {test_stamp}: check_tests tools/check_tests.py src/backend/Registers.c tests/test_registers.c include/mwcc/Registers.h include/mwcc/backend_types.h
+build {test_stamp}: check_tests tools/check_tests.py src/backend/Registers.c src/backend/Coloring.c tests/test_registers.c tests/test_coloring.c include/mwcc/Registers.h include/mwcc/Coloring.h include/mwcc/backend_types.h
 {subsystem_validation}
 
 build check: phony {verified} {pe_info} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}

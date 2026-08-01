@@ -50,6 +50,26 @@ increasing virtual-register numbers or search the physical-use tables from
 register 31 downward. These shared mechanics are reconstructed in
 `src/backend/Registers.c` and covered by a host-side behavioral test.
 
+The three coloring setup routines at `0x004ce5f0`, `0x004ce710`, and
+`0x004ce850` confirm the interference-node layout through its inline neighbor
+list:
+
+- `+0x00`: temporary list link used during simplify/select;
+- `+0x04`: associated compiler object for precolored and virtual nodes;
+- `+0x08`: spill-cost numerator;
+- `+0x0c`: virtual-register number;
+- `+0x0e`: current interference degree;
+- `+0x10`: selected physical register;
+- `+0x12`: allocator flags;
+- `+0x14`: neighbor count;
+- `+0x16`: inline array of 16-bit neighbor indices.
+
+Setup assigns colors 0 through 31 to the physical nodes and then seeds them
+from two shared object lists. Vector and FPR membership use the `RegisterInfo`
+class bytes. GPR membership also recognizes paired values from the object type
+kind and size at `CompilerType + 0x02`; flags `0x20` and `0x10` identify the
+first and second halves. This shared precolor model is behaviorally tested.
+
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 

@@ -10,12 +10,21 @@
  * namespace grows beyond the 32 physical registers.
  */
 
+#include "mwcc/Coloring.h"
 #include "mwcc/Registers.h"
 
 enum RegisterClass {
     RegClass_GPR = 0,
     RegClass_FPR = 1,
     RegClass_VR = 9
+};
+
+enum InterferenceFlags {
+    Interference_Spilled = 0x01,
+    Interference_Simplified = 0x02,
+    Interference_Coalesced = 0x04,
+    Interference_SecondOfPair = 0x10,
+    Interference_FirstOfPair = 0x20
 };
 
 extern unsigned char gCOptimizerDumpEnabled;  /* 0x00584226 */
@@ -53,8 +62,8 @@ extern void Coloring_FreeIteration(void);  /* 0x00441e20 */
 extern void StackFrame_CheckAltivec(void); /* 0x004a9c80 */
 
 extern InterferenceNode** gInterferenceGraph; /* 0x00587e3c */
-extern ObjectList* gFPRObjectList1;           /* 0x0058806c */
-extern ObjectList* gFPRObjectList2;           /* 0x00587fb8 */
+extern ObjectList* gRegisterObjectList1;      /* 0x0058806c */
+extern ObjectList* gRegisterObjectList2;      /* 0x00587fb8 */
 static void Coloring_RunClass(PCodeFunction* function, int reg_class,
                               int register_count,
                               int (*available_registers)(void),
@@ -82,19 +91,65 @@ static void Coloring_RunClass(PCodeFunction* function, int reg_class,
     }
 }
 
-static void Coloring_BindFPRObjects(ObjectList* item)
+static int Coloring_IsPairedGPRObject(CompilerObject* object)
+{
+    CompilerType* type;
+
+    type = object->type;
+    if ((type->kind == 1 || type->kind == 3) && type->size == 8) {
+        return 1;
+    }
+    return gColoringGuard_00584244 && type->kind == 2 && type->size != 4;
+}
+
+static int Coloring_ObjectBelongsToClass(RegisterInfo* info, int reg_class)
+{
+    if (reg_class == RegClass_VR) {
+        return info->is_vector;
+    }
+    if (reg_class == RegClass_FPR) {
+        return info->is_fpr;
+    }
+    return !info->is_fpr || gColoringGuard_00584244;
+}
+
+static void Coloring_BindObjects(ObjectList* item, int reg_class)
 {
     while (item != 0) {
         CompilerObject* object;
         RegisterInfo* info;
+        InterferenceNode* node;
 
         object = item->object;
         info = Registers_GetInfo(object);
-        if (info->physical_register != 0 && info->is_fpr) {
-            gInterferenceGraph[info->physical_register]->object = object;
+        if (info->physical_register != 0 &&
+            Coloring_ObjectBelongsToClass(info, reg_class))
+        {
+            node = gInterferenceGraph[info->physical_register];
+            node->object = object;
+
+            if (reg_class == RegClass_GPR &&
+                Coloring_IsPairedGPRObject(object))
+            {
+                node->flags |= Interference_FirstOfPair;
+                node = gInterferenceGraph[info->secondary_register];
+                node->flags |= Interference_SecondOfPair;
+                node->object = object;
+            }
         }
         item = item->next;
     }
+}
+
+static void Coloring_SetupClass(int reg_class)
+{
+    int reg;
+
+    for (reg = 0; reg < 32; reg++) {
+        gInterferenceGraph[reg]->physical_register = (short) reg;
+    }
+    Coloring_BindObjects(gRegisterObjectList1, reg_class);
+    Coloring_BindObjects(gRegisterObjectList2, reg_class);
 }
 
 /* 0x004cdef0; functionally equivalent; binary match unmeasured. */
@@ -139,22 +194,23 @@ void Coloring_AllocateRegisters(PCodeFunction* function)
     gVirtualRegistersActive = 0;
 }
 
-/*
- * 0x004ce710; high-level equivalent; binary match unmeasured.
- * The target compiler unrolls the 32-entry initialization loop by eight.
- */
+/* 0x004ce5f0; high-level equivalent; target loop is unrolled. */
+void Coloring_SetupVRs(void)
+{
+    Coloring_SetupClass(RegClass_VR);
+}
+
+/* 0x004ce710; high-level equivalent; target loop is unrolled. */
 void Coloring_SetupFPRs(void)
 {
-    int reg;
-
     if (gColoringGuard_00584244) {
         Coloring_Assert("Coloring.c", 0x84);
     }
+    Coloring_SetupClass(RegClass_FPR);
+}
 
-    for (reg = 0; reg < 32; reg++) {
-        gInterferenceGraph[reg]->physical_register = (short) reg;
-    }
-
-    Coloring_BindFPRObjects(gFPRObjectList1);
-    Coloring_BindFPRObjects(gFPRObjectList2);
+/* 0x004ce850; high-level equivalent; target loop is unrolled. */
+void Coloring_SetupGPRs(void)
+{
+    Coloring_SetupClass(RegClass_GPR);
 }

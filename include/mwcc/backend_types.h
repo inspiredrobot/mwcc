@@ -9,6 +9,8 @@ typedef struct PCodeFunction PCodeFunction;
 
 typedef struct CompilerType {
     unsigned char kind; /* 0x00 */
+    unsigned char unknown_01;
+    unsigned int size; /* 0x02 */
 } CompilerType;
 
 typedef struct RegisterInfo {
@@ -38,10 +40,16 @@ typedef struct ObjectList {
 } ObjectList;
 
 typedef struct InterferenceNode {
-    unsigned char unknown_00[4];
-    CompilerObject* object; /* 0x04 */
-    unsigned char unknown_08[8];
-    short physical_register; /* 0x10 */
+    struct InterferenceNode* next; /* 0x00: temporary allocator lists */
+    CompilerObject* object;        /* 0x04 */
+    int spill_cost;                /* 0x08 */
+    short virtual_register;        /* 0x0c */
+    short degree;                  /* 0x0e */
+    short physical_register;       /* 0x10 */
+    unsigned char flags;           /* 0x12 */
+    unsigned char unknown_13;
+    short neighbor_count; /* 0x14 */
+    short neighbors[1];   /* 0x16: variable-length array */
 } InterferenceNode;
 
 #pragma pack(pop)
@@ -58,12 +66,18 @@ typedef char RegisterInfo_is_vector_2a
     [(offsetof(RegisterInfo, is_vector) == 0x2a) ? 1 : -1];
 typedef char
     CompilerObject_type_0e[(offsetof(CompilerObject, type) == 0x0e) ? 1 : -1];
+typedef char
+    CompilerType_size_02[(offsetof(CompilerType, size) == 0x02) ? 1 : -1];
 typedef char CompilerObject_info_26
     [(offsetof(CompilerObject, register_info_26) == 0x26) ? 1 : -1];
 typedef char CompilerObject_info_2e
     [(offsetof(CompilerObject, register_info_2e) == 0x2e) ? 1 : -1];
 typedef char InterferenceNode_physical_10
     [(offsetof(InterferenceNode, physical_register) == 0x10) ? 1 : -1];
+typedef char InterferenceNode_flags_12
+    [(offsetof(InterferenceNode, flags) == 0x12) ? 1 : -1];
+typedef char InterferenceNode_neighbors_16
+    [(offsetof(InterferenceNode, neighbors) == 0x16) ? 1 : -1];
 #endif
 
 #endif

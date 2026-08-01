@@ -106,9 +106,29 @@
           "match_note": "unmeasured: host toolchain pending"
         },
         {
+          "address": "0x004ce5f0",
+          "name": "Coloring_SetupVRs",
+          "role": "initialize vector colors and seed precolored object nodes",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent; target loop is unrolled",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        },
+        {
           "address": "0x004ce710",
           "name": "Coloring_SetupFPRs",
           "role": "floating-point register-class setup helper",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent; target loop is unrolled",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        },
+        {
+          "address": "0x004ce850",
+          "name": "Coloring_SetupGPRs",
+          "role": "initialize GPR colors and seed precolored single and paired object nodes",
           "evidence": "inferred",
           "decompiled": true,
           "functional_status": "high-level equivalent; target loop is unrolled",
