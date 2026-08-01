@@ -58,6 +58,8 @@ typedef struct PCodeBlock {
     struct PCodeBlock* next; /* 0x00 */
     unsigned char unknown_04[0x10];
     PCodeInstruction* instructions; /* 0x14 */
+    unsigned char unknown_18[0x10];
+    int execution_weight; /* 0x28 */
 } PCodeBlock;
 
 typedef struct InterferenceNode {
@@ -104,6 +106,8 @@ typedef char PCodeInstruction_operands_1c
     [(offsetof(PCodeInstruction, operands) == 0x1c) ? 1 : -1];
 typedef char PCodeBlock_instructions_14
     [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
+typedef char PCodeBlock_weight_28
+    [(offsetof(PCodeBlock, execution_weight) == 0x28) ? 1 : -1];
 #endif
 
 #endif

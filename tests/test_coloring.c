@@ -98,7 +98,7 @@ void SpillCode_00531800(int reg_class, int register_count)
     (void) register_count;
 }
 
-void SpillCode_00532790(int reg_class)
+void SpillCode_ComputeSpillCosts(int reg_class)
 {
     (void) reg_class;
     gPreparedSpillCosts++;

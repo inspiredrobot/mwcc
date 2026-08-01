@@ -26,10 +26,12 @@ address,size,kind,name,source,status
 0x004ce5f0,,function,Coloring_SetupVRs,vector precolor initialization and object binding,inferred
 0x004ce710,,function,Coloring_SetupFPRs,Coloring.c xref and FPR diagnostic mapping,inferred
 0x004ce850,,function,Coloring_SetupGPRs,GPR precolor initialization and paired-object flags,inferred
+0x00530a00,,function,SpillCode_BuildInterference,interference graph pipeline coordinator,inferred
 0x00531ab0,,function,SpillCode_00531ab0,SpillCode.c xref,inferred
 0x00531cb0,,function,SpillCode_00531cb0,SpillCode.c xref,inferred
 0x00531e80,,function,SpillCode_00531e80,SpillCode.c xref,inferred
 0x00532190,,function,SpillCode_00532190,SpillCode.c xref,inferred
 0x00532350,,function,SpillCode_00532350,SpillCode.c xref,inferred
 0x00532520,,function,SpillCode_00532520,SpillCode.c xref,inferred
+0x00532790,,function,SpillCode_ComputeSpillCosts,block-weighted operand cost accumulation,inferred
 0x00540bbc,47,string,mwcc_version_banner,binary string,confirmed

@@ -12,6 +12,7 @@
 
 #include "mwcc/Coloring.h"
 #include "mwcc/Registers.h"
+#include "mwcc/SpillCode.h"
 
 extern unsigned char gCOptimizerDumpEnabled;  /* 0x00584226 */
 extern unsigned char gColoringGuard_00584244; /* role not yet established */
@@ -34,13 +35,10 @@ extern int Registers_AvailableVRs(void);  /* 0x004c1ae0 */
 extern int Registers_AvailableGPRs(void); /* 0x004c1b20 */
 extern int Registers_AvailableFPRs(void); /* 0x004c1b00 */
 
-extern void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
-                                        int register_count); /* 0x00530a00 */
-extern void Coloring_SetupVRs(void);                         /* 0x004ce5f0 */
-extern void Coloring_SetupGPRs(void);                        /* 0x004ce850 */
-extern void Coloring_SetupFPRs(void);                        /* 0x004ce710 */
+extern void Coloring_SetupVRs(void);  /* 0x004ce5f0 */
+extern void Coloring_SetupGPRs(void); /* 0x004ce850 */
+extern void Coloring_SetupFPRs(void); /* 0x004ce710 */
 extern void SpillCode_00531800(int reg_class, int register_count);
-extern void SpillCode_00532790(int reg_class);
 extern void Coloring_FreeIteration(void);  /* 0x00441e20 */
 extern void StackFrame_CheckAltivec(void); /* 0x004a9c80 */
 
@@ -152,7 +150,7 @@ InterferenceNode* Coloring_SimplifyGraph(int reg_class, int available_colors,
     } while (changed);
 
     if (remaining != 0) {
-        SpillCode_00532790(reg_class);
+        SpillCode_ComputeSpillCosts(reg_class);
     }
 
     while (remaining != 0) {

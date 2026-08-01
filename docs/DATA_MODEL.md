@@ -100,6 +100,19 @@ low-degree simplification, minimum spill-cost selection, lowest-bit coloring,
 color exhaustion, coalesced aliases, PCode rewriting, and paired-register
 commit behavior.
 
+`SpillCode_ComputeSpillCosts` at `0x00532790` defines the numerator used by
+spill ranking. For each instruction operand in the selected class, it adds
+twice the block execution weight for operand flag `0x01` and once the weight
+for flag `0x02`; an operand carrying both flags receives three times the
+weight. The block weight is stored at `PCodeBlock + 0x28`. Option byte
+`0x005842e2` replaces every block weight with one, providing an unweighted
+mode. The behavior is covered by weighted and uniform test cases.
+
+`SpillCode_BuildInterference` at `0x00530a00` confirms a six-stage graph
+pipeline: initialization, two construction/coalescing stages, an optional
+class-specific dump, and two finalization stages. The internal roles retain
+address-suffixed names until their individual state transitions are recovered.
+
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 
