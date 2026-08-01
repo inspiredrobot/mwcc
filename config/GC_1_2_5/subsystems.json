@@ -106,6 +106,36 @@
           "match_note": "unmeasured: host toolchain pending"
         },
         {
+          "address": "0x004ce1a0",
+          "name": "Coloring_CommitAssignments",
+          "role": "rewrite PCode and object metadata with selected colors",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        },
+        {
+          "address": "0x004ce2d0",
+          "name": "Coloring_SelectColors",
+          "role": "select the lowest available color or mark a spill",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        },
+        {
+          "address": "0x004ce400",
+          "name": "Coloring_SimplifyGraph",
+          "role": "simplify low-degree nodes and rank spill candidates",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        },
+        {
           "address": "0x004ce5f0",
           "name": "Coloring_SetupVRs",
           "role": "initialize vector colors and seed precolored object nodes",

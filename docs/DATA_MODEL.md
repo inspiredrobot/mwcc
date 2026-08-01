@@ -70,6 +70,36 @@ class bytes. GPR membership also recognizes paired values from the object type
 kind and size at `CompilerType + 0x02`; flags `0x20` and `0x10` identify the
 first and second halves. This shared precolor model is behaviorally tested.
 
+The simplify/select/commit routines at `0x004ce400`, `0x004ce2d0`, and
+`0x004ce1a0` establish the allocator’s central decisions:
+
+1. repeatedly remove every active virtual node whose degree is less than the
+   number of available colors, decrementing each neighbor’s degree;
+2. when no such node remains, rank spill candidates by `spill_cost / degree`
+   (with separate fixed scores for protected nodes), remove the lowest score,
+   and simplify again;
+3. pop the resulting stack, remove every already-colored neighbor from the
+   class color mask, and choose the lowest remaining color bit;
+4. if the mask is empty, claim another physical color for the class or set the
+   node’s spill flag when no register is available;
+5. resolve coalesced color aliases, rewrite matching 12-byte PCode operands,
+   remove newly redundant instructions, and commit primary or secondary colors
+   to `RegisterInfo`.
+
+The target rewrites PCode before resolving coalesced aliases for object
+metadata. Consequently, coalescing must already have redirected live PCode
+operands to the surviving graph node; the commit pass does not repair an
+operand that still names a coalesced-away node. A behavioral-test failure made
+this ordering constraint explicit and the disassembly at `0x004ce1a0`
+confirms it.
+
+This confirms a 12-byte `PCodeOperand`, an instruction operand array at
+`PCodeInstruction + 0x1c`, and a block instruction-list pointer at
+`PCodeBlock + 0x14`. The high-level algorithm is covered by tests for
+low-degree simplification, minimum spill-cost selection, lowest-bit coloring,
+color exhaustion, coalesced aliases, PCode rewriting, and paired-register
+commit behavior.
+
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 

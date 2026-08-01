@@ -20,6 +20,9 @@ address,size,kind,name,source,status
 0x004ccae0,,function,Scheduler_Schedule,CodeGen before and after scheduling boundaries,inferred
 0x004ccf10,,function,Scheduler_004ccf10,Scheduler.c xref,inferred
 0x004cdef0,,function,Coloring_AllocateRegisters,Coloring.c xref and CodeGen trace boundary,inferred
+0x004ce1a0,,function,Coloring_CommitAssignments,PCode rewrite and object color commit,inferred
+0x004ce2d0,,function,Coloring_SelectColors,neighbor-mask color selection and spill marking,inferred
+0x004ce400,,function,Coloring_SimplifyGraph,degree simplification and spill-cost ranking,inferred
 0x004ce5f0,,function,Coloring_SetupVRs,vector precolor initialization and object binding,inferred
 0x004ce710,,function,Coloring_SetupFPRs,Coloring.c xref and FPR diagnostic mapping,inferred
 0x004ce850,,function,Coloring_SetupGPRs,GPR precolor initialization and paired-object flags,inferred

@@ -39,6 +39,27 @@ typedef struct ObjectList {
     CompilerObject* object;  /* 0x04 */
 } ObjectList;
 
+typedef struct PCodeOperand {
+    unsigned char kind;  /* 0x00 */
+    unsigned char flags; /* 0x01 */
+    short reg;           /* 0x02 */
+    unsigned char unknown_04[8];
+} PCodeOperand;
+
+typedef struct PCodeInstruction {
+    struct PCodeInstruction* next; /* 0x00 */
+    unsigned char unknown_04[0x12];
+    unsigned int flags;       /* 0x16 */
+    short operand_count;      /* 0x1a */
+    PCodeOperand operands[1]; /* 0x1c: variable-length array */
+} PCodeInstruction;
+
+typedef struct PCodeBlock {
+    struct PCodeBlock* next; /* 0x00 */
+    unsigned char unknown_04[0x10];
+    PCodeInstruction* instructions; /* 0x14 */
+} PCodeBlock;
+
 typedef struct InterferenceNode {
     struct InterferenceNode* next; /* 0x00: temporary allocator lists */
     CompilerObject* object;        /* 0x04 */
@@ -78,6 +99,11 @@ typedef char InterferenceNode_flags_12
     [(offsetof(InterferenceNode, flags) == 0x12) ? 1 : -1];
 typedef char InterferenceNode_neighbors_16
     [(offsetof(InterferenceNode, neighbors) == 0x16) ? 1 : -1];
+typedef char PCodeOperand_size_0c[(sizeof(PCodeOperand) == 0x0c) ? 1 : -1];
+typedef char PCodeInstruction_operands_1c
+    [(offsetof(PCodeInstruction, operands) == 0x1c) ? 1 : -1];
+typedef char PCodeBlock_instructions_14
+    [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
 #endif
 
 #endif
