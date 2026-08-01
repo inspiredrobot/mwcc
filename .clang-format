@@ -1,0 +1,20 @@
+BasedOnStyle: LLVM
+DerivePointerAlignment: false
+PointerAlignment: Left
+UseTab: Never
+IndentWidth: 4
+TabWidth: 4
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: MultiLine
+InsertBraces: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortEnumsOnASingleLine: false
+IndentCaseLabels: false
+ColumnLimit: 79
+SpacesInCStyleCastParentheses: false
+SpaceAfterCStyleCast: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+SortIncludes: CaseInsensitive

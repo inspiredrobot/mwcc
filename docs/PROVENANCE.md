@@ -34,7 +34,8 @@ No project-wide license has been selected yet.
   reference. Its GC/1.2.5 optimizer breakpoint independently corroborates the
   frontend dispatcher address. No source has yet been copied or adapted.
 - The build/configuration layout follows conventions used by the
-  doldecomp/melee project. No Melee source file has yet been copied.
+  doldecomp/melee project. `.clang-format` is adapted from Melee's formatting
+  configuration; project-specific include categories were omitted.
 - Carnegie Mellon Graphics Lab's historical download archive is used only as a
   source of external comparison objects; no package content is committed or
   executed. The inspected archives and SHA-256 hashes are:

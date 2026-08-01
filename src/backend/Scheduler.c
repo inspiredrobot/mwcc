@@ -9,3 +9,5 @@
  * markers. The helper at 0x004ccf10 walks packed 12-byte PCode operands and
  * constructs register and memory dependencies.
  */
+
+typedef struct Scheduler_DecompPending Scheduler_DecompPending;

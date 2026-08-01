@@ -31,4 +31,5 @@
   `docs/DATA_MODEL.md`, and `docs/DECOMP_WORKFLOW.md`. Update the subsystem
   manifest when an address-backed role or name is confirmed or rejected.
 - Keep commits focused and run `ninja check` plus relevant object diffs before
-  committing.
+  committing. Run `python3 tools/check_format.py --fix` before committing C or
+  header changes; `ninja check` enforces the result.

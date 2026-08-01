@@ -3,9 +3,152 @@
  *
  * Working entry points:
  *   0x004cdef0  Coloring_AllocateRegisters
- *   0x004ce710  Coloring_004ce710
+ *   0x004ce710  Coloring_SetupFPRs
  *
- * The coordinator colors vector, floating-point, and general-purpose classes
- * separately and retries after inserting spill code. Preserve that class
- * split while recovering interference, coalescing, coloring, and spill choice.
+ * The coordinator handles vector, GPR, and FPR classes in that order. Each
+ * class has an independent spill-and-retry loop once its virtual-register
+ * namespace grows beyond the 32 physical registers.
  */
+
+#include "mwcc/backend_types.h"
+
+enum RegisterClass {
+    RegClass_GPR = 0,
+    RegClass_FPR = 1,
+    RegClass_VR = 9
+};
+
+extern unsigned char gCOptimizerDumpEnabled;  /* 0x00584226 */
+extern unsigned char gColoringGuard_00584244; /* role not yet established */
+extern unsigned char gHasAltivecFrame;        /* 0x005884f9 */
+extern short gUsedVirtualRegistersVR;         /* 0x0058849a */
+extern short gUsedVirtualRegistersGPR;        /* 0x0058846e */
+extern short gUsedVirtualRegistersFPR;        /* 0x0058846c */
+extern short gColoringRegisterCount;          /* 0x00581b88 */
+extern int gVirtualRegistersActive;           /* 0x00587648, inferred */
+
+extern char* Coloring_GetFunctionObject(PCodeFunction* function);
+extern void Coloring_Dump(const char* function_name, const char* stage);
+extern void Coloring_Error(int code, const char* register_class);
+extern void Coloring_Assert(const char* file, int line);
+
+extern void Registers_SetupVRs(void);     /* 0x004c1560 */
+extern void Registers_SetupGPRs(void);    /* 0x004c15c0 */
+extern void Registers_SetupFPRs(void);    /* 0x004c1590 */
+extern int Registers_AvailableVRs(void);  /* 0x004c1ae0 */
+extern int Registers_AvailableGPRs(void); /* 0x004c1b20 */
+extern int Registers_AvailableFPRs(void); /* 0x004c1b00 */
+
+extern void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
+                                        int register_count); /* 0x00530a00 */
+extern void Coloring_SetupVRs(void);                         /* 0x004ce5f0 */
+extern void Coloring_SetupGPRs(void);                        /* 0x004ce850 */
+extern void Coloring_SetupFPRs(void);                        /* 0x004ce710 */
+extern int* Coloring_004ce400(int reg_class, int available,
+                              int register_count);
+extern int Coloring_004ce2d0(int reg_class, int* graph);
+extern void Coloring_004ce1a0(int reg_class, int register_count);
+extern void SpillCode_00531800(int reg_class, int register_count);
+extern void Coloring_FreeIteration(void);  /* 0x00441e20 */
+extern void StackFrame_CheckAltivec(void); /* 0x004a9c80 */
+
+extern InterferenceNode** gInterferenceGraph; /* 0x00587e3c */
+extern ObjectList* gFPRObjectList1;           /* 0x0058806c */
+extern ObjectList* gFPRObjectList2;           /* 0x00587fb8 */
+extern RegisterInfo* Registers_GetInfo(CompilerObject* object);
+
+#define COLORING_RUN_CLASS(function, reg_class, count, available, setup)      \
+    do {                                                                      \
+        int retry = 1;                                                        \
+        while (retry && (count) > 32) {                                       \
+            int* graph;                                                       \
+            SpillCode_BuildInterference((function), (reg_class), (count));    \
+            setup();                                                          \
+            retry = 0;                                                        \
+            graph = Coloring_004ce400((reg_class), available(), (count));     \
+            if (!Coloring_004ce2d0((reg_class), graph)) {                     \
+                retry = 1;                                                    \
+            }                                                                 \
+            if (retry) {                                                      \
+                SpillCode_00531800((reg_class), (count));                     \
+            } else {                                                          \
+                Coloring_004ce1a0((reg_class), (count));                      \
+            }                                                                 \
+            Coloring_FreeIteration();                                         \
+        }                                                                     \
+    } while (0)
+
+#define COLORING_BIND_FPR_OBJECTS(list)                                       \
+    do {                                                                      \
+        ObjectList* item = (list);                                            \
+        while (item != 0) {                                                   \
+            CompilerObject* object = item->object;                            \
+            RegisterInfo* info = Registers_GetInfo(object);                   \
+            if (info->physical_register != 0 && info->is_fpr) {               \
+                gInterferenceGraph[info->physical_register]->object = object; \
+            }                                                                 \
+            item = item->next;                                                \
+        }                                                                     \
+    } while (0)
+
+/* 0x004cdef0; functionally equivalent; binary match unmeasured. */
+void Coloring_AllocateRegisters(PCodeFunction* function)
+{
+    Registers_SetupVRs();
+    gColoringRegisterCount = gUsedVirtualRegistersVR;
+    if (gUsedVirtualRegistersVR > 32 && Registers_AvailableVRs() == 0) {
+        Coloring_Error(0x66, "VR");
+        return;
+    }
+    COLORING_RUN_CLASS(function, RegClass_VR, gUsedVirtualRegistersVR,
+                       Registers_AvailableVRs, Coloring_SetupVRs);
+
+    StackFrame_CheckAltivec();
+    if (gCOptimizerDumpEnabled && gHasAltivecFrame) {
+        Coloring_Dump(Coloring_GetFunctionObject(function) + 10,
+                      "AFTER CHECKING FOR ALTIVEC FRAME");
+    }
+
+    Registers_SetupGPRs();
+    gColoringRegisterCount = gUsedVirtualRegistersGPR;
+    if (gUsedVirtualRegistersGPR > 32 && Registers_AvailableGPRs() < 1) {
+        Coloring_Error(0x66, "GPR");
+        return;
+    }
+    COLORING_RUN_CLASS(function, RegClass_GPR, gUsedVirtualRegistersGPR,
+                       Registers_AvailableGPRs, Coloring_SetupGPRs);
+
+    Registers_SetupFPRs();
+    gColoringRegisterCount = gUsedVirtualRegistersFPR;
+    if (gColoringGuard_00584244 && gUsedVirtualRegistersFPR > 32) {
+        Coloring_Assert("Coloring.c", 0x1ec);
+    }
+    if (gUsedVirtualRegistersFPR > 32 && Registers_AvailableFPRs() < 1) {
+        Coloring_Error(0x66, "FPR");
+        return;
+    }
+    COLORING_RUN_CLASS(function, RegClass_FPR, gUsedVirtualRegistersFPR,
+                       Registers_AvailableFPRs, Coloring_SetupFPRs);
+
+    gVirtualRegistersActive = 0;
+}
+
+/*
+ * 0x004ce710; high-level equivalent; binary match unmeasured.
+ * The target compiler unrolls the 32-entry initialization loop by eight.
+ */
+void Coloring_SetupFPRs(void)
+{
+    int reg;
+
+    if (gColoringGuard_00584244) {
+        Coloring_Assert("Coloring.c", 0x84);
+    }
+
+    for (reg = 0; reg < 32; reg++) {
+        gInterferenceGraph[reg]->physical_register = (short) reg;
+    }
+
+    COLORING_BIND_FPR_OBJECTS(gFPRObjectList1);
+    COLORING_BIND_FPR_OBJECTS(gFPRObjectList2);
+}

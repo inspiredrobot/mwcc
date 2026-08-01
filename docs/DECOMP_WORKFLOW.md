@@ -4,7 +4,16 @@
 
 Run `python3 configure.py` followed by `ninja check`. This verifies the stock
 SHA-256, PE metadata, core function addresses, source placeholders, and exact
-trace strings. Never begin from the patched `GC_1_2_5n` image by accident.
+trace strings. It also compiles every recovered translation unit with strict
+C90 host syntax checks; this is a structural check, not a byte-match claim.
+Never begin from the patched `GC_1_2_5n` image by accident.
+
+Before committing C or header changes, run:
+
+```sh
+python3 tools/check_format.py --fix
+ninja check
+```
 
 The compiler binary is untrusted data. Static analysis does not execute it. Do
 not invoke it on the host or through host Wine/Wibo; follow the sandbox policy
@@ -48,3 +57,6 @@ reliable fitness function. When candidate x86 compilers are available, test
 their Release configurations and exact project flags in the offline sandbox.
 Melee's PowerPC `-O4,p` flags describe the compiler's output behavior and must
 not be confused with the flags that built this Win32 compiler executable.
+Functions may be marked functionally equivalent before binary matching is
+available. Their `match_percent` must remain `null`, with a reason, until an
+actual candidate host compiler produces a comparable object.

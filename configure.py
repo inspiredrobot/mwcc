@@ -31,6 +31,11 @@ def write_build_ninja(version: str, config_path: Path) -> None:
     subsystem_inventory = build_dir / "subsystem-inventory.md"
     subsystem_manifest = Path("config") / version / "subsystems.json"
     subsystem_stamp = build_dir / "subsystems.stamp"
+    source_stamp = build_dir / "sources.stamp"
+    format_stamp = build_dir / "format.stamp"
+    source_files = sorted(Path("src").rglob("*.c"))
+    source_dependencies = source_files + sorted(Path("include").rglob("*.h"))
+    source_inputs = " ".join(quote(source) for source in source_dependencies)
     subsystem_validation = ""
     subsystem_check = ""
     if subsystem_manifest.is_file():
@@ -71,14 +76,24 @@ rule ghidra_export_subsystems
   description = GHIDRA-EXPORT $out
   pool = console
 
+rule check_sources
+  command = $python tools/check_sources.py --stamp $out
+  description = C-SYNTAX $in
+
+rule check_format
+  command = $python tools/check_format.py --stamp $out
+  description = C-FORMAT $in
+
 build {verified}: verify_original {config_path}
 build {pe_info}: pe_info {config_path} | {verified}
 build {ghidra_stamp}: ghidra_import {config_path} | {verified}
 build {optimizer_analysis}: ghidra_export_optimizer tools/ghidra_scripts/ExportOptimizer.java | {ghidra_stamp}
 build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/ExportSubsystems.java | {ghidra_stamp}
+build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
+build {format_stamp}: check_format tools/check_format.py .clang-format {source_inputs}
 {subsystem_validation}
 
-build check: phony {verified} {pe_info} {subsystem_check}
+build check: phony {verified} {pe_info} {source_stamp} {format_stamp} {subsystem_check}
 build ghidra: phony {ghidra_stamp}
 build optimizer-analysis: phony {optimizer_analysis}
 build subsystem-inventory: phony {subsystem_inventory}

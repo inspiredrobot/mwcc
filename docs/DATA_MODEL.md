@@ -20,9 +20,18 @@ dependencies against separate register-class tables. These facts are visible
 in this target's instructions and are not imported from an external debugger.
 
 At `0x004cdef0`, coloring operates on three class/count globals in this order:
-vector (`0x0058849a`), floating-point (`0x0058846e`), then general-purpose
-(`0x0058846c`). Each class can enter a retry loop that invokes a spill-code
-path before coloring is attempted again.
+vector (`0x0058849a`, class 9), general-purpose (`0x0058846e`, class 0), then
+floating-point (`0x0058846c`, class 1). The nearby `VR`, `GPR`, and `FPR`
+diagnostic strings independently establish this mapping. Each class can enter
+a retry loop that invokes a spill-code path before coloring is attempted
+again.
+
+`Registers_GetInfo` at `0x004c1720` allocates a zeroed `0x2c`-byte record for
+object kinds 0 and 2, while kind 1 uses an existing record. Together with
+`Coloring_SetupFPRs` at `0x004ce710`, this confirms the record's physical
+register field at `0x24` and its GPR/FPR discriminator at `0x28`. The minimal
+validated layouts now live in `include/mwcc/backend_types.h`; padding remains
+explicit until more fields are understood.
 
 ## Provisional GC/1.x hypotheses
 

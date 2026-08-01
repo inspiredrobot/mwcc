@@ -5,6 +5,11 @@
     "inferred": "Strong semantic inference from exact control flow or string xrefs",
     "reference": "Suggested by another MWCC version and awaiting target validation"
   },
+  "matching": {
+    "metric": "function code-byte percentage against a candidate Win32 host compiler object",
+    "status": "unavailable",
+    "reason": "the exact Win32 host compiler and project flags are not yet confirmed"
+  },
   "modules": [
     {
       "name": "IrOptimizer",
@@ -41,19 +46,31 @@
           "address": "0x004c4430",
           "name": "COptimizer_Optimize",
           "role": "dispatch by optimization level",
-          "evidence": "inferred"
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         },
         {
           "address": "0x004c4530",
           "name": "COptimizer_Level4",
           "role": "optimization-level 4 pass pipeline",
-          "evidence": "confirmed"
+          "evidence": "confirmed",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         },
         {
           "address": "0x004c4910",
           "name": "COptimizer_Level3",
           "role": "optimization-level 3 pass pipeline",
-          "evidence": "confirmed"
+          "evidence": "confirmed",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         }
       ]
     },
@@ -62,7 +79,7 @@
       "source_anchor": "Registers.c",
       "source": "src/backend/Registers.c",
       "functions": [
-        { "address": "0x004c1720", "name": "Registers_004c1720", "role": "register-state helper", "evidence": "inferred" },
+        { "address": "0x004c1720", "name": "Registers_GetInfo", "role": "get or create an object's register-allocation record", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x004c1b40", "name": "Registers_004c1b40", "role": "register-state helper", "evidence": "inferred" },
         { "address": "0x004c1c50", "name": "Registers_004c1c50", "role": "register-state helper", "evidence": "inferred" },
         { "address": "0x004c1d60", "name": "Registers_004c1d60", "role": "register-pair helper", "evidence": "inferred" },
@@ -81,14 +98,22 @@
         {
           "address": "0x004cdef0",
           "name": "Coloring_AllocateRegisters",
-          "role": "allocate vector, floating-point, and general-purpose register classes with spill retries",
-          "evidence": "inferred"
+          "role": "allocate vector, general-purpose, and floating-point register classes with spill retries",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         },
         {
           "address": "0x004ce710",
-          "name": "Coloring_004ce710",
-          "role": "general-purpose register-class coloring helper",
-          "evidence": "inferred"
+          "name": "Coloring_SetupFPRs",
+          "role": "floating-point register-class setup helper",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent; target loop is unrolled",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         }
       ]
     },

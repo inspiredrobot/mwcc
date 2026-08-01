@@ -9,3 +9,5 @@
  * optimization, and emission. Recover the coordinator before its large
  * helpers so every pass boundary remains visible and testable.
  */
+
+typedef struct CodeGen_DecompPending CodeGen_DecompPending;

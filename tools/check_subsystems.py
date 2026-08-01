@@ -30,10 +30,12 @@ def main() -> None:
     names: set[str] = set()
     addresses: set[int] = set()
     function_count = 0
+    decompiled_count = 0
     for module in manifest["modules"]:
         source = Path(module["source"])
         if not source.is_file():
             raise FileNotFoundError(f"missing source placeholder: {source}")
+        source_text = source.read_text(encoding="utf-8")
         for function in module["functions"]:
             address = parse_address(function["address"])
             section = pe.section_for_address(address)
@@ -46,6 +48,33 @@ def main() -> None:
             addresses.add(address)
             names.add(function["name"])
             function_count += 1
+            if function.get("decompiled", False):
+                if f"{function['name']}(" not in source_text:
+                    raise ValueError(
+                        f"decompiled function missing from {source}: "
+                        f"{function['name']}"
+                    )
+                decompiled_count += 1
+                if "functional_status" not in function:
+                    raise ValueError(
+                        f"decompiled function lacks functional status: "
+                        f"{function['name']}"
+                    )
+                if "match_percent" not in function:
+                    raise ValueError(
+                        f"decompiled function lacks match percentage: "
+                        f"{function['name']}"
+                    )
+                match_percent = function["match_percent"]
+                if match_percent is not None and not 0 <= match_percent <= 100:
+                    raise ValueError(
+                        f"invalid match percentage for {function['name']}: "
+                        f"{match_percent}"
+                    )
+                if match_percent is None and not function.get("match_note"):
+                    raise ValueError(
+                        f"unmeasured function lacks match note: {function['name']}"
+                    )
 
     for marker in manifest["trace_strings"]:
         address = parse_address(marker["address"])
@@ -58,7 +87,8 @@ def main() -> None:
             )
 
     print(
-        f"Validated {function_count} core functions and "
+        f"Validated {function_count} core functions, "
+        f"{decompiled_count} reconstructed bodies, and "
         f"{len(manifest['trace_strings'])} trace strings"
     )
     if args.stamp:

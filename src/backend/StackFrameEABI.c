@@ -9,3 +9,5 @@
  * Recover argument, local, temporary, spill, save-area, and outgoing-call
  * regions independently before assigning final field names.
  */
+
+typedef struct StackFrameEABI_DecompPending StackFrameEABI_DecompPending;

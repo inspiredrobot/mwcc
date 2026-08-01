@@ -19,8 +19,19 @@ EABI stack layout -> prologue/epilogue -> final scheduling/emission
 `config/GC_1_2_5/subsystems.json` is the machine-checkable index. It records
 each working function name, exact address, source-file anchor, role, and
 evidence level. `ninja check` verifies every function lies in `.text`, every
-source placeholder exists, and every trace string still matches the verified
-stock executable byte-for-byte.
+source placeholder exists, every function marked `decompiled` has a body in
+its assigned source, and every trace string still matches the verified stock
+executable byte-for-byte.
+
+Print the current reconstructed-function and match table with:
+
+```sh
+python3 tools/decomp_status.py
+```
+
+Binary percentages remain “unmeasured” until the exact Win32 host toolchain is
+available. Functional status can advance independently when exact target
+control flow and observable state changes have been reconstructed.
 
 ## First vertical slices
 
@@ -40,7 +51,7 @@ refactor them into a unique-pass list. Trace strings at `0x0056200c` through
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,
-floating-point, and general-purpose classes independently and retries classes
+general-purpose, and floating-point classes independently and retries classes
 after spill insertion. Work outward into `Coloring.c`, the `Registers.c` state
 helpers, and finally the six directly anchored `SpillCode.c` functions.
 
