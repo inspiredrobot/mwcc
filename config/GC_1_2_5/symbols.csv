@@ -29,6 +29,7 @@ address,size,kind,name,source,status
 0x00530a00,,function,SpillCode_BuildInterference,interference graph pipeline coordinator,inferred
 0x00530a80,,function,SpillCode_MarkLastUses,backward liveness and last-use operand markers,inferred
 0x00530c00,,function,SpillCode_MaterializeGraph,interference bit matrix to graph nodes,inferred
+0x00530e00,,function,SpillCode_CoalesceCopies,copy removal edge transfer and operand canonicalization,inferred
 0x00531ab0,,function,SpillCode_00531ab0,SpillCode.c xref,inferred
 0x00531cb0,,function,SpillCode_00531cb0,SpillCode.c xref,inferred
 0x00531e80,,function,SpillCode_00531e80,SpillCode.c xref,inferred

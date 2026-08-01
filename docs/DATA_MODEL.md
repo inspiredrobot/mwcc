@@ -129,6 +129,16 @@ index in the physical-register field; the root receives flag `0x08`. Tests
 cover last-use marking, live-out preservation, neighbor materialization,
 degrees, and coalescing-root resolution.
 
+`SpillCode_CoalesceCopies` at `0x00530e00` identifies the class-specific copy
+opcodes (`0x8b`, `0x9e`, and `0x18e` for GPR, FPR, and VR respectively). A copy
+whose roots do not interfere may be removed; the lower-numbered root survives,
+and every interference edge of the discarded root is transferred to it.
+Physical registers below 32 are always eligible, while virtual-register pairs
+must both fall inside the class-specific coalescing range. A final walk rewrites
+every operand of the selected class to its canonical root. This directly
+explains the canonical-PCode invariant required by `Coloring_CommitAssignments`.
+Tests cover copy removal, root selection, edge transfer, and operand rewriting.
+
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 

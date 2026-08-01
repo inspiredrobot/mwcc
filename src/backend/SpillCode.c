@@ -17,11 +17,16 @@ extern PCodeBlock* gPCodeBlocks;                /* 0x00587c74 */
 extern PCodeBlockLiveness* gPCodeBlockLiveness; /* 0x00587e74 */
 extern unsigned int* gInterferenceBits;         /* 0x00583088 */
 extern short* gCoalescedRegisters;              /* 0x0058308c */
+extern short gGPRCoalesceFirst;                 /* 0x005882da */
+extern short gGPRCoalesceLast;                  /* 0x005882e2 */
+extern short gFPRCoalesceFirst;                 /* 0x005882dc */
+extern short gFPRCoalesceLast;                  /* 0x005882e0 */
+extern short gVRCoalesceFirst;                  /* 0x00588464 */
+extern short gVRCoalesceLast;                   /* 0x0058846a */
 
 extern void SpillCode_005301b0(PCodeFunction* function, int reg_class,
                                int register_count);
 extern void SpillCode_00531290(int reg_class, int register_count);
-extern void SpillCode_00530e00(int reg_class, int register_count);
 extern void SpillCode_DumpInterference(const char* format,
                                        int register_count); /* 0x004c4bc0 */
 extern void* SpillCode_Allocate(unsigned int size);         /* 0x00441f20 */
@@ -56,7 +61,7 @@ void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
         SpillCode_DumpInterference(SpillCode_RegisterFormat(reg_class),
                                    register_count);
     }
-    SpillCode_00530e00(reg_class, register_count);
+    SpillCode_CoalesceCopies(reg_class, register_count);
     SpillCode_MaterializeGraph(register_count);
 }
 
@@ -147,6 +152,26 @@ static int SpillCode_Interferes(int first, int second)
     return (gInterferenceBits[index >> 5] & (1U << (index & 31))) != 0;
 }
 
+static void SpillCode_SetInterference(int first, int second)
+{
+    unsigned int index;
+    int larger;
+    int smaller;
+
+    if (first == second) {
+        return;
+    }
+    if (first > second) {
+        larger = first;
+        smaller = second;
+    } else {
+        larger = second;
+        smaller = first;
+    }
+    index = (unsigned int) ((larger * larger) / 2 + smaller);
+    gInterferenceBits[index >> 5] |= 1U << (index & 31);
+}
+
 static short SpillCode_CoalesceRoot(short reg)
 {
     short parent;
@@ -158,6 +183,114 @@ static short SpillCode_CoalesceRoot(short reg)
         }
         reg = parent;
     } while (1);
+}
+
+static short SpillCode_CopyOpcode(int reg_class)
+{
+    if (reg_class == 0) {
+        return 0x8b;
+    }
+    if (reg_class == 1) {
+        return 0x9e;
+    }
+    return 0x18e;
+}
+
+static int SpillCode_CoalesceEligible(int reg_class, short reg)
+{
+    if (reg_class == 0) {
+        return reg >= gGPRCoalesceFirst && reg <= gGPRCoalesceLast;
+    }
+    if (reg_class == 1) {
+        return reg >= gFPRCoalesceFirst && reg <= gFPRCoalesceLast;
+    }
+    return reg >= gVRCoalesceFirst && reg <= gVRCoalesceLast;
+}
+
+static int SpillCode_CanCoalesce(int reg_class, short first, short second)
+{
+    if (SpillCode_Interferes(first, second)) {
+        return 0;
+    }
+    if (first < 32 || second < 32) {
+        return 1;
+    }
+    return SpillCode_CoalesceEligible(reg_class, first) &&
+           SpillCode_CoalesceEligible(reg_class, second);
+}
+
+static void SpillCode_MergeCoalesceRoots(short first, short second,
+                                         int register_count)
+{
+    short root;
+    short child;
+    int reg;
+
+    root = first < second ? first : second;
+    child = first < second ? second : first;
+    gCoalescedRegisters[child] = root;
+    for (reg = 0; reg < register_count; reg++) {
+        if (SpillCode_Interferes(child, reg)) {
+            SpillCode_SetInterference(root, reg);
+        }
+    }
+}
+
+/* 0x00530e00; high-level equivalent; binary match unmeasured. */
+void SpillCode_CoalesceCopies(int reg_class, int register_count)
+{
+    PCodeBlock* block;
+    int reg;
+
+    gCoalescedRegisters = SpillCode_Allocate(
+        (unsigned int) (register_count * sizeof(*gCoalescedRegisters)));
+    for (reg = 0; reg < register_count; reg++) {
+        gCoalescedRegisters[reg] = (short) reg;
+    }
+
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        PCodeInstruction* instruction;
+
+        for (instruction = block->instructions; instruction != 0;
+             instruction = instruction->next)
+        {
+            if (instruction->opcode == SpillCode_CopyOpcode(reg_class) &&
+                (instruction->flags & 0x400) == 0)
+            {
+                short first;
+                short second;
+
+                first = SpillCode_CoalesceRoot(instruction->operands[0].reg);
+                second = SpillCode_CoalesceRoot(instruction->operands[1].reg);
+                if (first == second) {
+                    PCode_RemoveRedundantInstruction(instruction);
+                } else if (SpillCode_CanCoalesce(reg_class, first, second)) {
+                    SpillCode_MergeCoalesceRoots(first, second,
+                                                 register_count);
+                    PCode_RemoveRedundantInstruction(instruction);
+                }
+            }
+        }
+    }
+
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        PCodeInstruction* instruction;
+
+        for (instruction = block->instructions; instruction != 0;
+             instruction = instruction->next)
+        {
+            int index;
+
+            for (index = 0; index < instruction->operand_count; index++) {
+                PCodeOperand* operand;
+
+                operand = &instruction->operands[index];
+                if (operand->kind == reg_class) {
+                    operand->reg = SpillCode_CoalesceRoot(operand->reg);
+                }
+            }
+        }
+    }
 }
 
 /* 0x00530c00; high-level equivalent; binary match unmeasured. */

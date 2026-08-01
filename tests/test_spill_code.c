@@ -13,10 +13,16 @@ PCodeBlock* gPCodeBlocks;
 PCodeBlockLiveness* gPCodeBlockLiveness;
 unsigned int* gInterferenceBits;
 short* gCoalescedRegisters;
+short gGPRCoalesceFirst;
+short gGPRCoalesceLast;
+short gFPRCoalesceFirst;
+short gFPRCoalesceLast;
+short gVRCoalesceFirst;
+short gVRCoalesceLast;
 
 static InterferenceNode gNodes[40];
 static InterferenceNode* gNodePointers[40];
-static int gPipeline[4];
+static int gPipeline[3];
 static int gPipelineLength;
 static int gLastClass;
 static int gLastCount;
@@ -33,7 +39,7 @@ static void Check(int condition, const char* message)
 
 static void RecordStage(int stage, int reg_class, int register_count)
 {
-    Check(gPipelineLength < 4, "pipeline stage count");
+    Check(gPipelineLength < 3, "pipeline stage count");
     gPipeline[gPipelineLength++] = stage;
     gLastClass = reg_class;
     gLastCount = register_count;
@@ -49,11 +55,6 @@ void SpillCode_005301b0(PCodeFunction* function, int reg_class,
 void SpillCode_00531290(int reg_class, int register_count)
 {
     RecordStage(2, reg_class, register_count);
-}
-
-void SpillCode_00530e00(int reg_class, int register_count)
-{
-    RecordStage(4, reg_class, register_count);
 }
 
 void SpillCode_DumpInterference(const char* format, int register_count)
@@ -116,11 +117,17 @@ static void ResetState(void)
     gLastCount = 0;
     gLastFormat = 0;
     gRemovedInstructions = 0;
+    gGPRCoalesceFirst = 32;
+    gGPRCoalesceLast = 39;
+    gFPRCoalesceFirst = 32;
+    gFPRCoalesceLast = 39;
+    gVRCoalesceFirst = 32;
+    gVRCoalesceLast = 39;
 }
 
 static void TestInterferencePipeline(void)
 {
-    int expected[] = {1, 2, 3, 4};
+    int expected[] = {1, 2, 3};
     int index;
     short coalesced;
     unsigned int bits;
@@ -132,8 +139,8 @@ static void TestInterferencePipeline(void)
     gInterferenceBits = &bits;
     gCOptimizerDumpEnabled = 1;
     SpillCode_BuildInterference((PCodeFunction*) 1, 9, 0);
-    Check(gPipelineLength == 4, "external interference pipeline length");
-    for (index = 0; index < 4; index++) {
+    Check(gPipelineLength == 3, "external interference pipeline length");
+    for (index = 0; index < 3; index++) {
         Check(gPipeline[index] == expected[index], "interference stage order");
     }
     Check(gLastClass == 9 && gLastCount == 0, "interference arguments");
@@ -198,6 +205,55 @@ static void SetInterference(unsigned int* bits, int first, int second)
     smaller = first > second ? second : first;
     index = (unsigned int) ((larger * larger) / 2 + smaller);
     bits[index >> 5] |= 1U << (index & 31);
+}
+
+static int HasInterference(const unsigned int* bits, int first, int second)
+{
+    unsigned int index;
+    int larger;
+    int smaller;
+
+    larger = first > second ? first : second;
+    smaller = first > second ? second : first;
+    index = (unsigned int) ((larger * larger) / 2 + smaller);
+    return (bits[index >> 5] & (1U << (index & 31))) != 0;
+}
+
+static void TestCopyCoalescing(void)
+{
+    typedef struct TestInstruction {
+        PCodeInstruction instruction;
+        PCodeOperand second_operand;
+    } TestInstruction;
+
+    TestInstruction copy;
+    PCodeBlock block;
+    unsigned int bits[32];
+
+    ResetState();
+    memset(&copy, 0, sizeof(copy));
+    memset(&block, 0, sizeof(block));
+    memset(bits, 0, sizeof(bits));
+
+    SetInterference(bits, 33, 34);
+    gInterferenceBits = bits;
+    copy.instruction.opcode = 0x8b;
+    copy.instruction.operand_count = 2;
+    copy.instruction.operands[0].kind = 0;
+    copy.instruction.operands[0].reg = 32;
+    copy.second_operand.kind = 0;
+    copy.second_operand.reg = 33;
+    block.instructions = &copy.instruction;
+    gPCodeBlocks = &block;
+
+    SpillCode_CoalesceCopies(0, 40);
+    Check(gCoalescedRegisters[33] == 32, "lower copy register becomes root");
+    Check(copy.instruction.operands[0].reg == 32,
+          "copy destination canonicalized");
+    Check(copy.second_operand.reg == 32, "copy source canonicalized");
+    Check(gRemovedInstructions == 1, "coalesced copy removed");
+    Check(HasInterference(bits, 32, 34),
+          "child interference transferred to root");
 }
 
 static void TestGraphMaterialization(void)
@@ -288,6 +344,7 @@ int main(void)
 {
     TestInterferencePipeline();
     TestLastUseMarkers();
+    TestCopyCoalescing();
     TestGraphMaterialization();
     TestSpillCosts();
     puts("spill-code model tests passed");

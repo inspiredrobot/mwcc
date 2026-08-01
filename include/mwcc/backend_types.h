@@ -55,7 +55,8 @@ enum PCodeOperandFlags {
 typedef struct PCodeInstruction {
     struct PCodeInstruction* next;     /* 0x00 */
     struct PCodeInstruction* previous; /* 0x04 */
-    unsigned char unknown_08[0x0e];
+    unsigned char unknown_08[0x0c];
+    short opcode;             /* 0x14 */
     unsigned int flags;       /* 0x16 */
     short operand_count;      /* 0x1a */
     PCodeOperand operands[1]; /* 0x1c: variable-length array */
