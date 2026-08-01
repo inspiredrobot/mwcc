@@ -7,7 +7,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
-from allocator_snapshot import PCODE_BLOCKS_ADDRESS, SnapshotReader
+from allocator_snapshot import (
+    INTERFERENCE_GRAPH_ADDRESS,
+    PCODE_BLOCKS_ADDRESS,
+    SnapshotReader,
+)
 
 
 class SparseMemory:
@@ -69,6 +73,33 @@ def main():
         33,
         34,
     ]
+
+    graph_address = 0x2000
+    node_addresses = [0x2100, 0x2140]
+    memory.write(INTERFERENCE_GRAPH_ADDRESS, struct.pack("<I", graph_address))
+    memory.write(graph_address + 32 * 4, struct.pack("<I", node_addresses[0]))
+    memory.write(graph_address + 33 * 4, struct.pack("<I", node_addresses[1]))
+    memory.write(0x0058846E, struct.pack("<h", 34))
+    for index, node_address in enumerate(node_addresses):
+        node = bytearray(0x18)
+        next_address = node_addresses[1] if index == 0 else 0
+        struct.pack_into("<I", node, 0, next_address)
+        struct.pack_into("<i", node, 8, 10 + index)
+        struct.pack_into("<h", node, 0x0C, 32 + index)
+        struct.pack_into("<h", node, 0x0E, 1)
+        struct.pack_into("<h", node, 0x10, -1)
+        node[0x12] = 2
+        struct.pack_into("<h", node, 0x14, 1)
+        struct.pack_into("<h", node, 0x16, 33 - index)
+        memory.write(node_address, node)
+
+    coloring = SnapshotReader(memory.read).coloring_snapshot(
+        0, node_addresses[0], 0x004CE2D0
+    )
+    assert coloring["register_count"] == 34
+    assert coloring["simplify_order"] == [32, 33]
+    assert coloring["nodes"][0]["neighbors"] == [33]
+    assert coloring["nodes"][1]["neighbors"] == [32]
     print("allocator snapshot tests passed")
 
 

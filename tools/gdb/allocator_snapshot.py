@@ -39,4 +39,35 @@ class MwccAllocatorSnapshot(gdb.Command):
         gdb.write(f"Wrote {output} with {len(snapshot['blocks'])} blocks\n")
 
 
+class MwccColoringSnapshot(gdb.Command):
+    """Write a GC/1.2.5 coloring graph snapshot: mwcc-coloring-snapshot PATH"""
+
+    def __init__(self):
+        super().__init__("mwcc-coloring-snapshot", gdb.COMMAND_DATA)
+
+    def invoke(self, argument, from_tty):
+        del from_tty
+        output = Path(argument.strip())
+        if not output.name:
+            raise gdb.GdbError("usage: mwcc-coloring-snapshot PATH")
+
+        inferior = gdb.selected_inferior()
+        reader = SnapshotReader(
+            lambda address, size: bytes(inferior.read_memory(address, size))
+        )
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        reg_class = reader.u32(stack_pointer + 4)
+        simplify_stack = reader.u32(stack_pointer + 8)
+        program_counter = int(gdb.parse_and_eval("$pc"))
+        snapshot = reader.coloring_snapshot(
+            reg_class, simplify_stack, program_counter
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("w", encoding="utf-8") as stream:
+            json.dump(snapshot, stream, indent=2)
+            stream.write("\n")
+        gdb.write(f"Wrote {output} with {len(snapshot['nodes'])} nodes\n")
+
+
 MwccAllocatorSnapshot()
+MwccColoringSnapshot()

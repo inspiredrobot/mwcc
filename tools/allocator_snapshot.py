@@ -9,6 +9,7 @@ from typing import Callable
 
 TARGET_SHA256 = "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914"
 PCODE_BLOCKS_ADDRESS = 0x00587C74
+INTERFERENCE_GRAPH_ADDRESS = 0x00587E3C
 VIRTUAL_REGISTER_COUNT_ADDRESSES = {
     "gpr": 0x0058846E,
     "fpr": 0x0058846C,
@@ -128,6 +129,76 @@ class SnapshotReader:
             address = block["next"]
         return blocks
 
+    def interference_node(self, address: int) -> dict:
+        header = self._read(address, 0x16)
+        neighbor_count = struct.unpack_from("<h", header, 0x14)[0]
+        if neighbor_count < 0 or neighbor_count > 32767:
+            raise SnapshotError(
+                f"invalid neighbor count {neighbor_count} at 0x{address:08x}"
+            )
+        neighbor_data = self._read(address + 0x16, neighbor_count * 2)
+        return {
+            "address": f"0x{address:08x}",
+            "next": struct.unpack_from("<I", header, 0)[0],
+            "object": f"0x{struct.unpack_from('<I', header, 4)[0]:08x}",
+            "spill_cost": struct.unpack_from("<i", header, 8)[0],
+            "virtual_register": struct.unpack_from("<h", header, 0x0C)[0],
+            "degree": struct.unpack_from("<h", header, 0x0E)[0],
+            "physical_register": struct.unpack_from("<h", header, 0x10)[0],
+            "flags": header[0x12],
+            "neighbors": [
+                struct.unpack_from("<h", neighbor_data, index * 2)[0]
+                for index in range(neighbor_count)
+            ],
+        }
+
+    def coloring_snapshot(
+        self, reg_class: int, simplify_stack: int, program_counter: int = 0
+    ) -> dict:
+        count_name = {0: "gpr", 1: "fpr", 9: "vr"}.get(reg_class)
+        if count_name is None:
+            raise SnapshotError(f"unsupported register class {reg_class}")
+        register_count = self.s16(VIRTUAL_REGISTER_COUNT_ADDRESSES[count_name])
+        graph_address = self.u32(INTERFERENCE_GRAPH_ADDRESS)
+        nodes = []
+        nodes_by_address = {}
+        for reg in range(register_count):
+            node_address = self.u32(graph_address + reg * 4)
+            if node_address == 0:
+                continue
+            node = self.interference_node(node_address)
+            nodes.append(node)
+            nodes_by_address[node_address] = node
+
+        simplify_order = []
+        seen = set()
+        while simplify_stack != 0:
+            if simplify_stack in seen:
+                raise SnapshotError(
+                    f"simplify-stack cycle at 0x{simplify_stack:08x}"
+                )
+            seen.add(simplify_stack)
+            node = nodes_by_address.get(simplify_stack)
+            if node is None:
+                raise SnapshotError(
+                    f"simplify-stack node 0x{simplify_stack:08x} is not in graph"
+                )
+            simplify_order.append(node["virtual_register"])
+            simplify_stack = node["next"]
+
+        snapshot = {
+            "format": "mwcc-coloring-snapshot-v1",
+            "compiler": "GC/1.2.5",
+            "target_sha256": TARGET_SHA256,
+            "program_counter": f"0x{program_counter:08x}",
+            "register_class": reg_class,
+            "register_count": register_count,
+            "simplify_order": simplify_order,
+            "nodes": nodes,
+        }
+        validate_coloring_snapshot(snapshot)
+        return snapshot
+
     def snapshot(self, function_pointer: int = 0, program_counter: int = 0) -> dict:
         snapshot = {
             "format": "mwcc-allocator-snapshot-v1",
@@ -166,14 +237,38 @@ def validate_snapshot(snapshot: dict) -> None:
                 raise SnapshotError("instruction operands must be a list")
 
 
+def validate_coloring_snapshot(snapshot: dict) -> None:
+    if snapshot.get("format") != "mwcc-coloring-snapshot-v1":
+        raise SnapshotError("unsupported coloring snapshot format")
+    if snapshot.get("target_sha256") != TARGET_SHA256:
+        raise SnapshotError("snapshot does not identify the verified GC/1.2.5 target")
+    nodes = snapshot.get("nodes")
+    if not isinstance(nodes, list):
+        raise SnapshotError("nodes must be a list")
+    registers = {node.get("virtual_register") for node in nodes}
+    if len(registers) != len(nodes):
+        raise SnapshotError("virtual-register nodes must be unique")
+    for node in nodes:
+        if not set(node.get("neighbors", ())).issubset(registers):
+            raise SnapshotError(
+                f"register {node.get('virtual_register')} has an unknown neighbor"
+            )
+    if not set(snapshot.get("simplify_order", ())).issubset(registers):
+        raise SnapshotError("simplify order contains an unknown register")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate an allocator snapshot")
     parser.add_argument("snapshot", type=Path)
     args = parser.parse_args()
     with args.snapshot.open(encoding="utf-8") as stream:
         snapshot = json.load(stream)
-    validate_snapshot(snapshot)
-    print(f"Validated {len(snapshot['blocks'])} PCode blocks")
+    if snapshot.get("format") == "mwcc-allocator-snapshot-v1":
+        validate_snapshot(snapshot)
+        print(f"Validated {len(snapshot['blocks'])} PCode blocks")
+    else:
+        validate_coloring_snapshot(snapshot)
+        print(f"Validated {len(snapshot['nodes'])} interference nodes")
 
 
 if __name__ == "__main__":

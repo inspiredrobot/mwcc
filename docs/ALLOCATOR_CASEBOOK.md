@@ -29,6 +29,13 @@ pointer from the first stack argument and emits raw PCode without requiring
 mnemonic-table guesses. Source it only inside the offline emulator sandbox;
 the command does not make executing the compiler on the host acceptable.
 
+The same wrapper registers `mwcc-coloring-snapshot PATH` for a session stopped
+at `Coloring_SelectColors` (`0x004ce2d0`). That snapshot captures every graph
+node, object pointer, spill cost, current degree and color, flags, complete
+neighbor list, and the simplify-stack order passed into color selection. Taking
+both snapshots around one allocation pass gives us the replay input and the
+exact compiler result needed to find the first divergent state transition.
+
 The initial snapshot deliberately stops short of object names and class ranges.
 Those fields will be added after their exact target layouts are recovered. The
 raw 12-byte operand encoding is retained so snapshots taken now can be enriched
