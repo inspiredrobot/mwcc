@@ -3,7 +3,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
@@ -12,6 +14,7 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.InstructionIterator;
+import ghidra.program.model.symbol.Reference;
 
 public class ExportFunctions extends GhidraScript {
     private static String hex(byte[] bytes) {
@@ -20,6 +23,50 @@ public class ExportFunctions extends GhidraScript {
             output.append(String.format("%02x", value & 0xff));
         }
         return output.toString();
+    }
+
+    private String functionList(Set<Function> functions) {
+        if (functions.isEmpty()) {
+            return "none";
+        }
+        Set<Function> ordered = new TreeSet<>((left, right) ->
+            left.getEntryPoint().compareTo(right.getEntryPoint()));
+        ordered.addAll(functions);
+        StringBuilder output = new StringBuilder();
+        for (Function function : ordered) {
+            if (output.length() != 0) {
+                output.append(", ");
+            }
+            output.append('`')
+                .append(function.getEntryPoint())
+                .append("` (`")
+                .append(function.getName())
+                .append("`)");
+        }
+        return output.toString();
+    }
+
+    private Set<String> referencedStrings(Function function) {
+        Set<String> strings = new TreeSet<>();
+        InstructionIterator instructions = currentProgram.getListing()
+            .getInstructions(function.getBody(), true);
+        while (instructions.hasNext()) {
+            Instruction instruction = instructions.next();
+            Reference[] references = currentProgram.getReferenceManager()
+                .getReferencesFrom(instruction.getAddress());
+            for (Reference reference : references) {
+                ghidra.program.model.listing.Data data = currentProgram.getListing()
+                    .getDataAt(reference.getToAddress());
+                if (data != null && data.getValue() instanceof String) {
+                    String text = (String) data.getValue();
+                    strings.add("`" + data.getAddress() + "` `" +
+                        text.replace("`", "\\`")
+                            .replace("\r", "\\r")
+                            .replace("\n", "\\n") + "`");
+                }
+            }
+        }
+        return strings;
     }
 
     @Override
@@ -54,7 +101,22 @@ public class ExportFunctions extends GhidraScript {
                 .append(function.getName())
                 .append("` at `")
                 .append(function.getEntryPoint())
-                .append("`\n\n```text\n");
+                .append("`\n\n")
+                .append("- Bytes: ")
+                .append(function.getBody().getNumAddresses())
+                .append("\n- Callers: ")
+                .append(functionList(function.getCallingFunctions(monitor)))
+                .append("\n- Callees: ")
+                .append(functionList(function.getCalledFunctions(monitor)))
+                .append("\n");
+            Set<String> strings = referencedStrings(function);
+            if (!strings.isEmpty()) {
+                output.append("- Referenced strings:\n");
+                for (String text : strings) {
+                    output.append("  - ").append(text).append("\n");
+                }
+            }
+            output.append("\n```text\n");
             InstructionIterator iterator = currentProgram.getListing()
                 .getInstructions(function.getBody(), true);
             while (iterator.hasNext()) {

@@ -45,6 +45,9 @@ host toolchain is Phase 1; see
 
 See [docs/SCOPE.md](docs/SCOPE.md) for priorities and
 [docs/PROVENANCE.md](docs/PROVENANCE.md) for licensing and source provenance.
+The working subsystem map and agent workflow are in
+[docs/CORE_SUBSYSTEMS.md](docs/CORE_SUBSYSTEMS.md) and
+[docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md).
 Two useful external references are RootCubed's MIT-licensed
 [mwcc-inspector](https://github.com/RootCubed/mwcc-inspector) and
 [mwcc-debugger](https://github.com/cadmic/mwcc-debugger), whose code is not

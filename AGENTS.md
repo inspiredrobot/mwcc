@@ -27,5 +27,8 @@
 - Prefer typed, structured C over assembly-shaped output. Do not encode a
   guessed structure merely to improve a superficial diff.
 - Preserve the order and reason for compiler passes as first-class findings.
+- Before core backend work, read `docs/CORE_SUBSYSTEMS.md`,
+  `docs/DATA_MODEL.md`, and `docs/DECOMP_WORKFLOW.md`. Update the subsystem
+  manifest when an address-backed role or name is confirmed or rejected.
 - Keep commits focused and run `ninja check` plus relevant object diffs before
   committing.

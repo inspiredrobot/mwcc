@@ -1,0 +1,157 @@
+{
+  "target_sha256": "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914",
+  "evidence_levels": {
+    "confirmed": "Directly established by this exact executable",
+    "inferred": "Strong semantic inference from exact control flow or string xrefs",
+    "reference": "Suggested by another MWCC version and awaiting target validation"
+  },
+  "modules": [
+    {
+      "name": "IrOptimizer",
+      "source_anchor": "IrOptimizer.c",
+      "source": "src/frontend/IrOptimizer.c",
+      "functions": [
+        {
+          "address": "0x0042cd10",
+          "name": "IRO_Optimizer",
+          "role": "frontend optimizer dispatcher",
+          "evidence": "confirmed"
+        }
+      ]
+    },
+    {
+      "name": "CodeGen",
+      "source_anchor": "CodeGen.c",
+      "source": "src/backend/CodeGen.c",
+      "functions": [
+        {
+          "address": "0x004351c0",
+          "name": "CodeGen_Generator",
+          "role": "backend pipeline coordinator",
+          "evidence": "confirmed"
+        }
+      ]
+    },
+    {
+      "name": "COptimizer",
+      "source_anchor": "COptimizer.c",
+      "source": "src/backend/COptimizer.c",
+      "functions": [
+        {
+          "address": "0x004c4430",
+          "name": "COptimizer_Optimize",
+          "role": "dispatch by optimization level",
+          "evidence": "inferred"
+        },
+        {
+          "address": "0x004c4530",
+          "name": "COptimizer_Level4",
+          "role": "optimization-level 4 pass pipeline",
+          "evidence": "confirmed"
+        },
+        {
+          "address": "0x004c4910",
+          "name": "COptimizer_Level3",
+          "role": "optimization-level 3 pass pipeline",
+          "evidence": "confirmed"
+        }
+      ]
+    },
+    {
+      "name": "Registers",
+      "source_anchor": "Registers.c",
+      "source": "src/backend/Registers.c",
+      "functions": [
+        { "address": "0x004c1720", "name": "Registers_004c1720", "role": "register-state helper", "evidence": "inferred" },
+        { "address": "0x004c1b40", "name": "Registers_004c1b40", "role": "register-state helper", "evidence": "inferred" },
+        { "address": "0x004c1c50", "name": "Registers_004c1c50", "role": "register-state helper", "evidence": "inferred" },
+        { "address": "0x004c1d60", "name": "Registers_004c1d60", "role": "register-pair helper", "evidence": "inferred" },
+        { "address": "0x004c1e40", "name": "Registers_004c1e40", "role": "register-state helper", "evidence": "inferred" },
+        { "address": "0x004c1f60", "name": "Registers_004c1f60", "role": "register-range helper", "evidence": "inferred" },
+        { "address": "0x004c2040", "name": "Registers_004c2040", "role": "register-range helper", "evidence": "inferred" },
+        { "address": "0x004c2120", "name": "Registers_004c2120", "role": "register-set helper", "evidence": "inferred" },
+        { "address": "0x004c2280", "name": "Registers_004c2280", "role": "register-set helper", "evidence": "inferred" }
+      ]
+    },
+    {
+      "name": "Coloring",
+      "source_anchor": "Coloring.c",
+      "source": "src/backend/Coloring.c",
+      "functions": [
+        {
+          "address": "0x004cdef0",
+          "name": "Coloring_AllocateRegisters",
+          "role": "allocate vector, floating-point, and general-purpose register classes with spill retries",
+          "evidence": "inferred"
+        },
+        {
+          "address": "0x004ce710",
+          "name": "Coloring_004ce710",
+          "role": "general-purpose register-class coloring helper",
+          "evidence": "inferred"
+        }
+      ]
+    },
+    {
+      "name": "SpillCode",
+      "source_anchor": "SpillCode.c",
+      "source": "src/backend/SpillCode.c",
+      "functions": [
+        { "address": "0x00531ab0", "name": "SpillCode_00531ab0", "role": "spill-code helper", "evidence": "inferred" },
+        { "address": "0x00531cb0", "name": "SpillCode_00531cb0", "role": "spill-code helper", "evidence": "inferred" },
+        { "address": "0x00531e80", "name": "SpillCode_00531e80", "role": "spill-code helper", "evidence": "inferred" },
+        { "address": "0x00532190", "name": "SpillCode_00532190", "role": "spill-code helper", "evidence": "inferred" },
+        { "address": "0x00532350", "name": "SpillCode_00532350", "role": "spill-code helper", "evidence": "inferred" },
+        { "address": "0x00532520", "name": "SpillCode_00532520", "role": "spill-code helper", "evidence": "inferred" }
+      ]
+    },
+    {
+      "name": "StackFrameEABI",
+      "source_anchor": "StackFrameEABI.c",
+      "source": "src/backend/StackFrameEABI.c",
+      "functions": [
+        { "address": "0x004a9fa0", "name": "StackFrameEABI_004a9fa0", "role": "frame-instruction helper", "evidence": "inferred" },
+        { "address": "0x004aaa40", "name": "StackFrameEABI_004aaa40", "role": "recursive frame-layout helper", "evidence": "inferred" },
+        { "address": "0x004aba30", "name": "StackFrameEABI_MergePrologueEpilogue", "role": "merge generated prologue and epilogue", "evidence": "inferred" },
+        { "address": "0x004abe90", "name": "StackFrameEABI_GeneratePrologueEpilogue", "role": "generate EABI prologue and epilogue", "evidence": "inferred" }
+      ]
+    },
+    {
+      "name": "Scheduler",
+      "source_anchor": "Scheduler.c",
+      "source": "src/backend/Scheduler.c",
+      "functions": [
+        { "address": "0x004ccae0", "name": "Scheduler_Schedule", "role": "instruction scheduler called between before/after trace markers", "evidence": "inferred" },
+        { "address": "0x004ccf10", "name": "Scheduler_004ccf10", "role": "construct scheduling dependencies from PCode operands", "evidence": "inferred" }
+      ]
+    }
+  ],
+  "trace_strings": [
+    { "address": "0x0054fb78", "text": "INITIAL CODE" },
+    { "address": "0x0054fb88", "text": "BEFORE SCHEDULING" },
+    { "address": "0x0054fb9c", "text": "AFTER INSTRUCTION SCHEDULING" },
+    { "address": "0x0054fbbc", "text": "AFTER PEEPHOLE FORWARD" },
+    { "address": "0x0054fbd4", "text": "AFTER REGISTER COLORING" },
+    { "address": "0x0054fbec", "text": "AFTER GENERATING EPILOGUE, PROLOGUE" },
+    { "address": "0x0054fc10", "text": "AFTER MERGING EPILOGUE, PROLOGUE" },
+    { "address": "0x0054fc34", "text": "AFTER PEEPHOLE OPTIMIZATION" },
+    { "address": "0x0054fc50", "text": "FINAL CODE AFTER INSTRUCTION SCHEDULING" },
+    { "address": "0x0054fc78", "text": "FINAL CODE" },
+    { "address": "0x0056200c", "text": "AFTER CSE" },
+    { "address": "0x00562018", "text": "AFTER COPY PROPAGATION" },
+    { "address": "0x00562030", "text": "AFTER ADD PROPAGATION" },
+    { "address": "0x00562048", "text": "AFTER VALUE NUMBERING" },
+    { "address": "0x00562060", "text": "AFTER CODE MOTION" },
+    { "address": "0x00562074", "text": "AFTER STRENGTH REDUCTION" },
+    { "address": "0x00562090", "text": "AFTER LOOP TRANSFORMATIONS" },
+    { "address": "0x005620ac", "text": "AFTER CONSTANT PROPAGATION" },
+    { "address": "0x005620c8", "text": "AFTER LOAD DELETATION" },
+    { "address": "0x005620e0", "text": "AFTER ARRAY => REGISTER TRANSFORM" },
+    { "address": "0x00562104", "text": "AFTER CONSTANT PROPAGATION 2" },
+    { "address": "0x00562124", "text": "AFTER VALUE NUMBERING 2" },
+    { "address": "0x0056213c", "text": "AFTER VECTOR ARRAY CONVERSION" },
+    { "address": "0x0056215c", "text": "AFTER CODE MOTION 2" },
+    { "address": "0x00562170", "text": "AFTER VALUE NUMBERING 3" },
+    { "address": "0x00562188", "text": "AFTER LOAD DELETION" }
+  ]
+}

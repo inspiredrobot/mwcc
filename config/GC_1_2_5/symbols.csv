@@ -1,3 +1,22 @@
 address,size,kind,name,source,status
 0x0042cd10,,function,IRO_Optimizer,binary and mwcc-inspector GC/1.2.5 breakpoint,confirmed
+0x004351c0,,function,CodeGen_Generator,binary control flow and external naming reference,confirmed
+0x004a9fa0,,function,StackFrameEABI_004a9fa0,StackFrameEABI.c xref,inferred
+0x004aaa40,,function,StackFrameEABI_004aaa40,StackFrameEABI.c xref,inferred
+0x004aba30,,function,StackFrameEABI_MergePrologueEpilogue,source xref and CodeGen trace boundary,inferred
+0x004abe90,,function,StackFrameEABI_GeneratePrologueEpilogue,source xref and CodeGen trace boundary,inferred
+0x004c1720,,function,Registers_004c1720,Registers.c xref,inferred
+0x004c4430,,function,COptimizer_Optimize,opt-level branches and CodeGen caller,inferred
+0x004c4530,,function,COptimizer_Level4,opt-level branch and pass trace strings,confirmed
+0x004c4910,,function,COptimizer_Level3,opt-level branch and pass trace strings,confirmed
+0x004ccae0,,function,Scheduler_Schedule,CodeGen before and after scheduling boundaries,inferred
+0x004ccf10,,function,Scheduler_004ccf10,Scheduler.c xref,inferred
+0x004cdef0,,function,Coloring_AllocateRegisters,Coloring.c xref and CodeGen trace boundary,inferred
+0x004ce710,,function,Coloring_004ce710,Coloring.c xref,inferred
+0x00531ab0,,function,SpillCode_00531ab0,SpillCode.c xref,inferred
+0x00531cb0,,function,SpillCode_00531cb0,SpillCode.c xref,inferred
+0x00531e80,,function,SpillCode_00531e80,SpillCode.c xref,inferred
+0x00532190,,function,SpillCode_00532190,SpillCode.c xref,inferred
+0x00532350,,function,SpillCode_00532350,SpillCode.c xref,inferred
+0x00532520,,function,SpillCode_00532520,SpillCode.c xref,inferred
 0x00540bbc,47,string,mwcc_version_banner,binary string,confirmed

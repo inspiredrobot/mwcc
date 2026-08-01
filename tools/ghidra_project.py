@@ -117,6 +117,9 @@ def main() -> None:
     export_parser = subparsers.add_parser("export-optimizer")
     export_parser.add_argument("--config", type=Path, required=True)
     export_parser.add_argument("--output", type=Path, required=True)
+    subsystems_parser = subparsers.add_parser("export-subsystems")
+    subsystems_parser.add_argument("--config", type=Path, required=True)
+    subsystems_parser.add_argument("--output", type=Path, required=True)
     functions_parser = subparsers.add_parser("export-functions")
     functions_parser.add_argument("--config", type=Path, required=True)
     functions_parser.add_argument("--output", type=Path, required=True)
@@ -133,6 +136,8 @@ def main() -> None:
         import_project(args.config, args.stamp)
     elif args.command == "export-optimizer":
         run_script(args.config, "ExportOptimizer.java", args.output)
+    elif args.command == "export-subsystems":
+        run_script(args.config, "ExportSubsystems.java", args.output)
     elif args.command == "export-functions":
         run_script(
             args.config,
