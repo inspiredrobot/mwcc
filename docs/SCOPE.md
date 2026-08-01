@@ -1,5 +1,9 @@
 # Scope and milestones
 
+The practical success target is defined in `docs/DECOMP_ASSISTANCE.md`: use the
+recovered compiler to make and verify source-level predictions on difficult
+Melee matches, rather than relying on compiler folklore or local score changes.
+
 ## Phase 1: exact-version analysis
 
 1. Identify the Windows/x86 compiler and linker used to build the stock PE.

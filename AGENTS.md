@@ -26,10 +26,14 @@
   comparison before calling a candidate confirmed.
 - Prefer typed, structured C over assembly-shaped output. Do not encode a
   guessed structure merely to improve a superficial diff.
+- Prefer typed static helper functions over statement-like macros when shared
+  behavior has meaningful inputs or state. Keep macros for declarations and
+  compile-time concerns, not reconstructed control flow.
 - Preserve the order and reason for compiler passes as first-class findings.
 - Before core backend work, read `docs/CORE_SUBSYSTEMS.md`,
-  `docs/DATA_MODEL.md`, and `docs/DECOMP_WORKFLOW.md`. Update the subsystem
-  manifest when an address-backed role or name is confirmed or rejected.
+  `docs/DATA_MODEL.md`, `docs/DECOMP_WORKFLOW.md`, and
+  `docs/DECOMP_ASSISTANCE.md`. Update the subsystem manifest when an
+  address-backed role or name is confirmed or rejected.
 - Keep commits focused and run `ninja check` plus relevant object diffs before
   committing. Run `python3 tools/check_format.py --fix` before committing C or
   header changes; `ninja check` enforces the result.
