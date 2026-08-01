@@ -8,6 +8,7 @@
 
 unsigned char gCOptimizerDumpEnabled;
 unsigned char gUniformSpillBlockWeight;
+signed char gDeleteDeadInstructions;
 InterferenceNode** gInterferenceGraph;
 PCodeBlock* gPCodeBlocks;
 PCodeBlockLiveness* gPCodeBlockLiveness;
@@ -86,15 +87,6 @@ void* SpillCode_Allocate(unsigned int size)
     return result;
 }
 
-int SpillCode_HandleSpecialInstruction(PCodeInstruction* instruction,
-                                       int reg_class, unsigned int* live)
-{
-    (void) instruction;
-    (void) reg_class;
-    (void) live;
-    return 0;
-}
-
 void PCode_RemoveRedundantInstruction(PCodeInstruction* instruction)
 {
     (void) instruction;
@@ -133,6 +125,7 @@ static void ResetState(void)
     gVRCoalesceFirst = 32;
     gVRCoalesceLast = 39;
     gUseGPRForType2Return = 0;
+    gDeleteDeadInstructions = 0;
     gRequiresMemoryReturn = 0;
 }
 
@@ -247,6 +240,39 @@ static void TestLastUseMarkers(void)
     Check((early.second_operand.flags & PCodeOperand_LastUse) == 0,
           "live-out use has no marker");
     Check(gRemovedInstructions == 0, "ordinary liveness instruction");
+}
+
+static void TestDeadInstructionFilter(void)
+{
+    PCodeInstruction instruction;
+    PCodeInstructionContext context;
+    unsigned int live[2];
+
+    ResetState();
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&context, 0, sizeof(context));
+    memset(live, 0, sizeof(live));
+
+    instruction.context = &context;
+    instruction.operand_count = 1;
+    instruction.operands[0].kind = 0;
+    instruction.operands[0].flags = PCodeOperand_Definition;
+    instruction.operands[0].reg = 33;
+    gDeleteDeadInstructions = 1;
+
+    Check(SpillCode_IsDeadInstruction(&instruction, 0, live),
+          "unused side-effect-free definition removed");
+    live[1] = 1U << 1;
+    Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
+          "live definition retained");
+    live[1] = 0;
+    context.flags = 1;
+    Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
+          "context-protected definition retained");
+    context.flags = 0;
+    instruction.flags = PCodeInstruction_DeadCodeBarrierMask;
+    Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
+          "instruction barrier retained");
 }
 
 static void SetInterference(unsigned int* bits, int first, int second)
@@ -555,6 +581,7 @@ int main(void)
     TestLocalLiveness();
     TestLivenessFixedPoint();
     TestLastUseMarkers();
+    TestDeadInstructionFilter();
     TestInterferenceConstruction();
     TestCopyCoalescing();
     TestGraphMaterialization();

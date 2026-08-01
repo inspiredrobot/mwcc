@@ -7,6 +7,8 @@ void SpillCode_BuildInterference(PCodeFunction* function, int reg_class,
                                  int register_count);
 void SpillCode_InitializeLiveness(PCodeFunction* function, int reg_class,
                                   int register_count);
+int SpillCode_IsDeadInstruction(PCodeInstruction* instruction, int reg_class,
+                                unsigned int* live);
 void SpillCode_MarkLastUses(int reg_class, int register_count);
 void SpillCode_ConstructInterference(int reg_class, int register_count);
 void SpillCode_BuildLocalLiveness(int reg_class);

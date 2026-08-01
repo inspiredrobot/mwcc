@@ -70,13 +70,20 @@ enum PCodeInstructionFlags {
 };
 
 enum PCodeInstructionFlagMasks {
-    PCodeInstruction_GPRResultMask = 0x0018
+    PCodeInstruction_GPRResultMask = 0x0018,
+    PCodeInstruction_DeadCodeBarrierMask = 0x00020434
 };
+
+typedef struct PCodeInstructionContext {
+    unsigned char unknown_00[0x2e];
+    unsigned short flags; /* 0x2e */
+} PCodeInstructionContext;
 
 typedef struct PCodeInstruction {
     struct PCodeInstruction* next;     /* 0x00 */
     struct PCodeInstruction* previous; /* 0x04 */
-    unsigned char unknown_08[0x0c];
+    PCodeInstructionContext* context;  /* 0x08 */
+    unsigned char unknown_0c[8];
     short opcode;             /* 0x14 */
     unsigned int flags;       /* 0x16 */
     short operand_count;      /* 0x1a */
@@ -155,6 +162,8 @@ typedef char InterferenceNode_neighbors_16
 typedef char PCodeOperand_size_0c[(sizeof(PCodeOperand) == 0x0c) ? 1 : -1];
 typedef char PCodeInstruction_operands_1c
     [(offsetof(PCodeInstruction, operands) == 0x1c) ? 1 : -1];
+typedef char PCodeInstructionContext_flags_2e
+    [(offsetof(PCodeInstructionContext, flags) == 0x2e) ? 1 : -1];
 typedef char PCodeBlock_instructions_14
     [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
 typedef char

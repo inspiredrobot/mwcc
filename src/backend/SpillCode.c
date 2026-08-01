@@ -12,6 +12,7 @@
 
 extern unsigned char gCOptimizerDumpEnabled;    /* 0x00584226 */
 extern unsigned char gUniformSpillBlockWeight;  /* 0x005842e2 */
+extern signed char gDeleteDeadInstructions;     /* 0x005842e1 */
 extern InterferenceNode** gInterferenceGraph;   /* 0x00587e3c */
 extern PCodeBlock* gPCodeBlocks;                /* 0x00587c74 */
 extern PCodeBlockLiveness* gPCodeBlockLiveness; /* 0x00587e74 */
@@ -34,10 +35,6 @@ extern int Type_RequiresMemoryReturn(CompilerType* type); /* 0x004a7af0 */
 extern void SpillCode_DumpInterference(const char* format,
                                        int register_count); /* 0x004c4bc0 */
 extern void* SpillCode_Allocate(unsigned int size);         /* 0x00441f20 */
-extern int
-SpillCode_HandleSpecialInstruction(PCodeInstruction* instruction,
-                                   int reg_class,
-                                   unsigned int* live); /* 0x00530050 */
 extern void PCode_RemoveRedundantInstruction(PCodeInstruction* instruction);
 
 static const char* SpillCode_RegisterFormat(int reg_class)
@@ -167,6 +164,47 @@ static void SpillCode_SeedReturnRegisters(CompilerType* type, int reg_class)
     }
 }
 
+static int SpillCode_DefinitionBlocksRemoval(PCodeOperand* operand,
+                                             int reg_class, unsigned int* live)
+{
+    if ((operand->flags & PCodeOperand_Definition) == 0) {
+        return 0;
+    }
+    if (operand->kind == 0) {
+        return reg_class != 0 || SpillCode_IsLive(live, operand->reg);
+    }
+    if (operand->kind == 1) {
+        return reg_class != 1 || SpillCode_IsLive(live, operand->reg);
+    }
+    if (operand->kind == 9) {
+        return reg_class != 9 || SpillCode_IsLive(live, operand->reg);
+    }
+    return operand->kind == 2 || operand->kind == 3;
+}
+
+/* 0x00530050; high-level equivalent; binary match unmeasured. */
+int SpillCode_IsDeadInstruction(PCodeInstruction* instruction, int reg_class,
+                                unsigned int* live)
+{
+    int index;
+
+    if ((instruction->flags & PCodeInstruction_DeadCodeBarrierMask) != 0) {
+        return 0;
+    }
+    if (instruction->context != 0 && (instruction->context->flags & 0x03) != 0)
+    {
+        return 0;
+    }
+    for (index = 0; index < instruction->operand_count; index++) {
+        if (SpillCode_DefinitionBlocksRemoval(&instruction->operands[index],
+                                              reg_class, live))
+        {
+            return 0;
+        }
+    }
+    return gDeleteDeadInstructions > 0;
+}
+
 /* 0x00530a80; high-level equivalent; binary match unmeasured. */
 void SpillCode_MarkLastUses(int reg_class, int register_count)
 {
@@ -185,9 +223,7 @@ void SpillCode_MarkLastUses(int reg_class, int register_count)
         {
             int index;
 
-            if (SpillCode_HandleSpecialInstruction(instruction, reg_class,
-                                                   live))
-            {
+            if (SpillCode_IsDeadInstruction(instruction, reg_class, live)) {
                 PCode_RemoveRedundantInstruction(instruction);
                 continue;
             }

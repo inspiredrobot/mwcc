@@ -138,6 +138,17 @@ subtype 4 through 14 uses vr2. These are inserted as upward-exposed uses in the
 return block before liveness propagation. Tests cover allocation of all four
 sets and the two-register GPR return case.
 
+Before the ordinary backward last-use transfer, `SpillCode_IsDeadInstruction`
+at `0x00530050` recognizes definitions that can be deleted. Instruction flags
+matching mask `0x00020434` and context flags `0x03` are barriers. GPR, FPR, and
+VR definitions are removable only while analyzing their own class and only
+when their destination is not live; SPR and condition-register definitions are
+always retained. Global option byte `0x005842e1` enables the deletion after all
+operands pass those checks. The instruction context pointer is at
+`PCodeInstruction + 0x08`, with its barrier flags at context offset `0x2e`.
+Tests cover dead, live, context-protected, and instruction-protected
+definitions.
+
 Four of those internal stages are now identified. `SpillCode_MarkLastUses` at
 `0x00530a80` initializes a bitset from each block’s live-out state, then walks
 the block backward through the instruction link at `PCodeBlock + 0x18`.
