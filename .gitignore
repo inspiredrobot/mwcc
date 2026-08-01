@@ -1,0 +1,10 @@
+build/
+orig/
+build.ninja
+objdiff.json
+compile_commands.json
+.ninja_deps
+.ninja_log
+*.pyc
+__pycache__/
+.DS_Store

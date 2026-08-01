@@ -1,0 +1,12 @@
+{
+  "version": "GC_1_2_5n",
+  "description": "Ninji-patched derivative of CodeWarrior for GameCube 1.2.5",
+  "original": "orig/GC_1_2_5n/mwcceppc.exe",
+  "size": 1651200,
+  "md5": "079ef43b94875271ebef297f2f966bd3",
+  "sha1": "ef0480e9b4a42398bda3e412794c6628e26e1bf7",
+  "sha256": "ccf4b465cec73b5aae9c5c5543dcf8cda8a62aba246f89e2e0b200d742f2e55c",
+  "image_base": 4194304,
+  "pe_timestamp": 988023511,
+  "ghidra_language": "x86:LE:32:default:windows"
+}

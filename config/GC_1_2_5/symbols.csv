@@ -1,0 +1,3 @@
+address,size,kind,name,source,status
+0x0042cd10,,function,IRO_Optimizer,binary and mwcc-inspector GC/1.2.5 breakpoint,confirmed
+0x00540bbc,47,string,mwcc_version_banner,binary string,confirmed
