@@ -17,12 +17,14 @@ from allocator_snapshot import (
 class SparseMemory:
     def __init__(self):
         self.data = {}
+        self.read_sizes = []
 
     def write(self, address, data):
         for offset, value in enumerate(data):
             self.data[address + offset] = value
 
     def read(self, address, size):
+        self.read_sizes.append(size)
         return bytes(self.data.get(address + offset, 0) for offset in range(size))
 
 
@@ -100,6 +102,14 @@ def main():
     assert coloring["simplify_order"] == [32, 33]
     assert coloring["nodes"][0]["neighbors"] == [33]
     assert coloring["nodes"][1]["neighbors"] == [32]
+
+    zero_neighbor = bytearray(0x16)
+    struct.pack_into("<h", zero_neighbor, 0x0C, 32)
+    memory.write(node_addresses[0], zero_neighbor)
+    memory.write(graph_address + 33 * 4, struct.pack("<I", 0))
+    coloring = SnapshotReader(memory.read).coloring_snapshot(0, 0)
+    assert coloring["nodes"][0]["neighbors"] == []
+    assert memory.read_sizes[-1] != 0
     print("allocator snapshot tests passed")
 
 

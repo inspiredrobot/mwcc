@@ -1,0 +1,8 @@
+FROM debian:stable-slim
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        gdb-multiarch \
+        python3 \
+        qemu-user \
+    && rm -rf /var/lib/apt/lists/*

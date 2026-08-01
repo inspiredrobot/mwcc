@@ -40,6 +40,23 @@ report virtual registers added or removed, object-binding and graph-field
 changes, color changes, and movement in simplify-stack order between source
 variants.
 
+The wrapper also registers `mwcc-auto-capture DIRECTORY`. Invoke it before
+continuing the compiler to write an indexed PCode snapshot for every compiled
+function and GPR coloring snapshots immediately before and after each color
+selection attempt. The post-selection breakpoint comes from the x86 return
+address at `[esp]`; this avoids relying on debug symbols or GDB unwinding.
+Capture indices follow emitted function order and can be correlated with
+`powerpc-eabi-nm -n` on the output object.
+
+On hosts where a `linux/386` container is emulated, host `ptrace` may be
+unavailable. `tools/docker/Dockerfile.debugger` provides native GDB,
+`gdb-multiarch`, and `qemu-user`. Run the verified i386 Wibo binary under
+`qemu-i386 -g PORT`, then connect GDB to QEMU's built-in stub inside the same
+network-disabled container. This path observes the emulated process without
+host `ptrace`. Runtime hardening remains mandatory: no network, a read-only
+root, no capabilities, `no-new-privileges`, resource limits, tmpfs scratch,
+and read-only compiler/input mounts.
+
 The initial snapshot deliberately stops short of object names and class ranges.
 Those fields will be added after their exact target layouts are recovered. The
 raw 12-byte operand encoding is retained so snapshots taken now can be enriched
@@ -152,6 +169,29 @@ cannot explain changes that have already happened in those stages.
 - Named static arrays for the two archive strings preserved `.data` at 100%
   and were allocation-neutral. Here the rotation is not caused by anonymous
   versus named string objects, unlike `lb_8001044C`.
+
+### `mnCharSel_8025FDEC`
+
+- Source: `src/melee/mn/mncharsel.c`
+- Symptom: the stream, frame, graph, and saved registers matched, but four
+  volatile GPR webs formed a 16-word r5/r7/r8 cycle.
+- The stock GC/1.2.5 and patched Melee GC/1.2.5n compilers emit identical
+  170-word output for the baseline, validating the stock-address capture.
+  `mnCharSel_8025FDEC` is allocation index 13 in this translation unit.
+- Captured candidate webs were `v38` (`css` to r8), `v48` (player stride to
+  r5), `v47` (normalized door to r7), and `v39` (icon index to r8). Replaying
+  the recovered lowest-color selection reproduced every compiler assignment.
+- Permuting only those nodes proved that moving `v38` ahead of `v48` in select
+  order yields retail r5/r7/r8/r7 and leaves every other color unchanged. No
+  interference or coalescing edge was missing.
+- Result: a one-field aggregate around the `CSSData*` owner changes exactly
+  that frontend/simplify ordering. Declaring it before the addressed `sp10`
+  local also accounts for MWCC's reverse stack-band order, keeping `sp10` at
+  `0x10` while the carrier occupies the existing `0x14` hole. The function is
+  100.0000% (170/170 words). Declaring it after `sp10` leaves only three
+  `0x10`/`0x14` displacement differences; adding `icon_idx` as a second field
+  grows the frame and rotates another web. This is an order-only allocator
+  case, not evidence for a larger aggregate.
 
 ### `fn_8016E2BC`
 

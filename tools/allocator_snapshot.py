@@ -26,6 +26,8 @@ class SnapshotReader:
         self.read_memory = read_memory
 
     def _read(self, address: int, size: int) -> bytes:
+        if size == 0:
+            return b""
         data = bytes(self.read_memory(address, size))
         if len(data) != size:
             raise SnapshotError(
