@@ -49,3 +49,13 @@ Two useful external references are RootCubed's MIT-licensed
 [mwcc-inspector](https://github.com/RootCubed/mwcc-inspector) and
 [mwcc-debugger](https://github.com/cadmic/mwcc-debugger), whose code is not
 copied because that repository does not publish a license.
+
+## Binary safety
+
+Compiler executables, DLLs, object files, and libraries are untrusted inputs.
+Static inspection is preferred. Never execute a downloaded binary on the host
+or load it through host Wine/Wibo. If dynamic behavior is essential, use a
+fresh disposable sandbox with networking disabled, a read-only root
+filesystem and input mounts, dropped capabilities, `no-new-privileges`, strict
+resource limits, and a dedicated writable scratch mount. Record the artifact
+hash and complete sandbox invocation so the experiment is auditable.

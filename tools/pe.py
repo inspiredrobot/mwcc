@@ -143,6 +143,10 @@ def main() -> None:
     find.add_argument("--config", type=Path, required=True)
     find.add_argument("text")
 
+    find_bytes = subparsers.add_parser("find-bytes")
+    find_bytes.add_argument("--config", type=Path, required=True)
+    find_bytes.add_argument("hex_bytes")
+
     read = subparsers.add_parser("read")
     read.add_argument("--config", type=Path, required=True)
     read.add_argument("address", type=parse_int)
@@ -171,6 +175,10 @@ def main() -> None:
         )
     elif args.command == "find-string":
         for address in pe.find(args.text.encode("latin-1")):
+            print(f"0x{address:08x}")
+    elif args.command == "find-bytes":
+        needle = bytes.fromhex(args.hex_bytes)
+        for address in pe.find(needle):
             print(f"0x{address:08x}")
     elif args.command == "read":
         print(pe.read(args.address, args.size).hex(" "))

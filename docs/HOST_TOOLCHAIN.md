@@ -46,6 +46,31 @@ compiler binaries were built with themselves. The leading hypothesis is now a
 preceding Win32/x86 MWCC lineage, likely the compiler used to bootstrap the Pro
 6 family. This remains a hypothesis until output is compared.
 
+### A CodeWarrior 5.3 object has an exact target-code fingerprint
+
+Carnegie Mellon University still distributes source and prebuilt Win32
+libraries explicitly labeled for CodeWarrior Pro 5.3 and CodeWarrior 6. Static
+inspection of the Pro 5.3 `CMUgraphics.lib` found this relocation-free body for
+libjpeg's `_jzero_far`:
+
+```text
+31 c0 57 8b 4c 24 0c 8b 7c 24 08 f3 aa 5f c3
+```
+
+The 15 bytes occur exactly once in the stock compiler's `.text`, at
+`0x00441db0`. They decode to `xor eax,eax`, save `edi`, load a byte count and
+destination from the stack, `rep stosb`, restore `edi`, and return. This is
+strong evidence that the target shares optimized x86 code-generation behavior
+with the Pro 5.3 toolchain. It is not yet proof of the exact compiler version:
+the idiom may be stable across releases, and the original C spelling and build
+flags still need to be reproduced.
+
+A scan of 82 Pro 5.3 objects found no other relocation-free exact body of at
+least 12 bytes. The sampled CodeWarrior 6 library yielded no exact matches, but
+its objects contain frame pointers, `0xcccccccc` stack initialization, and
+CodeView debug sections. That sample is plainly a debug configuration and
+cannot be used to reject CodeWarrior 6 against the optimized target.
+
 ## Confirmation standard
 
 Do not mark the host compiler or linker confirmed from dates, product names, or
@@ -60,6 +85,14 @@ reproducible comparison:
    output with objdiff.
 5. Identify the linker separately by reproducing PE section order, alignment,
    imports, CRT/TLS layout, relocations, and entry-point startup.
+
+Downloaded objects and libraries are parsed as untrusted data. Third-party
+executables and DLLs are not run on the host or through host Wine/Wibo. If a
+candidate compiler must be executed, it must run in a fresh disposable sandbox
+with networking disabled, a read-only root filesystem and input mounts,
+dropped capabilities, `no-new-privileges`, process and resource limits, and
+only a dedicated scratch directory writable. Record the input hash, exact
+command, container image identity, and sandbox options with every result.
 
 The first candidates should be the immediately preceding CodeWarrior Win32/x86
 compiler releases. A Pro 6 candidate must also be tested, but the contemporary
@@ -78,6 +111,7 @@ calls and expose code-generator decisions with little frontend ambiguity:
 | `initialize_four_words` | `0x00428000` | four scalar stores and an 8-bit Boolean return written only to `AL` |
 | `xor_64` | `0x00474e10` | mutates argument homes, then returns through `EDX:EAX` |
 | `test_bit` | `0x004bfe60` | signed index split using `AND 15` and arithmetic shift by four |
+| `_jzero_far` fingerprint | `0x00441db0` | exact 15-byte Pro 5.3 library match using `REP STOSB` |
 
 The C spelling is still a hypothesis; a mismatch must first be classified as a
 source-shape, calling-convention, optimization-level, or compiler-version
@@ -113,3 +147,5 @@ candidate toolchains belongs in this repository.
   https://preserve.mactech.com/articles/mactech/Vol.17/17.02/Feb01FactoryFloor/index.html
 - CodeWarrior Pro 6 review describing bundled x86 development tools:
   https://preserve.mactech.com/articles/mactech/Vol.17/17.01/CodeWarrior6/index.html
+- Carnegie Mellon Graphics Lab download archive labeling the Win32 packages by
+  CodeWarrior release: https://www.cs.cmu.edu/~cm-gfxpkg/download.html

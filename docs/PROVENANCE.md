@@ -35,6 +35,18 @@ No project-wide license has been selected yet.
   frontend dispatcher address. No source has yet been copied or adapted.
 - The build/configuration layout follows conventions used by the
   doldecomp/melee project. No Melee source file has yet been copied.
+- Carnegie Mellon Graphics Lab's historical download archive is used only as a
+  source of external comparison objects; no package content is committed or
+  executed. The inspected archives and SHA-256 hashes are:
+  - `CW5_Win32_CMUgraphics15_source.zip`:
+    `5208d3e04c628cece55623545b1cd5a40ef925a2e9e37c8bc668e2a951d670aa`
+  - `CW5_Win32_CMUgraphics15_binary_console.zip`:
+    `e70f4cd2ba295a2e5c7bec3a12bd7ab439cb4f5cf5273aa9a1cd2d0cba828017`
+  - `CMG2_Win32_CW6_source_2_1_5.zip`:
+    `fa315a60f3863f64831111ec3bff276408bc2c17bab26ff223fa0467c8522576`
+  - `CMG2_Win32_CW6_starter_2_1_5.zip`:
+    `96e89a420d91213d43b2c775f0083d9f10b01a8e30e2e9fdbcb296275910ff90`
+  Source index: https://www.cs.cmu.edu/~cm-gfxpkg/download.html
 
 For every imported or adapted file, add its source URL, revision, license, and
 material modifications here.
