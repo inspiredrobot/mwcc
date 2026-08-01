@@ -65,6 +65,28 @@ The first candidates should be the immediately preceding CodeWarrior Win32/x86
 compiler releases. A Pro 6 candidate must also be tested, but the contemporary
 Metrowerks statement means it must not be assumed to be the bootstrap compiler.
 
+## Focused code-generation probes
+
+`probes/host/codegen.c` captures five small leaf functions recovered from the
+stock executable. They were selected because their target functions contain no
+calls and expose code-generator decisions with little frontend ambiguity:
+
+| Probe | Target | Distinguishing behavior |
+| --- | --- | --- |
+| `absolute_int` | `0x00420a10` | branch and `NEG`, with a separate return on each path |
+| `short_predecessor` | `0x00412ed0` | 16-bit test followed by explicit sign extension |
+| `initialize_four_words` | `0x00428000` | four scalar stores and an 8-bit Boolean return written only to `AL` |
+| `xor_64` | `0x00474e10` | mutates argument homes, then returns through `EDX:EAX` |
+| `test_bit` | `0x004bfe60` | signed index split using `AND 15` and arithmetic shift by four |
+
+The C spelling is still a hypothesis; a mismatch must first be classified as a
+source-shape, calling-convention, optimization-level, or compiler-version
+difference. A version should only be rejected after ordinary source variants
+and optimization levels have been checked. The `initialize_four_words` Boolean
+return and `xor_64` calling convention are especially useful for confirming
+that a candidate is from the right Win32/x86 ABI family before doing detailed
+matching.
+
 ## Reproducing the negative self-host test
 
 Run the stock compiler's complete help and inspect `-processor`; then compile:

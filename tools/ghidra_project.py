@@ -74,7 +74,9 @@ def import_project(config_path: Path, stamp: Path | None) -> None:
         stamp.write_text(config["sha256"] + "\n", encoding="utf-8")
 
 
-def run_script(config_path: Path, script: str, output: Path) -> None:
+def run_script(
+    config_path: Path, script: str, output: Path, script_args: tuple[str, ...] = ()
+) -> None:
     config, original = verify(config_path)
     project_root = Path("build") / config["version"] / "ghidra"
     user_root = Path("build") / config["version"] / "ghidra-user"
@@ -95,6 +97,7 @@ def run_script(config_path: Path, script: str, output: Path) -> None:
         "-postScript",
         script,
         str(output.resolve()),
+        *script_args,
     ]
     env = os.environ.copy()
     env["JAVA_HOME"] = find_java_home()
@@ -114,12 +117,36 @@ def main() -> None:
     export_parser = subparsers.add_parser("export-optimizer")
     export_parser.add_argument("--config", type=Path, required=True)
     export_parser.add_argument("--output", type=Path, required=True)
+    functions_parser = subparsers.add_parser("export-functions")
+    functions_parser.add_argument("--config", type=Path, required=True)
+    functions_parser.add_argument("--output", type=Path, required=True)
+    functions_parser.add_argument("addresses", nargs="+")
+    leaves_parser = subparsers.add_parser("rank-leaves")
+    leaves_parser.add_argument("--config", type=Path, required=True)
+    leaves_parser.add_argument("--output", type=Path, required=True)
+    leaves_parser.add_argument("--start", required=True)
+    leaves_parser.add_argument("--end", required=True)
+    leaves_parser.add_argument("--limit", type=int, default=50)
     args = parser.parse_args()
 
     if args.command == "import":
         import_project(args.config, args.stamp)
     elif args.command == "export-optimizer":
         run_script(args.config, "ExportOptimizer.java", args.output)
+    elif args.command == "export-functions":
+        run_script(
+            args.config,
+            "ExportFunctions.java",
+            args.output,
+            tuple(args.addresses),
+        )
+    elif args.command == "rank-leaves":
+        run_script(
+            args.config,
+            "RankLeafFunctions.java",
+            args.output,
+            (args.start, args.end, str(args.limit)),
+        )
 
 
 if __name__ == "__main__":
