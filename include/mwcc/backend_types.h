@@ -100,6 +100,9 @@ enum PCodeOperandFlags {
 };
 
 enum PCodeInstructionFlags {
+    PCodeInstruction_SkipCodeMotion = 0x0004,
+    PCodeInstruction_ImplicitUse = 0x0008,
+    PCodeInstruction_ImplicitDefinition = 0x0010,
     PCodeInstruction_NullObjectMemory = 0x0040,
     PCodeInstruction_CloneExtraOperandExcluded = 0x0080,
     PCodeInstruction_CloneExtraOperand = 0x0200,
@@ -125,11 +128,12 @@ typedef struct PCodeInstruction {
     struct PCodeInstruction* next;     /* 0x00 */
     struct PCodeInstruction* previous; /* 0x04 */
     PCodeInstructionContext* context;  /* 0x08 */
-    unsigned char unknown_0c[8];
-    short opcode;             /* 0x14 */
-    unsigned int flags;       /* 0x16 */
-    short operand_count;      /* 0x1a */
-    PCodeOperand operands[1]; /* 0x1c: variable-length array */
+    int first_use_index;               /* 0x0c */
+    int first_definition_index;        /* 0x10 */
+    short opcode;                      /* 0x14 */
+    unsigned int flags;                /* 0x16 */
+    short operand_count;               /* 0x1a */
+    PCodeOperand operands[1];          /* 0x1c: variable-length array */
 } PCodeInstruction;
 
 typedef struct PCodeBlockLink {
@@ -244,6 +248,10 @@ typedef char PCodeOpcodeDescriptor_encoding_0c
     [(offsetof(PCodeOpcodeDescriptor, encoding) == 0x0c) ? 1 : -1];
 typedef char PCodeInstruction_operands_1c
     [(offsetof(PCodeInstruction, operands) == 0x1c) ? 1 : -1];
+typedef char PCodeInstruction_first_use_0c
+    [(offsetof(PCodeInstruction, first_use_index) == 0x0c) ? 1 : -1];
+typedef char PCodeInstruction_first_definition_10
+    [(offsetof(PCodeInstruction, first_definition_index) == 0x10) ? 1 : -1];
 typedef char PCodeInstructionContext_flags_2e
     [(offsetof(PCodeInstructionContext, flags) == 0x2e) ? 1 : -1];
 typedef char PCodeBlock_instructions_14

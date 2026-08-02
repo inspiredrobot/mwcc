@@ -95,6 +95,15 @@ candidate-only EBP frame and repeated Boolean/epilogue materialization around
 early returns, so the direct 690-byte form is retained as the cleaner and more
 target-shaped baseline.
 
+`COpt_005246d0` has a 496-byte target extent, not 1,104 bytes; the latter
+includes `COpt_005248c0`. A shared object-eligibility helper produced a
+599-byte census and also regressed the predicate from 690 to 738 bytes.
+Restoring the repeated target-shaped short-circuit logic reduced the census to
+514 bytes at 12.62% comparable match and restored the predicate to 690 bytes.
+This rejects source-level helper sharing here: retail duplicates an inlined
+eligibility expression, and that duplication affects the Boolean/register
+webs in both callers.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

@@ -45,6 +45,7 @@ void COpt_00521a10(void);
 void COpt_00521a30(CodeMotionNode* node);
 void COpt_00521bb0(CodeMotionNode* node);
 void COpt_SetLoopCodeMotionMode(int mode);
+void COpt_005246d0(int include_implicit);
 int COpt_005248c0(struct PCodeInstruction* instruction,
                   struct CompilerObject* object);
 void COpt_00524b20(struct CompilerObject* object);

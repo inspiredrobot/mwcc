@@ -36,6 +36,7 @@ address,size,kind,name,source,status
 0x00521a30,,function,COpt_00521a30,CodeMotion.c postorder tree traversal,inferred
 0x00521bb0,,function,COpt_00521bb0,CodeMotion.c node and instruction summary,inferred
 0x00523650,,function,COpt_SetLoopCodeMotionMode,CodeMotion.c region and per-block analysis setup,inferred
+0x005246d0,,function,COpt_005246d0,code-motion explicit and implicit def-use census,inferred
 0x005248c0,,function,COpt_005248c0,instruction and compiler-object type compatibility,inferred
 0x00524b20,,function,COpt_00524b20,CodeMotion.c object-tree insertion,inferred
 0x00524bd0,,function,COpt_00524bd0,CodeMotion.c region and guarded pass coordinator,inferred

@@ -101,6 +101,12 @@ kind-12 type wrappers are peeled where required. This is the first recovered
 code-motion rule that explains how frontend object/type identity creates
 additional virtual def/use entries beyond explicit PCode operands.
 
+`COpt_005246d0` now makes those entries concrete. It resets the global counts,
+assigns each instruction's starting use/definition indices, counts explicit
+virtual operands, and then adds the implicit opcode/object entries described
+above. Its true boundary is 496 bytes at `0x005246d0–0x005248bf`; the often
+quoted 1,104-byte range includes the separate 608-byte compatibility predicate.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

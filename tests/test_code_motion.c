@@ -97,12 +97,6 @@ void COpt_005240b0(int mode)
     RecordStage(4);
 }
 
-void COpt_005246d0(int mode)
-{
-    Check(mode == 1, "first setup mode");
-    RecordStage(3);
-}
-
 void COpt_00524d90(CodeMotionNode* node)
 {
     RecordNode(10, node);
@@ -337,6 +331,67 @@ static void TestObjectInstructionCompatibility(void)
           "special operation accepts subtype range");
 }
 
+static void TestDefUseCensus(void)
+{
+    typedef struct TestInstruction {
+        PCodeInstruction instruction;
+        PCodeOperand extra_operands[2];
+    } TestInstruction;
+
+    PCodeBlock block;
+    TestInstruction instructions[3];
+    CompilerObject objects[2];
+    CodeMotionObjectNode object_nodes[2];
+
+    ResetState();
+    memset(&block, 0, sizeof(block));
+    memset(instructions, 0, sizeof(instructions));
+    memset(objects, 0, sizeof(objects));
+    memset(object_nodes, 0, sizeof(object_nodes));
+    block.instructions = &instructions[0].instruction;
+    gPCodeBlocks = &block;
+    instructions[0].instruction.next = &instructions[1].instruction;
+    instructions[1].instruction.next = &instructions[2].instruction;
+    instructions[0].instruction.operand_count = 3;
+    instructions[0].instruction.operands[0].kind = 0;
+    instructions[0].instruction.operands[0].flags = PCodeOperand_Use;
+    instructions[0].instruction.operands[0].value.reg = 32;
+    instructions[0].instruction.operands[1].kind = 1;
+    instructions[0].instruction.operands[1].flags = PCodeOperand_Definition;
+    instructions[0].instruction.operands[1].value.reg = 33;
+    instructions[0].instruction.operands[2].kind = 9;
+    instructions[0].instruction.operands[2].flags =
+        PCodeOperand_Use | PCodeOperand_Definition;
+    instructions[0].instruction.operands[2].value.reg = 31;
+    instructions[1].instruction.operand_count = 1;
+    instructions[1].instruction.flags =
+        PCodeInstruction_ImplicitUse | PCodeInstruction_NullObjectMemory;
+    instructions[2].instruction.operand_count = 1;
+    instructions[2].instruction.flags = PCodeInstruction_GPRFixedRange;
+    objects[0].kind = 0;
+    objects[1].kind = 2;
+    object_nodes[0].object = &objects[0];
+    object_nodes[0].allocation_next = &object_nodes[1];
+    object_nodes[1].object = &objects[1];
+    gCodeMotionAllocationList_005870fc = &object_nodes[0];
+
+    COpt_005246d0(0);
+    Check(gCodeMotionUseCount_00587e38 == 1 &&
+              gCodeMotionDefinitionCount_00587ebc == 1,
+          "explicit def-use census");
+    Check(instructions[0].instruction.first_use_index == 0 &&
+              instructions[0].instruction.first_definition_index == 0,
+          "first instruction index base");
+    Check(instructions[1].instruction.first_use_index == 1 &&
+              instructions[1].instruction.first_definition_index == 1,
+          "second instruction index base");
+
+    COpt_005246d0(1);
+    Check(gCodeMotionUseCount_00587e38 == 3 &&
+              gCodeMotionDefinitionCount_00587ebc == 2,
+          "implicit object def-use census");
+}
+
 static void TestSetup(void)
 {
     typedef struct TestInstruction {
@@ -347,7 +402,7 @@ static void TestSetup(void)
     PCodeBlock block;
     TestInstruction instruction;
     CompilerObject object;
-    int expected_stages[] = {3, 4, 5, 6, 7, 8};
+    int expected_stages[] = {4, 5, 6, 7, 8};
     int index;
 
     ResetState();
@@ -377,13 +432,13 @@ static void TestSetup(void)
           "two block-state records");
     for (index = 2; index < 18; index++) {
         if (((index - 2) & 7) < 4) {
-            Check(gAllocationSizes[index] == 8, "definition-set size");
+            Check(gAllocationSizes[index] == 0, "definition-set size");
         } else {
-            Check(gAllocationSizes[index] == 12, "use-set size");
+            Check(gAllocationSizes[index] == 4, "use-set size");
         }
     }
-    Check(gStageCount == 6, "setup stage count");
-    for (index = 0; index < 6; index++) {
+    Check(gStageCount == 5, "setup stage count");
+    for (index = 0; index < 5; index++) {
         Check(gStages[index] == expected_stages[index], "setup stage order");
     }
 }
@@ -414,6 +469,7 @@ int main(void)
     TestNodeSummary();
     TestObjectTreeInsert();
     TestObjectInstructionCompatibility();
+    TestDefUseCensus();
     TestSetup();
     TestCoordinator();
     puts("code-motion model tests passed");

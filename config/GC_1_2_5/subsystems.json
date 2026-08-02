@@ -120,6 +120,16 @@
           "match_note": "comparable positional bytes at -O4,p -inline auto; target 407 bytes versus candidate 411; candidate-only EBP frame plus an initial iterator-register permutation and one global reset folded to an immediate"
         },
         {
+          "address": "0x005246d0",
+          "name": "COpt_005246d0",
+          "role": "assign instruction def/use index ranges and census explicit and implicit entries",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 12.62,
+          "match_note": "target 496 bytes versus candidate 514 at -O4,p -inline auto; target-shaped inline object eligibility is 85 bytes smaller than a shared-helper experiment"
+        },
+        {
           "address": "0x005248c0",
           "name": "COpt_005248c0",
           "role": "test whether a compiler object's type is compatible with an instruction's implicit def/use",

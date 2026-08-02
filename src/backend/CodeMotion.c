@@ -6,6 +6,7 @@
  *   0x00521a30  COpt_00521a30
  *   0x00521bb0  COpt_00521bb0
  *   0x00523650  COpt_SetLoopCodeMotionMode
+ *   0x005246d0  COpt_005246d0
  *   0x005248c0  COpt_005248c0
  *   0x00524bd0  COpt_00524bd0
  *
@@ -41,7 +42,6 @@ extern void COpt_005237f0(void);
 extern void COpt_00523920(void);
 extern void COpt_00523a50(void);
 extern void COpt_005240b0(int mode);
-extern void COpt_005246d0(int mode);
 extern void COpt_00524d90(CodeMotionNode* node);
 extern void COpt_00525200(CodeMotionNode* node);
 
@@ -191,6 +191,114 @@ void COpt_SetLoopCodeMotionMode(int mode)
     SpillCode_BuildBlockOrder();
     COpt_00523920();
     COpt_005237f0();
+}
+
+/* 0x005246d0; high-level equivalent; 12.62% comparable byte match. */
+void COpt_005246d0(int include_implicit)
+{
+    PCodeBlock* block;
+    PCodeInstruction* instruction;
+
+    gCodeMotionDefinitionCount_00587ebc = 0;
+    gCodeMotionUseCount_00587e38 = 0;
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        for (instruction = block->instructions; instruction != 0;
+             instruction = instruction->next)
+        {
+            int index;
+
+            if ((instruction->flags & PCodeInstruction_SkipCodeMotion) != 0 ||
+                instruction->operand_count == 0)
+            {
+                continue;
+            }
+            instruction->first_use_index = gCodeMotionUseCount_00587e38;
+            instruction->first_definition_index =
+                gCodeMotionDefinitionCount_00587ebc;
+            for (index = 0; index < instruction->operand_count; index++) {
+                PCodeOperand* operand = &instruction->operands[index];
+
+                if ((operand->kind == 0 || operand->kind == 1 ||
+                     operand->kind == 9) &&
+                    operand->value.reg >= 32)
+                {
+                    if ((operand->flags & PCodeOperand_Use) != 0) {
+                        gCodeMotionUseCount_00587e38++;
+                    }
+                    if ((operand->flags & PCodeOperand_Definition) != 0) {
+                        gCodeMotionDefinitionCount_00587ebc++;
+                    }
+                }
+            }
+
+            if (include_implicit != 0) {
+                if ((instruction->flags & PCodeInstruction_ImplicitUse) != 0) {
+                    if ((instruction->flags &
+                         PCodeInstruction_NullObjectMemory) == 0)
+                    {
+                        gCodeMotionUseCount_00587e38++;
+                    } else {
+                        CodeMotionObjectNode* object_node;
+
+                        for (object_node = gCodeMotionAllocationList_005870fc;
+                             object_node != 0;
+                             object_node = object_node->allocation_next)
+                        {
+                            if (COpt_005248c0(instruction,
+                                              object_node->object))
+                            {
+                                gCodeMotionUseCount_00587e38++;
+                            }
+                        }
+                    }
+                } else if ((instruction->flags &
+                            PCodeInstruction_ImplicitDefinition) != 0)
+                {
+                    if ((instruction->flags &
+                         PCodeInstruction_NullObjectMemory) == 0)
+                    {
+                        gCodeMotionDefinitionCount_00587ebc++;
+                    } else {
+                        CodeMotionObjectNode* object_node;
+
+                        for (object_node = gCodeMotionAllocationList_005870fc;
+                             object_node != 0;
+                             object_node = object_node->allocation_next)
+                        {
+                            if (COpt_005248c0(instruction,
+                                              object_node->object))
+                            {
+                                gCodeMotionDefinitionCount_00587ebc++;
+                            }
+                        }
+                    }
+                } else if ((instruction->flags &
+                            PCodeInstruction_GPRFixedRange) != 0)
+                {
+                    CodeMotionObjectNode* object_node;
+
+                    for (object_node = gCodeMotionAllocationList_005870fc;
+                         object_node != 0;
+                         object_node = object_node->allocation_next)
+                    {
+                        CompilerObject* object = object_node->object;
+                        CompilerType* type = object->type;
+
+                        if (object->kind == 0 || COpt_0048ad10(object) != 0 ||
+                            (object->kind == 1 &&
+                             (object->register_info_26->flags_22 != 0 ||
+                              type->kind == 0x0c || type->kind == 0x04 ||
+                              type->kind == 0x05 ||
+                              (type->kind == 0x0a && type->size == 0x0c))))
+                        {
+                            gCodeMotionUseCount_00587e38++;
+                            gCodeMotionDefinitionCount_00587ebc++;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /* 0x005248c0; high-level equivalent; 11.92% comparable byte match. */

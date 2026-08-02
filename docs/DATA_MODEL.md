@@ -134,6 +134,15 @@ fields at `+0x10` and `+0x2e`, plus an object register-info flag at
 the addressability classifier at `0x0048ad10`, and exact opcode ranges to
 decide whether an object contributes an implicit use or definition.
 
+The census at `0x005246d0` confirms `PCodeInstruction +0x0c/+0x10` as the
+starting use and definition indices assigned before each instruction's entries
+are counted. Explicit operands contribute only for kinds 0, 1, and 9 with a
+virtual register number of at least 32. Operand access bits add use and
+definition entries independently. Instruction flag `0x08` adds implicit uses,
+`0x10` adds implicit definitions, and `0x20` can add both for every eligible
+object; flag `0x40` selects per-object compatibility instead of one anonymous
+entry.
+
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude
 `0x40` contributes the object pointer in operand 2 to the collection rooted at
