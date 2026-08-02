@@ -150,6 +150,16 @@
           "match_note": "target 112 bytes versus candidate 120 at -O4,p -inline auto; operation sequence and 24-byte node initialization align after removing the candidate-only EBP frame"
         },
         {
+          "address": "0x00524b90",
+          "name": "COpt_00524b90",
+          "role": "look up a compiler object in the code-motion object index",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "instruction-exact",
+          "match_percent": 100.0,
+          "match_note": "56 instruction bytes exact at -O4,p -inline auto; target extent includes eight trailing alignment bytes"
+        },
+        {
           "address": "0x00524bd0",
           "name": "COpt_00524bd0",
           "role": "reset code-motion results, run two guarded tree passes, and release iteration storage",

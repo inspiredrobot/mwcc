@@ -86,6 +86,9 @@ link/object webs to ESI/EBX, while retail has no frame and uses EBX/EBP. The
 pointer comparisons, branch topology, allocation call, 24-byte initialization
 order, allocation-list update, and tree-link store otherwise correspond.
 
+The adjacent `COpt_00524b90` lookup matches all 56 instruction bytes at the
+same flags. The remaining eight bytes in its 64-byte extent are alignment.
+
 The first `COpt_005248c0` reconstruction used semantic helper expressions and
 measured 802 candidate bytes versus 608 target bytes at 7.62%. Repeating the
 target's short-circuit type tests directly reduced the candidate to 690 bytes

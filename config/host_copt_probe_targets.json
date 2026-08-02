@@ -10,6 +10,7 @@
     {"name": "COpt_005246d0", "address": "0x005246d0", "size": 496},
     {"name": "COpt_005248c0", "address": "0x005248c0", "size": 608},
     {"name": "COpt_00524b20", "address": "0x00524b20", "size": 112},
+    {"name": "COpt_00524b90", "address": "0x00524b90", "size": 64},
     {"name": "COpt_00524bd0", "address": "0x00524bd0", "size": 59},
     {"name": "COpt_00524c10", "address": "0x00524c10", "size": 382},
     {"name": "COpt_00525070", "address": "0x00525070", "size": 384}

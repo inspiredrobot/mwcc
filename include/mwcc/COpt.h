@@ -49,6 +49,7 @@ void COpt_005246d0(int include_implicit);
 int COpt_005248c0(struct PCodeInstruction* instruction,
                   struct CompilerObject* object);
 void COpt_00524b20(struct CompilerObject* object);
+CodeMotionObjectNode* COpt_00524b90(struct CompilerObject* object);
 void COpt_00524bd0(void);
 void COpt_00524c10(CodeMotionNode* node);
 void COpt_00525070(CodeMotionNode* node);

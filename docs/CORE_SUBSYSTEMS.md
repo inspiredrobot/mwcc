@@ -94,6 +94,11 @@ iteration allocation list. The binary separates this 112-byte insert from the
 64-byte lookup beginning at `0x00524b90`; treating both as one 176-byte routine
 would hide a real source boundary.
 
+The separated lookup at `COpt_00524b90` is now instruction-exact across all
+56 code bytes; its 64-byte extent contains eight alignment bytes. This
+validates the same unsigned object ordering independently of insertion and
+provides the table builder's object-to-entry-list lookup primitive.
+
 `COpt_005248c0` reconstructs the type-compatibility predicate shared by the
 definition/use census and table builder. It separates word and wide scalar
 families, indexed memory families, and two specialized type-layout families;

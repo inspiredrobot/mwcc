@@ -437,6 +437,23 @@ void COpt_00524b20(CompilerObject* object)
     *link = node;
 }
 
+/* 0x00524b90; instruction-exact; 100.00% comparable byte match. */
+CodeMotionObjectNode* COpt_00524b90(CompilerObject* object)
+{
+    CodeMotionObjectNode* node = gCodeMotionObjectTree_005880ac;
+
+    while (node != 0) {
+        if (object < node->object) {
+            node = node->left;
+        } else if (object > node->object) {
+            node = node->right;
+        } else {
+            return node;
+        }
+    }
+    return 0;
+}
+
 /* 0x00524bd0; control-flow equivalent; 20.69% comparable byte match. */
 void COpt_00524bd0(void)
 {

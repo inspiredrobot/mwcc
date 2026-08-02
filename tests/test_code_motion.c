@@ -269,6 +269,12 @@ static void TestObjectTreeInsert(void)
           "lower object inserted left");
     Check(gCodeMotionObjectTree_005880ac->right->object == &objects[2],
           "higher object inserted right");
+    Check(COpt_00524b90(&objects[0]) == gCodeMotionObjectTree_005880ac->left,
+          "lower object found");
+    Check(COpt_00524b90(&objects[1]) == gCodeMotionObjectTree_005880ac,
+          "root object found");
+    Check(COpt_00524b90(&objects[2]) == gCodeMotionObjectTree_005880ac->right,
+          "higher object found");
 
     allocation_count = 0;
     for (allocation = gCodeMotionAllocationList_005870fc; allocation != 0;
