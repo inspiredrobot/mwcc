@@ -48,3 +48,8 @@ memory operand is converted to an FPR. The operand's type size selects LFS or
 LFD; this instance selects LFD. The extra live web is therefore formed during
 initial PCode lowering, before O4 and coloring. Revisit the source/FE lowering
 shape, not register-selection order, when this origin differs between builds.
+
+Use `tools/rank_register_origins.py provenance.json` to find which lowering
+sites own the most live webs. Pass `--compare other.json` when testing two source
+shapes; the largest live-count deltas identify the frontend/operand operation to
+investigate before another spelling sweep.

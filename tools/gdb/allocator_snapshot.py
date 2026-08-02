@@ -543,6 +543,8 @@ class VirtualRegisterCounterResetBreakpoint(gdb.Breakpoint):
 
     def stop(self):
         self.session.pending_frontend_virtual_register_events = []
+        if self.session.capture_current:
+            self.session.virtual_register_events = []
         return False
 
 

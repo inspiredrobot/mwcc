@@ -154,6 +154,11 @@ path. Across this function the capture records 180 object-backed GPR births, 75
 object-backed FPR births, 659 direct GPR-temporary births, and 243 direct
 FPR-temporary births. All 695 live GPR and 273 live FPR webs now join to exactly
 one birth event; there are no unexplained live allocator webs in this capture.
+`tools/rank_register_origins.py` aggregates these links by register class,
+allocation kind, and exact lowering site, including live/dead counts and
+definition mnemonics. Its comparison mode ranks allocation and live-web deltas
+between two source captures, so a source experiment can be tied to the first
+changed lowering operation rather than judged only by final assembly.
 
 The same run exposed the next boundary worth instrumenting. Of 2,337 allocator
 instructions, 2,317 join to normal creation events. Stage snapshots prove that

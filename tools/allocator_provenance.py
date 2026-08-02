@@ -7,10 +7,17 @@ import struct
 from pathlib import Path
 
 from allocator_snapshot import (
+    TARGET_NINJI_SHA256,
     TARGET_SHA256,
     validate_coloring_snapshot,
     validate_snapshot,
 )
+
+
+VIRTUAL_REGISTER_CATALOG_BY_HASH = {
+    TARGET_SHA256: Path("config/GC_1_2_5/virtual_register_sites.json"),
+    TARGET_NINJI_SHA256: Path("config/GC_1_2_5n/virtual_register_sites.json"),
+}
 
 
 REGISTER_CLASS_BY_KIND = {0: "gpr", 1: "fpr", 9: "vr"}
@@ -30,6 +37,15 @@ def load_opcode_catalog(path: Path) -> dict[int, dict]:
     if catalog.get("target_sha256") != TARGET_SHA256:
         raise ValueError(f"opcode catalog targets another compiler: {path}")
     return {entry["opcode"]: entry for entry in catalog["opcodes"]}
+
+
+def load_virtual_register_catalog(path: Path, target_sha256: str) -> dict:
+    catalog = load_json(path)
+    if catalog.get("format") != "mwcc-virtual-register-sites-v1":
+        raise ValueError(f"unsupported virtual-register site catalog: {path}")
+    if catalog.get("target_sha256") != target_sha256:
+        raise ValueError(f"virtual-register site catalog targets another compiler: {path}")
+    return {site["address"]: site for site in catalog["sites"]}
 
 
 def register_id(reg_class: str, register: int) -> str:
@@ -291,6 +307,7 @@ def flatten_creation_trace(
     trace: dict | None,
     instructions: list[dict],
     registers: list[dict],
+    virtual_register_sites: dict[str, dict],
 ) -> dict:
     if trace is None:
         return {
@@ -468,6 +485,7 @@ def flatten_creation_trace(
     register_created_by = []
     for event in trace.get("virtual_register_events", []):
         event_id = f"vrc{event['sequence']}"
+        site = virtual_register_sites.get(event["allocator_address"], {})
         object_after = event.get("object_after")
         register_info = None
         if object_after is not None:
@@ -502,8 +520,12 @@ def flatten_creation_trace(
                 "allocator_address_is_post_write": event.get(
                     "allocator_address_is_post_write", False
                 ),
-                "allocator_function": event.get("allocator_function"),
-                "allocator_operation": event.get("allocator_operation"),
+                "allocator_function": (
+                    event.get("allocator_function") or site.get("function")
+                ),
+                "allocator_operation": (
+                    event.get("allocator_operation") or site.get("operation")
+                ),
                 "call_address": event["call_address"],
                 "caller_return_address": event["caller_return_address"],
                 "codegen_item_address": event.get("codegen_item_address"),
@@ -555,10 +577,12 @@ def build_provenance(
     coloring_snapshots: list[dict] | None = None,
     opcode_catalog: dict[int, dict] | None = None,
     creation_trace: dict | None = None,
+    virtual_register_sites: dict[str, dict] | None = None,
 ) -> dict:
     validate_snapshot(allocator)
     coloring_snapshots = coloring_snapshots or []
     opcode_catalog = opcode_catalog or {}
+    virtual_register_sites = virtual_register_sites or {}
     pcode = flatten_pcode(allocator, opcode_catalog)
     return {
         "format": "mwcc-allocator-provenance-v1",
@@ -573,6 +597,7 @@ def build_provenance(
             creation_trace,
             pcode["instructions"],
             pcode["registers"],
+            virtual_register_sites,
         ),
         **flatten_coloring(allocator, coloring_snapshots),
     }
@@ -586,6 +611,7 @@ def main() -> None:
     parser.add_argument("--coloring", type=Path, action="append", default=[])
     parser.add_argument("--opcodes", type=Path)
     parser.add_argument("--creations", type=Path)
+    parser.add_argument("--register-sites", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -598,7 +624,23 @@ def main() -> None:
             opcode_path = default_path
     catalog = load_opcode_catalog(opcode_path) if opcode_path else {}
     creation_trace = load_json(args.creations) if args.creations else None
-    result = build_provenance(allocator, coloring, catalog, creation_trace)
+    register_sites_path = args.register_sites
+    if register_sites_path is None:
+        candidate = VIRTUAL_REGISTER_CATALOG_BY_HASH.get(
+            allocator.get("target_sha256")
+        )
+        if candidate is not None and candidate.is_file():
+            register_sites_path = candidate
+    register_sites = (
+        load_virtual_register_catalog(
+            register_sites_path, allocator["target_sha256"]
+        )
+        if register_sites_path
+        else {}
+    )
+    result = build_provenance(
+        allocator, coloring, catalog, creation_trace, register_sites
+    )
     text = json.dumps(result, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
