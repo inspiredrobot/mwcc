@@ -114,3 +114,18 @@ whose exact diagnostic boundaries are:
 The stage ordering is confirmed. Some working function names inside each stage
 remain semantic inferences and are labeled that way in
 `config/GC_1_2_5/subsystems.json`.
+
+The exact post-scheduler boundary is `0x00435baf`; the exact post-forward-
+peephole, pre-allocation boundary is `0x00435bfd`. A focused CursorThink capture
+showed that the scheduler removed 30 PCode instructions and added none, while
+forward peephole changed 20 existing instructions without adding or removing
+any. Twenty live instructions lacking normal construction events were already
+present at the post-O4 boundary. They come from a direct optimizer allocation
+or clone path, not either shared-tail pass.
+
+Clone tracing resolves that path to `PCode_CloneInstruction` at `0x0049d270`.
+For the focused CursorThink capture, its live calls originate at `0x0052aa93`
+and `0x0052ab71` in helper `0x0052a200`, below the confirmed loop-
+transformation entry at `0x005289b0`. The five-instruction loop body is copied
+four times, so this is direct evidence of loop-unrolling ancestry rather than a
+name inferred only from the pass string.

@@ -72,6 +72,8 @@ enum PCodeOperandFlags {
 };
 
 enum PCodeInstructionFlags {
+    PCodeInstruction_CloneExtraOperandExcluded = 0x0080,
+    PCodeInstruction_CloneExtraOperand = 0x0200,
     PCodeInstruction_CoalesceDisabled = 0x0400,
     PCodeInstruction_CopySourceExclusion = 0x0800,
     PCodeInstruction_GPRFixedRange = 0x0020,

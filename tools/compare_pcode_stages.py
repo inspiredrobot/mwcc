@@ -34,10 +34,14 @@ def instruction_summary(instruction: dict, creation: dict | None) -> dict:
         "flags": instruction["flags"],
         "operands": [operand["raw"] for operand in instruction["operands"]],
         "creation_sequence": creation["sequence"] if creation else None,
+        "creation_kind": creation.get("origin_kind") if creation else None,
         "creation_epoch": creation["epoch"] if creation else None,
         "lowering_call_address": creation["call_address"] if creation else None,
         "codegen_item_address": (
             creation.get("codegen_item_address") if creation else None
+        ),
+        "derived_from_address": (
+            creation.get("source_address") if creation else None
         ),
     }
 
@@ -57,9 +61,24 @@ def compare_stages(
         if creation_trace.get("format") != "mwcc-pcode-creation-trace-v1":
             raise ValueError("unsupported PCode creation trace")
         creations = {
-            event["instruction"]["address"]: event
+            event["instruction"]["address"]: {
+                **event,
+                "origin_kind": "normal_creation",
+            }
             for event in creation_trace["events"]
         }
+        creations.update(
+            {
+                event["destination_address"]: {
+                    "sequence": event["sequence"],
+                    "epoch": event["epoch"],
+                    "call_address": event["call_address"],
+                    "origin_kind": "optimizer_clone",
+                    "source_address": event["source_address"],
+                }
+                for event in creation_trace.get("clone_events", [])
+            }
+        )
 
     before_map = instruction_map(before)
     after_map = instruction_map(after)

@@ -293,7 +293,10 @@ def flatten_creation_trace(
         return {
             "pcode_creations": [],
             "creation_operands": [],
+            "codegen_items": [],
             "created_by": [],
+            "pcode_clones": [],
+            "derived_from": [],
             "creation_coverage": None,
         }
     if trace.get("format") != "mwcc-pcode-creation-trace-v1":
@@ -314,12 +317,35 @@ def flatten_creation_trace(
 
     creations = []
     creation_operands = []
+    codegen_items = []
+    codegen_item_ids = {}
     creation_by_address = {}
     for event in trace["events"]:
         creation_id = f"c{event['sequence']}"
         instruction = event["instruction"]
         address = instruction["address"]
         descriptor = instruction.get("opcode_descriptor")
+        codegen_item_address = event.get("codegen_item_address")
+        codegen_item_id = None
+        if codegen_item_address not in (None, "0x00000000"):
+            codegen_item_id = codegen_item_ids.get(codegen_item_address)
+            if codegen_item_id is None:
+                codegen_item_id = f"cg{len(codegen_items)}"
+                codegen_item_ids[codegen_item_address] = codegen_item_id
+                codegen_items.append(
+                    {
+                        "id": codegen_item_id,
+                        "capture_address": codegen_item_address,
+                        "header": event.get("codegen_item_header"),
+                        "fields": event.get("codegen_item_fields"),
+                        "pointer_0a_data": event.get(
+                            "codegen_pointer_0a_data"
+                        ),
+                        "pointer_0e_data": event.get(
+                            "codegen_pointer_0e_data"
+                        ),
+                    }
+                )
         creations.append(
             {
                 "id": creation_id,
@@ -329,8 +355,8 @@ def flatten_creation_trace(
                 "wrapper_address": event["wrapper_address"],
                 "call_address": event["call_address"],
                 "caller_return_address": event["caller_return_address"],
-                "codegen_item_address": event.get("codegen_item_address"),
-                "codegen_item_header": event.get("codegen_item_header"),
+                "codegen_item": codegen_item_id,
+                "codegen_item_address": codegen_item_address,
                 "instruction_address": address,
                 "opcode": instruction["opcode"],
                 "flags_at_creation": instruction["flags"],
@@ -351,11 +377,72 @@ def flatten_creation_trace(
                 }
             )
 
+    instruction_by_address = {
+        instruction["address"]: instruction for instruction in instructions
+    }
+    allocation_by_address = {
+        allocation["address"]: allocation
+        for allocation in trace.get("unwrapped_instruction_allocations", [])
+    }
+    clones = []
+    derived_from = []
+    clone_by_address = {}
+    for event in trace.get("clone_events", []):
+        clone_id = f"cl{event['sequence']}"
+        source = event["source_instruction"]
+        destination = event["destination_instruction"]
+        destination_address = event["destination_address"]
+        allocation = allocation_by_address.get(destination_address)
+        clones.append(
+            {
+                "id": clone_id,
+                "sequence": event["sequence"],
+                "epoch": event["epoch"],
+                "call_address": event["call_address"],
+                "caller_return_address": event["caller_return_address"],
+                "source_instruction_address": event["source_address"],
+                "destination_instruction_address": destination_address,
+                "opcode": destination["opcode"],
+                "mnemonic": (destination.get("opcode_descriptor") or {}).get(
+                    "mnemonic"
+                ),
+                "allocation_call_address": (
+                    allocation.get("call_address") if allocation else None
+                ),
+                "allocation_size": (
+                    allocation.get("requested_size") if allocation else None
+                ),
+                "source_operands": [
+                    operand["raw"] for operand in source["operands"]
+                ],
+                "destination_operands": [
+                    operand["raw"] for operand in destination["operands"]
+                ],
+            }
+        )
+        clone_by_address[destination_address] = clone_id
+        live_destination = instruction_by_address.get(destination_address)
+        if live_destination is None:
+            continue
+        live_source = instruction_by_address.get(event["source_address"])
+        derived_from.append(
+            {
+                "instruction": live_destination["id"],
+                "source_instruction": (
+                    live_source["id"] if live_source is not None else None
+                ),
+                "source_address": event["source_address"],
+                "clone": clone_id,
+            }
+        )
+
     created_by = []
     unlinked_instructions = []
     for instruction in instructions:
         creation_id = creation_by_address.get(instruction["address"])
         if creation_id is None:
+            if instruction["address"] in clone_by_address:
+                continue
             unlinked_instructions.append(instruction["id"])
             continue
         created_by.append(
@@ -373,10 +460,15 @@ def flatten_creation_trace(
     return {
         "pcode_creations": creations,
         "creation_operands": creation_operands,
+        "codegen_items": codegen_items,
         "created_by": created_by,
+        "pcode_clones": clones,
+        "derived_from": derived_from,
         "creation_coverage": {
             "live_instruction_count": len(instructions),
-            "linked_live_instruction_count": len(created_by),
+            "linked_live_instruction_count": len(created_by) + len(derived_from),
+            "normal_creation_live_instruction_count": len(created_by),
+            "clone_creation_live_instruction_count": len(derived_from),
             "unlinked_live_instructions": unlinked_instructions,
             "creation_count": len(creations),
             "dead_creations": dead_creations,

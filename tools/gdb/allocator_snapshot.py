@@ -9,7 +9,7 @@ TOOLS_DIR = Path(__file__).resolve().parents[1]
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from allocator_snapshot import TARGET_SHA256, SnapshotReader
+from allocator_snapshot import TARGET_NINJI_SHA256, TARGET_SHA256, SnapshotReader
 
 
 ALLOCATE_REGISTERS_ADDRESS = 0x004CDEF0
@@ -17,9 +17,14 @@ SELECT_COLORS_ADDRESS = 0x004CE2D0
 CODEGEN_GENERATOR_ADDRESS = 0x004351C0
 INITIAL_PCODE_ADDRESS = 0x00435B04
 OPTIMIZED_PCODE_ADDRESS = 0x00435B39
+POST_SCHEDULER_PCODE_ADDRESS = 0x00435BAF
+FORWARD_PEEPHOLE_PCODE_ADDRESS = 0x00435BFD
 PCODE_EMIT_ADDRESS = 0x004A25D0
 PCODE_CREATE_ADDRESS = 0x004A2620
 PCODE_BUILDER_RETURN_ADDRESS = 0x004A2B6D
+PCODE_ARENA_ALLOCATOR_RETURN_ADDRESS = 0x00441FD5
+PCODE_CLONE_ADDRESS = 0x0049D270
+PCODE_CLONE_RETURN_ADDRESS = 0x0049D2EC
 CURRENT_CODEGEN_ITEM_ADDRESS = 0x00587130
 
 PCODE_WRAPPERS = {
@@ -27,12 +32,22 @@ PCODE_WRAPPERS = {
     PCODE_CREATE_ADDRESS: "create",
 }
 REGISTER_CLASS_NAMES = {0: "gpr", 1: "fpr", 9: "vr"}
+CAPTURE_TARGETS = {
+    "stock": ("GC/1.2.5", TARGET_SHA256),
+    "ninji": ("GC/1.2.5n", TARGET_NINJI_SHA256),
+}
 
 
-def snapshot_reader():
+def snapshot_reader(session=None):
     inferior = gdb.selected_inferior()
+    compiler, target_sha256 = CAPTURE_TARGETS["stock"]
+    if session is not None:
+        compiler = session.compiler
+        target_sha256 = session.target_sha256
     return SnapshotReader(
-        lambda address, size: bytes(inferior.read_memory(address, size))
+        lambda address, size: bytes(inferior.read_memory(address, size)),
+        compiler,
+        target_sha256,
     )
 
 
@@ -41,6 +56,15 @@ def write_snapshot(output, snapshot):
     with output.open("w", encoding="utf-8") as stream:
         json.dump(snapshot, stream, indent=2)
         stream.write("\n")
+
+
+def optional_raw(reader, address, size):
+    if address == 0:
+        return None
+    try:
+        return reader.raw(address, size).hex()
+    except gdb.MemoryError:
+        return None
 
 
 class MwccAllocatorSnapshot(gdb.Command):
@@ -101,7 +125,9 @@ class ColoringReturnBreakpoint(gdb.Breakpoint):
         self.reg_class = reg_class
 
     def stop(self):
-        reader = snapshot_reader()
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
         snapshot = reader.coloring_snapshot(
             self.reg_class,
             0,
@@ -128,7 +154,9 @@ class ColoringBreakpoint(gdb.Breakpoint):
         self.session = session
 
     def stop(self):
-        reader = snapshot_reader()
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
         stack_pointer = int(gdb.parse_and_eval("$esp"))
         reg_class = reader.u32(stack_pointer + 4)
         if reg_class not in REGISTER_CLASS_NAMES:
@@ -167,11 +195,13 @@ class AllocateBreakpoint(gdb.Breakpoint):
         self.session = session
 
     def stop(self):
-        reader = snapshot_reader()
+        reader = snapshot_reader(self.session)
         stack_pointer = int(gdb.parse_and_eval("$esp"))
         function_pointer = reader.u32(stack_pointer + 4)
         if not self.session.active:
             self.session.begin_function(function_pointer)
+        if not self.session.capture_current:
+            return False
         self.session.coloring_attempts = {}
         snapshot = reader.snapshot(
             function_pointer, int(gdb.parse_and_eval("$pc"))
@@ -181,6 +211,7 @@ class AllocateBreakpoint(gdb.Breakpoint):
             f"allocator-{self.session.function_index:04d}.json"
         )
         write_snapshot(output, snapshot)
+        self.session.write_creation_trace("allocator", snapshot)
         instruction_count = sum(
             len(block["instructions"]) for block in snapshot["blocks"]
         )
@@ -200,7 +231,7 @@ class CodeGenBreakpoint(gdb.Breakpoint):
         self.session = session
 
     def stop(self):
-        reader = snapshot_reader()
+        reader = snapshot_reader(self.session)
         stack_pointer = int(gdb.parse_and_eval("$esp"))
         function_pointer = reader.u32(stack_pointer + 8)
         self.session.begin_function(function_pointer)
@@ -215,13 +246,118 @@ class PCodeStageBreakpoint(gdb.Breakpoint):
         self.next_epoch = next_epoch
 
     def stop(self):
-        if not self.session.active:
+        if not self.session.capture_current:
             return False
+        if self.phase == "optimized":
+            self.session.pcode_allocation_breakpoint.enabled = False
+            self.session.pcode_clone_breakpoint.enabled = False
+            self.session.pcode_clone_return_breakpoint.enabled = False
         self.session.write_pcode_stage(
             self.phase,
             int(gdb.parse_and_eval("$pc")),
         )
         self.session.creation_epoch = self.next_epoch
+        if self.phase == "initial":
+            self.session.pcode_allocation_breakpoint.enabled = True
+            self.session.pcode_clone_breakpoint.enabled = True
+            self.session.pcode_clone_return_breakpoint.enabled = True
+        return False
+
+
+class PCodeAllocationReturnBreakpoint(gdb.Breakpoint):
+    """Record arena allocations made while the backend optimizer runs."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{PCODE_ARENA_ALLOCATOR_RETURN_ADDRESS:08x}",
+            internal=True,
+        )
+        self.session = session
+        self.enabled = False
+
+    def stop(self):
+        if (
+            not self.session.capture_current
+            or self.session.creation_epoch != "backend_optimization"
+        ):
+            return False
+        reader = snapshot_reader(self.session)
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        return_address = reader.u32(stack_pointer)
+        call_address = return_address - 5
+        if reader.u8(call_address) != 0xE8:
+            call_address = None
+        self.session.optimizer_allocations.append(
+            {
+                "sequence": len(self.session.optimizer_allocations),
+                "epoch": self.session.creation_epoch,
+                "address": f"0x{int(gdb.parse_and_eval('$eax')):08x}",
+                "requested_size": reader.u32(stack_pointer + 4),
+                "caller_return_address": f"0x{return_address:08x}",
+                "call_address": (
+                    f"0x{call_address:08x}" if call_address is not None else None
+                ),
+            }
+        )
+        return False
+
+
+class PCodeCloneBreakpoint(gdb.Breakpoint):
+    """Capture the parent and caller when the optimizer clones PCode."""
+
+    def __init__(self, session):
+        super().__init__(f"*0x{PCODE_CLONE_ADDRESS:08x}", internal=True)
+        self.session = session
+        self.enabled = False
+
+    def stop(self):
+        if (
+            not self.session.capture_current
+            or self.session.creation_epoch != "backend_optimization"
+        ):
+            return False
+        reader = snapshot_reader(self.session)
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        return_address = reader.u32(stack_pointer)
+        call_address = return_address - 5
+        if reader.u8(call_address) != 0xE8:
+            call_address = None
+        self.session.pending_clones.append(
+            {
+                "epoch": self.session.creation_epoch,
+                "source_address": f"0x{reader.u32(stack_pointer + 4):08x}",
+                "caller_return_address": f"0x{return_address:08x}",
+                "call_address": (
+                    f"0x{call_address:08x}" if call_address is not None else None
+                ),
+            }
+        )
+        return False
+
+
+class PCodeCloneReturnBreakpoint(gdb.Breakpoint):
+    def __init__(self, session):
+        super().__init__(f"*0x{PCODE_CLONE_RETURN_ADDRESS:08x}", internal=True)
+        self.session = session
+        self.enabled = False
+
+    def stop(self):
+        if not self.session.capture_current or not self.session.pending_clones:
+            return False
+        reader = snapshot_reader(self.session)
+        clone = self.session.pending_clones.pop()
+        destination = int(gdb.parse_and_eval("$eax"))
+        source = int(clone["source_address"], 0)
+        clone["sequence"] = len(self.session.clone_events)
+        clone["destination_address"] = f"0x{destination:08x}"
+        clone["source_instruction"] = reader.instruction(source)
+        clone["destination_instruction"] = reader.instruction(destination)
+        if (
+            clone["source_instruction"]["opcode"]
+            != clone["destination_instruction"]["opcode"]
+        ):
+            raise gdb.GdbError("PCode clone changed opcode during copy")
+        self.session.clone_events.append(clone)
         return False
 
 
@@ -232,15 +368,32 @@ class PCodeWrapperBreakpoint(gdb.Breakpoint):
         self.address = address
 
     def stop(self):
-        if not self.session.active:
+        if not self.session.capture_current:
             return False
-        reader = snapshot_reader()
+        reader = snapshot_reader(self.session)
         stack_pointer = int(gdb.parse_and_eval("$esp"))
         return_address = reader.u32(stack_pointer)
         call_address = return_address - 5
         if reader.u8(call_address) != 0xE8:
             call_address = None
         codegen_item = reader.u32(CURRENT_CODEGEN_ITEM_ADDRESS)
+        item_fields = None
+        pointer_0a_data = None
+        pointer_0e_data = None
+        if codegen_item:
+            pointer_0a = reader.u32(codegen_item + 0x0A)
+            pointer_0e = reader.u32(codegen_item + 0x0E)
+            item_fields = {
+                "kind_04": reader.u8(codegen_item + 0x04),
+                "byte_05": reader.u8(codegen_item + 0x05),
+                "flags_06": reader.u8(codegen_item + 0x06),
+                "byte_07": reader.u8(codegen_item + 0x07),
+                "signed_08": reader.s16(codegen_item + 0x08),
+                "pointer_0a": f"0x{pointer_0a:08x}",
+                "pointer_0e": f"0x{pointer_0e:08x}",
+            }
+            pointer_0a_data = optional_raw(reader, pointer_0a, 0x20)
+            pointer_0e_data = optional_raw(reader, pointer_0e, 0x20)
         self.session.pending_creations.append(
             {
                 "epoch": self.session.creation_epoch,
@@ -255,6 +408,9 @@ class PCodeWrapperBreakpoint(gdb.Breakpoint):
                 "codegen_item_header": (
                     reader.raw(codegen_item, 0x12).hex() if codegen_item else None
                 ),
+                "codegen_item_fields": item_fields,
+                "codegen_pointer_0a_data": pointer_0a_data,
+                "codegen_pointer_0e_data": pointer_0e_data,
             }
         )
         return False
@@ -269,11 +425,11 @@ class PCodeBuilderReturnBreakpoint(gdb.Breakpoint):
         self.session = session
 
     def stop(self):
-        if not self.session.active or not self.session.pending_creations:
+        if not self.session.capture_current or not self.session.pending_creations:
             return False
         pending = self.session.pending_creations.pop()
         instruction_pointer = int(gdb.parse_and_eval("$eax"))
-        instruction = snapshot_reader().instruction(instruction_pointer)
+        instruction = snapshot_reader(self.session).instruction(instruction_pointer)
         if instruction["opcode"] != pending["opcode_argument"]:
             raise gdb.GdbError(
                 "PCode creation opcode changed between wrapper and builder"
@@ -288,15 +444,24 @@ class PCodeBuilderReturnBreakpoint(gdb.Breakpoint):
 
 
 class CaptureSession:
-    def __init__(self, output):
+    def __init__(self, output, target_index=None, target="stock"):
         self.output = output
+        self.target_index = target_index
+        self.compiler, self.target_sha256 = CAPTURE_TARGETS[target]
         self.function_index = 0
         self.function_pointer = 0
         self.coloring_attempts = {}
         self.active = False
+        self.capture_current = False
         self.creation_epoch = "initial_lowering"
         self.creation_events = []
         self.pending_creations = []
+        self.optimizer_allocations = []
+        self.clone_events = []
+        self.pending_clones = []
+        self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
+        self.pcode_clone_breakpoint = PCodeCloneBreakpoint(self)
+        self.pcode_clone_return_breakpoint = PCodeCloneReturnBreakpoint(self)
         self.codegen_breakpoint = CodeGenBreakpoint(self)
         self.initial_pcode_breakpoint = PCodeStageBreakpoint(
             self,
@@ -310,6 +475,18 @@ class CaptureSession:
             "optimized",
             "post_optimization",
         )
+        self.post_scheduler_pcode_breakpoint = PCodeStageBreakpoint(
+            self,
+            POST_SCHEDULER_PCODE_ADDRESS,
+            "scheduled",
+            "forward_peephole",
+        )
+        self.forward_peephole_pcode_breakpoint = PCodeStageBreakpoint(
+            self,
+            FORWARD_PEEPHOLE_PCODE_ADDRESS,
+            "forward_peephole",
+            "register_allocation",
+        )
         self.pcode_wrapper_breakpoints = [
             PCodeWrapperBreakpoint(self, address) for address in PCODE_WRAPPERS
         ]
@@ -322,32 +499,29 @@ class CaptureSession:
         self.function_pointer = function_pointer
         self.coloring_attempts = {}
         self.active = True
+        self.capture_current = (
+            self.target_index is None or self.function_index == self.target_index
+        )
         self.creation_epoch = "initial_lowering"
         self.creation_events = []
         self.pending_creations = []
+        self.optimizer_allocations = []
+        self.clone_events = []
+        self.pending_clones = []
+        self.pcode_allocation_breakpoint.enabled = False
+        self.pcode_clone_breakpoint.enabled = False
+        self.pcode_clone_return_breakpoint.enabled = False
 
     def write_pcode_stage(self, phase, program_counter):
-        reader = snapshot_reader()
+        reader = snapshot_reader(self)
         snapshot = reader.snapshot(self.function_pointer, program_counter)
         snapshot["capture_index"] = self.function_index
         snapshot["phase"] = phase
         output = self.output / f"pcode-{self.function_index:04d}-{phase}.json"
         write_snapshot(output, snapshot)
 
-        trace = {
-            "format": "mwcc-pcode-creation-trace-v1",
-            "compiler": "GC/1.2.5",
-            "target_sha256": TARGET_SHA256,
-            "capture_index": self.function_index,
-            "function_pointer": f"0x{self.function_pointer:08x}",
-            "through_phase": phase,
-            "events": self.creation_events,
-            "pending_event_count": len(self.pending_creations),
-        }
-        trace_output = self.output / (
-            f"pcode-creations-{self.function_index:04d}-{phase}.json"
-        )
-        write_snapshot(trace_output, trace)
+        self.write_creation_trace(phase, snapshot)
+
         instruction_count = sum(
             len(block["instructions"]) for block in snapshot["blocks"]
         )
@@ -357,6 +531,56 @@ class CaptureSession:
             f"{len(self.creation_events)} creation events\n"
         )
 
+    def write_creation_trace(self, phase, snapshot=None):
+        live_instructions = {}
+        if snapshot is not None:
+            live_instructions = {
+                instruction["address"]: instruction
+                for block in snapshot["blocks"]
+                for instruction in block["instructions"]
+            }
+        wrapped_addresses = {
+            event["instruction"]["address"] for event in self.creation_events
+        }
+        clone_by_destination = {
+            clone["destination_address"]: clone for clone in self.clone_events
+        }
+        unwrapped_allocations = []
+        for allocation in self.optimizer_allocations:
+            instruction = live_instructions.get(allocation["address"])
+            if instruction is None or allocation["address"] in wrapped_addresses:
+                continue
+            unwrapped_allocations.append(
+                {
+                    **allocation,
+                    "first_observed_phase": phase,
+                    "clone_sequence": (
+                        clone_by_destination[allocation["address"]]["sequence"]
+                        if allocation["address"] in clone_by_destination
+                        else None
+                    ),
+                    "instruction": instruction,
+                }
+            )
+        trace = {
+            "format": "mwcc-pcode-creation-trace-v1",
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
+            "capture_index": self.function_index,
+            "function_pointer": f"0x{self.function_pointer:08x}",
+            "through_phase": phase,
+            "events": self.creation_events,
+            "clone_events": self.clone_events,
+            "unwrapped_instruction_allocations": unwrapped_allocations,
+            "optimizer_allocation_count": len(self.optimizer_allocations),
+            "pending_event_count": len(self.pending_creations),
+            "pending_clone_count": len(self.pending_clones),
+        }
+        trace_output = self.output / (
+            f"pcode-creations-{self.function_index:04d}-{phase}.json"
+        )
+        write_snapshot(trace_output, trace)
+
     def coloring_path(self, function_index, reg_class, attempt, phase):
         return self.output / (
             f"coloring-{function_index:04d}-{REGISTER_CLASS_NAMES[reg_class]}-"
@@ -365,7 +589,7 @@ class CaptureSession:
 
 
 class MwccAutoCapture(gdb.Command):
-    """Capture every allocator pass: mwcc-auto-capture DIRECTORY"""
+    """Capture MWCC passes: mwcc-auto-capture DIR [INDEX] [stock|ninji]"""
 
     def __init__(self):
         super().__init__("mwcc-auto-capture", gdb.COMMAND_DATA)
@@ -373,12 +597,29 @@ class MwccAutoCapture(gdb.Command):
 
     def invoke(self, argument, from_tty):
         del from_tty
-        output = Path(argument.strip())
-        if not output.name:
-            raise gdb.GdbError("usage: mwcc-auto-capture DIRECTORY")
+        arguments = gdb.string_to_argv(argument)
+        if len(arguments) not in (1, 2, 3):
+            raise gdb.GdbError(
+                "usage: mwcc-auto-capture DIRECTORY [FUNCTION_INDEX] "
+                "[stock|ninji]"
+            )
+        output = Path(arguments[0])
+        target_index = int(arguments[1], 0) if len(arguments) == 2 else None
+        if len(arguments) == 3:
+            target_index = int(arguments[1], 0)
+        target = arguments[2] if len(arguments) == 3 else "stock"
+        if target not in CAPTURE_TARGETS:
+            raise gdb.GdbError("target must be stock or ninji")
+        if target_index is not None and target_index <= 0:
+            raise gdb.GdbError("FUNCTION_INDEX must be positive")
         output.mkdir(parents=True, exist_ok=True)
-        self.session = CaptureSession(output)
-        gdb.write(f"Capturing MWCC allocator passes in {output}\n")
+        self.session = CaptureSession(output, target_index, target)
+        selection = (
+            f"function {target_index}" if target_index is not None else "all functions"
+        )
+        gdb.write(
+            f"Capturing {target} MWCC passes for {selection} in {output}\n"
+        )
 
 
 MwccAllocatorSnapshot()

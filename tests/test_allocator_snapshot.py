@@ -11,6 +11,7 @@ from allocator_snapshot import (
     INTERFERENCE_GRAPH_ADDRESS,
     PCODE_BLOCKS_ADDRESS,
     PCODE_OPCODE_DESCRIPTORS_ADDRESS,
+    TARGET_NINJI_SHA256,
     SnapshotReader,
     decode_operand_format,
 )
@@ -217,6 +218,12 @@ def main():
     coloring = SnapshotReader(memory.read).coloring_snapshot(0, 0)
     assert coloring["nodes"][0]["neighbors"] == []
     assert memory.read_sizes[-1] != 0
+
+    ninji_snapshot = SnapshotReader(
+        memory.read, "GC/1.2.5n", TARGET_NINJI_SHA256
+    ).snapshot()
+    assert ninji_snapshot["compiler"] == "GC/1.2.5n"
+    assert ninji_snapshot["target_sha256"] == TARGET_NINJI_SHA256
     print("allocator snapshot tests passed")
 
 

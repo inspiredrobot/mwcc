@@ -29,12 +29,33 @@ def explain_register(provenance: dict, register_id: str) -> dict:
     creations = {
         item["id"]: item for item in provenance.get("pcode_creations", [])
     }
+    derivation_links = {
+        item["instruction"]: item
+        for item in provenance.get("derived_from", [])
+    }
+    clones = {
+        item["id"]: item for item in provenance.get("pcode_clones", [])
+    }
+    codegen_items = {
+        item["id"]: item for item in provenance.get("codegen_items", [])
+    }
+    instruction_operands = {}
+    for item in provenance["operands"]:
+        instruction_operands.setdefault(item["instruction"], []).append(item)
+    creation_operands = {}
+    for item in provenance.get("creation_operands", []):
+        creation_operands.setdefault(item["creation"], []).append(item)
 
     def site(operand_id: str, role: str) -> dict:
         operand = operands[operand_id]
         instruction = instructions[operand["instruction"]]
         creation_id = creation_links.get(instruction["id"])
         creation = creations.get(creation_id)
+        derivation = derivation_links.get(instruction["id"])
+        clone = clones.get(derivation.get("clone")) if derivation else None
+        codegen_item = (
+            codegen_items.get(creation.get("codegen_item")) if creation else None
+        )
         return {
             "role": role,
             "operand": operand_id,
@@ -45,11 +66,44 @@ def explain_register(provenance: dict, register_id: str) -> dict:
             "mnemonic": instruction["mnemonic"],
             "opcode": instruction["opcode"],
             "creation": creation_id,
+            "origin_kind": (
+                "normal_creation"
+                if creation is not None
+                else "optimizer_clone"
+                if clone is not None
+                else "unknown"
+            ),
             "creation_epoch": creation["epoch"] if creation else None,
             "lowering_call_address": (
                 creation["call_address"] if creation else None
             ),
             "lowering_wrapper": creation["wrapper"] if creation else None,
+            "clone": clone.get("id") if clone else None,
+            "clone_epoch": clone.get("epoch") if clone else None,
+            "clone_call_address": clone.get("call_address") if clone else None,
+            "derived_from_instruction": (
+                derivation.get("source_instruction") if derivation else None
+            ),
+            "derived_from_address": (
+                derivation.get("source_address") if derivation else None
+            ),
+            "codegen_item_address": (
+                creation.get("codegen_item_address") if creation else None
+            ),
+            "codegen_item_header": (
+                codegen_item.get("header") if codegen_item else None
+            ),
+            "codegen_item_fields": (
+                codegen_item.get("fields") if codegen_item else None
+            ),
+            "codegen_pointer_0a_data": (
+                codegen_item.get("pointer_0a_data") if codegen_item else None
+            ),
+            "codegen_pointer_0e_data": (
+                codegen_item.get("pointer_0e_data") if codegen_item else None
+            ),
+            "instruction_operands": instruction_operands[instruction["id"]],
+            "creation_operands": creation_operands.get(creation_id, []),
         }
 
     sites = [site(item, "definition") for item in register["definitions"]]

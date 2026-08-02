@@ -64,12 +64,24 @@ def main():
                 "instruction": removed,
             }
         ],
+        "clone_events": [
+            {
+                "sequence": 2,
+                "epoch": "backend_optimization",
+                "source_address": "0x00001100",
+                "destination_address": "0x00001400",
+                "call_address": "0x0052ab71",
+            }
+        ],
     }
     result = compare_stages(before, after, trace)
     assert result["before_instruction_count"] == 3
     assert result["after_instruction_count"] == 3
     assert result["removed"][0]["creation_sequence"] == 7
     assert result["added"][0]["address"] == "0x00001400"
+    assert result["added"][0]["creation_kind"] == "optimizer_clone"
+    assert result["added"][0]["derived_from_address"] == "0x00001100"
+    assert result["added"][0]["lowering_call_address"] == "0x0052ab71"
     assert result["modified"][0]["after"]["flags"] == 4
     print("PCode stage comparison tests passed")
 

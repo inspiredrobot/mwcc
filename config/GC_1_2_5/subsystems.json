@@ -85,6 +85,23 @@
       ]
     },
     {
+      "name": "PCode",
+      "source_anchor": "PCode.c",
+      "source": "src/backend/PCode.c",
+      "functions": [
+        {
+          "address": "0x0049d270",
+          "name": "PCode_CloneInstruction",
+          "role": "allocate and copy an unlinked variable-length PCode instruction",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "functionally equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        }
+      ]
+    },
+    {
       "name": "Registers",
       "source_anchor": "Registers.c",
       "source": "src/backend/Registers.c",

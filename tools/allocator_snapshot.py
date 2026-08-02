@@ -8,6 +8,13 @@ from typing import Callable
 
 
 TARGET_SHA256 = "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914"
+TARGET_NINJI_SHA256 = (
+    "ccf4b465cec73b5aae9c5c5543dcf8cda8a62aba246f89e2e0b200d742f2e55c"
+)
+SUPPORTED_TARGETS = {
+    TARGET_SHA256: "GC/1.2.5",
+    TARGET_NINJI_SHA256: "GC/1.2.5n",
+}
 PCODE_BLOCKS_ADDRESS = 0x00587C74
 PCODE_OPCODE_DESCRIPTORS_ADDRESS = 0x005654B0
 PCODE_MAX_OPCODE = 0x01D1
@@ -89,8 +96,17 @@ class SnapshotError(ValueError):
 
 
 class SnapshotReader:
-    def __init__(self, read_memory: Callable[[int, int], bytes]):
+    def __init__(
+        self,
+        read_memory: Callable[[int, int], bytes],
+        compiler: str = "GC/1.2.5",
+        target_sha256: str = TARGET_SHA256,
+    ):
+        if SUPPORTED_TARGETS.get(target_sha256) != compiler:
+            raise SnapshotError("unsupported compiler snapshot identity")
         self.read_memory = read_memory
+        self.compiler = compiler
+        self.target_sha256 = target_sha256
         self._opcode_descriptors = {}
 
     def _read(self, address: int, size: int) -> bytes:
@@ -301,8 +317,8 @@ class SnapshotReader:
 
         snapshot = {
             "format": "mwcc-coloring-snapshot-v1",
-            "compiler": "GC/1.2.5",
-            "target_sha256": TARGET_SHA256,
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
             "program_counter": f"0x{program_counter:08x}",
             "register_class": reg_class,
             "register_count": register_count,
@@ -315,8 +331,8 @@ class SnapshotReader:
     def snapshot(self, function_pointer: int = 0, program_counter: int = 0) -> dict:
         snapshot = {
             "format": "mwcc-allocator-snapshot-v1",
-            "compiler": "GC/1.2.5",
-            "target_sha256": TARGET_SHA256,
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
             "function_pointer": f"0x{function_pointer:08x}",
             "program_counter": f"0x{program_counter:08x}",
             "virtual_register_counts": {
@@ -332,8 +348,9 @@ class SnapshotReader:
 def validate_snapshot(snapshot: dict) -> None:
     if snapshot.get("format") != "mwcc-allocator-snapshot-v1":
         raise SnapshotError("unsupported snapshot format")
-    if snapshot.get("target_sha256") != TARGET_SHA256:
-        raise SnapshotError("snapshot does not identify the verified GC/1.2.5 target")
+    target_sha256 = snapshot.get("target_sha256")
+    if SUPPORTED_TARGETS.get(target_sha256) != snapshot.get("compiler"):
+        raise SnapshotError("snapshot does not identify a verified compiler target")
 
     blocks = snapshot.get("blocks")
     if not isinstance(blocks, list):
@@ -353,8 +370,9 @@ def validate_snapshot(snapshot: dict) -> None:
 def validate_coloring_snapshot(snapshot: dict) -> None:
     if snapshot.get("format") != "mwcc-coloring-snapshot-v1":
         raise SnapshotError("unsupported coloring snapshot format")
-    if snapshot.get("target_sha256") != TARGET_SHA256:
-        raise SnapshotError("snapshot does not identify the verified GC/1.2.5 target")
+    target_sha256 = snapshot.get("target_sha256")
+    if SUPPORTED_TARGETS.get(target_sha256) != snapshot.get("compiler"):
+        raise SnapshotError("snapshot does not identify a verified compiler target")
     nodes = snapshot.get("nodes")
     if not isinstance(nodes, list):
         raise SnapshotError("nodes must be a list")

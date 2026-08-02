@@ -19,3 +19,12 @@ compare `pcode-NNNN-initial.json` with `pcode-NNNN-optimized.json`. Join the
 optimized creation trace through `allocator_provenance.py --creations`, then
 query the suspect web with `tools/explain_register.py`. This recovers its exact
 PCode creation callsite even when the coloring node's object pointer is zero.
+Use the optional emitted-function index to timebox large TUs, and pass `ninji`
+when running Melee's verified GC/1.2.5n derivative so captures are not
+misidentified as stock.
+
+Do not classify a live PCode instruction without a normal creation event as a
+scheduler artifact. Compare the optimized, scheduled, and forward-peephole
+snapshots first. `mwcc-auto-capture` traces `PCode_CloneInstruction` during O4,
+and `allocator_provenance.py` emits exact `derived_from` links for surviving
+clones.

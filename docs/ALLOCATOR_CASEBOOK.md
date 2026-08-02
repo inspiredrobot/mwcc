@@ -56,6 +56,13 @@ avoids relying on debug symbols or GDB unwinding. Capture indices follow emitted
 function order and can be correlated with `powerpc-eabi-nm -n` on the output
 object.
 
+For large translation units, `mwcc-auto-capture DIRECTORY FUNCTION_INDEX`
+keeps the stage, creation, allocator, and all-class coloring output for only one
+emitted function. A final `ninji` argument selects the verified Melee
+GC/1.2.5n identity; the default is stock GC/1.2.5. The address set used here is
+confirmed unchanged between those two binaries, but their hashes remain
+distinct in every capture.
+
 Auto-capture also traces the two PCode construction wrappers at `0x004a25d0`
 and `0x004a2620` through the common builder return at `0x004a2b6d`. Every event
 records the allocated instruction, creation epoch, immediate x86 callsite, and
@@ -121,6 +128,34 @@ allocator instructions, complete `created_by` coverage for all 17 survivors,
 one dead creation, one in-place operand rewrite, and no genuine reorder. Five
 nonzero opaque CodeGen-item identities were retained across the 18 emission
 events; three prologue events correctly had no current item.
+
+The focused CursorThink validation closes the original motivating question.
+Emitted function 15 produced 2,509 initial instructions/events, 2,367
+post-optimizer instructions and 2,337 pre-coloring instructions. `fpr:265` is
+defined by `LFD` creation `c1665` and consumed by `FCMPO` creation `c1666`.
+Both are `initial_lowering` events attached to the same opaque CodeGen item of
+raw kind 7; neither was created by the backend optimizer. The node has no
+compiler-object binding, simplifies at position 8, and selects physical f23.
+Its creation-time `LFD` destination already is virtual FPR 265 with object zero,
+while its memory operand retains object `0x40fb6258`. This proves the candidate's
+ninth FPR web is born during frontend-driven initial lowering and survives O4,
+rather than being invented by optimization or color selection.
+
+The same run exposed the next boundary worth instrumenting. Of 2,337 allocator
+instructions, 2,317 join to normal creation events. Stage snapshots prove that
+the remaining 20 are among 67 instructions added by O4 before `0x00435b39`.
+The scheduler then removes 30 instructions without adding any, and forward
+peephole mutates 20 without adding or removing any. The unmatched instructions
+are therefore made by an optimizer-side PCode allocation/copy path which
+bypasses the normal construction wrappers, not by the shared tail. Arena-
+allocation and clone-entry tracing during O4 located the path. All 20 are made
+by `PCode_CloneInstruction` at `0x0049d270`, and every copy retains its exact
+live parent. Sixteen clone calls come from `0x0052ab71` and four from
+`0x0052aa93`, both inside helper `0x0052a200` under the confirmed loop-
+transformation pass. They repeat the same five-instruction
+LBZ/CMPLI/BT/ADDI/ADDI body four times. On the subsequently captured candidate
+revision, all 2,335 pre-coloring instructions have provenance: 2,315 normal
+surviving creations and 20 optimizer clones.
 
 ## Initial Melee cases
 

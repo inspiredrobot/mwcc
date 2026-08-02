@@ -50,6 +50,14 @@ def allocator_snapshot():
                             operand(0, 5, 33),
                             operand(10, 0, 0),
                         ],
+                    },
+                    {
+                        "address": "0x00001200",
+                        "next": 0,
+                        "previous": 0,
+                        "opcode": 0x8B,
+                        "flags": 0x0A01,
+                        "operands": [],
                     }
                 ],
             }
@@ -128,6 +136,31 @@ def main():
                 },
             }
         ],
+        "clone_events": [
+            {
+                "sequence": 0,
+                "epoch": "backend_optimization",
+                "source_address": "0x00001100",
+                "destination_address": "0x00001200",
+                "caller_return_address": "0x0052ab76",
+                "call_address": "0x0052ab71",
+                "source_instruction": {
+                    "address": "0x00001100",
+                    "opcode": 0x8B,
+                    "opcode_descriptor": catalog[0x8B],
+                    "flags": 0x0A01,
+                    "operands": [operand(0, 2, 32), operand(0, 1, 33)],
+                },
+                "destination_instruction": {
+                    "address": "0x00001200",
+                    "opcode": 0x8B,
+                    "opcode_descriptor": catalog[0x8B],
+                    "flags": 0x0A01,
+                    "operands": [operand(0, 2, 32), operand(0, 1, 33)],
+                },
+            }
+        ],
+        "unwrapped_instruction_allocations": [],
     }
     facts = build_provenance(
         allocator_snapshot(),
@@ -159,10 +192,22 @@ def main():
     assert facts["coalesces"][0]["parent"] == "gpr:32"
     assert facts["object_bindings"][0]["object"] == "0x00004000"
     assert facts["pcode_creations"][0]["call_address"] == "0x00401000"
+    assert facts["pcode_creations"][0]["codegen_item"] == "cg0"
+    assert facts["codegen_items"][0]["capture_address"] == "0x00005000"
     assert facts["created_by"] == [
         {"instruction": "b1:i0", "creation": "c0"}
     ]
-    assert facts["creation_coverage"]["linked_live_instruction_count"] == 1
+    assert facts["pcode_clones"][0]["call_address"] == "0x0052ab71"
+    assert facts["derived_from"] == [
+        {
+            "instruction": "b1:i1",
+            "source_instruction": "b1:i0",
+            "source_address": "0x00001100",
+            "clone": "cl0",
+        }
+    ]
+    assert facts["creation_coverage"]["linked_live_instruction_count"] == 2
+    assert facts["creation_coverage"]["unlinked_live_instructions"] == []
     explanation = explain_register(facts, "gpr:32")
     assert explanation["sites"][0]["mnemonic"] == "MR"
     assert explanation["sites"][0]["lowering_call_address"] == "0x00401000"

@@ -36,12 +36,29 @@ worse than a visible gap.
 
 `tools/allocator_provenance.py` is the first backend-provenance implementation.
 Its flat `mwcc-allocator-provenance-v1` facts use stable structural IDs rather
-than compiler addresses. Its `created_by` relation now maps every surviving
-PCode instruction to its exact construction event, lowering epoch and immediate
-x86 callsite, including when its compiler-object pointer is zero. The capture
-also retains an opaque current-CodeGen-item pointer and header as the first
-frontend/backend bridge. Decoding that item through AST, CST, symbol, type, and
-source-span layouts remains the next provenance layer.
+than compiler addresses. `created_by` maps ordinary surviving PCode to its
+construction event, lowering epoch, and immediate x86 callsite, including when
+its compiler-object pointer is zero. Optimizer copies instead use `pcode_clones`
+and `derived_from`, preserving their exact parent instruction and optimizer
+callsite. The capture also retains an opaque current-CodeGen-item pointer and
+header as the first frontend/backend bridge. Decoding that item through AST,
+CST, symbol, type, and source-span layouts remains the next provenance layer.
+
+The CursorThink `fpr:265` validation demonstrates why that bridge matters: an
+objectless allocator node can now be traced to two initial-lowering emissions
+from one raw-kind-7 CodeGen item and distinguished from optimizer-created
+PCode. The next solver-facing relation should decode `cgN` item fields into the
+recovered frontend node/type graph without replacing unknown offsets with
+guessed semantic names.
+
+The same validation now has complete pre-coloring instruction provenance. All
+20 instructions which bypassed normal constructors were copies made by
+`PCode_CloneInstruction`; each maps to one of five live parent instructions.
+Four repetitions of the LBZ/CMPLI/BT/ADDI/ADDI body come from callsites
+`0x0052aa93` and `0x0052ab71` inside helper `0x0052a200`, reached from the
+confirmed loop-transformation pass. The remaining challenge is therefore no
+longer unknown scheduler behavior: it is concrete loop-unrolling lineage which
+a future pass replay can reproduce.
 
 ## Solver experiments
 

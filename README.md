@@ -50,6 +50,15 @@ python3 tools/compare_pcode_stages.py pcode-initial.json pcode-optimized.json \
   --creations pcode-creations-optimized.json
 ```
 
+Optimizer clone tracing is included in the same capture. Provenance exports
+connect surviving clones to their parent instructions with `derived_from`; the
+register explanation reports that ancestry and the optimizer clone callsite.
+
+Inside the offline debugger, `mwcc-auto-capture DIRECTORY 15 ninji` limits an
+expensive trace to emitted function 15 and labels it with the verified Melee
+GC/1.2.5n identity. Omit the index to capture every function; omit `ninji` for
+the stock GC/1.2.5 target.
+
 Import or update the executable in the local Ghidra project with:
 
 ```sh
@@ -69,6 +78,8 @@ host toolchain is Phase 1; see
 
 See [docs/SCOPE.md](docs/SCOPE.md) for priorities and
 [docs/PROVENANCE.md](docs/PROVENANCE.md) for licensing and source provenance.
+Auditable offline runtime experiments are recorded in
+[docs/CAPTURE_EXPERIMENTS.md](docs/CAPTURE_EXPERIMENTS.md).
 The working subsystem map and agent workflow are in
 [docs/CORE_SUBSYSTEMS.md](docs/CORE_SUBSYSTEMS.md) and
 [docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md). The concrete allocator

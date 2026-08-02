@@ -144,6 +144,27 @@ the opaque CodeGen-item pointer/header active during lowering. Initial and
 optimized stage snapshots then show which creations survive, disappear, move,
 or are rewritten before coloring.
 
+The provenance export interns repeated CodeGen item addresses as `cgN` facts.
+Each fact retains the 18-byte item header, exact raw fields at offsets `+0x04`
+through `+0x0e`, and best-effort 32-byte snapshots of the values referenced by
+the unaligned fields at `+0x0a` and `+0x0e`. These remain offset-level evidence,
+not AST/type names, until the frontend layouts are recovered.
+
+Optimizer-side instruction copies have a separate identity path. The exact
+clone helper at `0x0049d270` allocates `sizeof(PCodeInstruction) + N * 12`
+bytes, with another 12-byte slot when flag `0x0200` is set and flag `0x0080` is
+clear. It copies the opcode at `+0x14`, flags at `+0x16`, operand count at
+`+0x1a`, and all visible operands, deliberately leaving list links and context
+to the insertion site. The semantic purpose of the two flag bits remains
+unknown; their allocation effect is confirmed.
+
+Capture facts assign these copies `clN` identities. `pcode_clones` retains the
+source and destination addresses, exact pre-mutation operand records, clone
+callsite, and allocation size. `derived_from` maps each surviving destination
+to its stable parent instruction ID when that parent remains live. This is
+distinct from `created_by`, which records construction through the ordinary
+PCode wrappers.
+
 Setup assigns colors 0 through 31 to the physical nodes and then seeds them
 from two shared object lists. Vector and FPR membership use the `RegisterInfo`
 class bytes. GPR membership also recognizes paired values from the object type
