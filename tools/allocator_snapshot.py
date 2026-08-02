@@ -18,6 +18,71 @@ VIRTUAL_REGISTER_COUNT_ADDRESSES = {
     "vr": 0x0058849A,
 }
 
+PCODE_FORMAT_OPERANDS = {
+    "?": {"kinds": [], "role": "unsupported"},
+    "t": {"kinds": [], "role": "unsupported"},
+    "b": {"kinds": [0], "role": "gpr_or_zero", "access_is_contextual": True},
+    "r": {"kinds": [0], "role": "gpr"},
+    "f": {"kinds": [1], "role": "fpr"},
+    "S": {"kinds": [2], "role": "special_register"},
+    "C": {"kinds": [2], "role": "special_register_1"},
+    "L": {"kinds": [2], "role": "special_register_2"},
+    "X": {"kinds": [2], "role": "special_register_0"},
+    "c": {"kinds": [3], "role": "condition_register"},
+    "Y": {"kinds": [3], "role": "all_condition_registers", "expands_to": 8},
+    "Z": {"kinds": [3], "role": "condition_register_0"},
+    "i": {"kinds": [4], "role": "immediate"},
+    "m": {
+        "kinds": [4, 5],
+        "role": "memory_or_immediate",
+        "access_is_contextual": True,
+    },
+    "M": {
+        "kinds": [4, 5],
+        "role": "memory_or_immediate",
+        "access_is_contextual": True,
+    },
+    "l": {
+        "kinds": [5, 6],
+        "role": "object_or_direct_label",
+        "access_is_contextual": True,
+    },
+    "v": {"kinds": [9], "role": "vector_register"},
+    "V": {"kinds": [0], "role": "gpr_list", "expands_to": "dynamic"},
+    "p": {"kinds": [10], "role": "marker"},
+}
+
+
+def decode_operand_format(operand_format: str) -> dict:
+    access_flags = 1
+    operands = []
+    for code in operand_format:
+        if code in "#,":
+            continue
+        if code == "=":
+            access_flags = 2
+            continue
+        if code == "+":
+            access_flags = 3
+            continue
+        operand = PCODE_FORMAT_OPERANDS.get(code)
+        if operand is None:
+            raise SnapshotError(f"unknown PCode operand format code {code!r}")
+        decoded = {
+            "code": code,
+            "default_access_flags": access_flags,
+            "default_access": {1: "use", 2: "definition", 3: "use_definition"}[
+                access_flags
+            ],
+            **operand,
+        }
+        operands.append(decoded)
+        access_flags = 1
+    return {
+        "dynamic_operand_count": operand_format.startswith("#"),
+        "operands": operands,
+    }
+
 
 class SnapshotError(ValueError):
     pass
@@ -79,6 +144,9 @@ class SnapshotReader:
             "flags": struct.unpack_from("<H", raw, 0x0A)[0],
             "encoding": f"0x{struct.unpack_from('<I', raw, 0x0C)[0]:08x}",
         }
+        descriptor["operand_schema"] = decode_operand_format(
+            descriptor["operand_format"]
+        )
         self._opcode_descriptors[opcode] = descriptor
         return descriptor
 

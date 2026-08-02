@@ -58,10 +58,20 @@ target are:
 | `V` | a caller-supplied count of GPRs descending from r31 |
 | `p` | kind 10 marker with no payload |
 
+Formats `?` and `t` dispatch to the target's assertion path. The table uses
+`?` for several non-constructible descriptions and `t` for `MFTB`; those
+instructions must be created through a different path or rewritten before the
+generic builder sees their format.
+
 A leading `#` consumes a count argument, adds it to the descriptor's fixed
 operand count, and supplies the expansion count used by `V`. The `m`, `M`, and
 `l` object decisions are address-backed but still need typed object layouts
 before their subcases should be given stronger semantic names.
+
+The normalized schema calls the prefix-derived role the *default* access.
+`b` overrides it for r0, while `m`, `M`, and `l` can override it from object
+properties and instruction flags; these codes carry `access_is_contextual` in
+the exported schema rather than pretending the default is final.
 
 At `0x004cdef0`, coloring operates on three class/count globals in this order:
 vector (`0x0058849a`, class 9), general-purpose (`0x0058846e`, class 0), then

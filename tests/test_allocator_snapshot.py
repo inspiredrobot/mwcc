@@ -12,6 +12,7 @@ from allocator_snapshot import (
     PCODE_BLOCKS_ADDRESS,
     PCODE_OPCODE_DESCRIPTORS_ADDRESS,
     SnapshotReader,
+    decode_operand_format,
 )
 
 
@@ -30,6 +31,62 @@ class SparseMemory:
 
 
 def main():
+    assert decode_operand_format("=r,b,m,p") == {
+        "dynamic_operand_count": False,
+        "operands": [
+            {
+                "code": "r",
+                "default_access_flags": 2,
+                "default_access": "definition",
+                "kinds": [0],
+                "role": "gpr",
+            },
+            {
+                "code": "b",
+                "default_access_flags": 1,
+                "default_access": "use",
+                "kinds": [0],
+                "role": "gpr_or_zero",
+                "access_is_contextual": True,
+            },
+            {
+                "code": "m",
+                "default_access_flags": 1,
+                "default_access": "use",
+                "kinds": [4, 5],
+                "role": "memory_or_immediate",
+                "access_is_contextual": True,
+            },
+            {
+                "code": "p",
+                "default_access_flags": 1,
+                "default_access": "use",
+                "kinds": [10],
+                "role": "marker",
+            },
+        ],
+    }
+    assert decode_operand_format("#,+r,V") == {
+        "dynamic_operand_count": True,
+        "operands": [
+            {
+                "code": "r",
+                "default_access_flags": 3,
+                "default_access": "use_definition",
+                "kinds": [0],
+                "role": "gpr",
+            },
+            {
+                "code": "V",
+                "default_access_flags": 1,
+                "default_access": "use",
+                "kinds": [0],
+                "role": "gpr_list",
+                "expands_to": "dynamic",
+            },
+        ],
+    }
+
     memory = SparseMemory()
     block_address = 0x1000
     link_address = 0x1100
@@ -93,6 +150,32 @@ def main():
         "unknown_09": 0,
         "flags": 0x0A01,
         "encoding": "0x7c000378",
+        "operand_schema": {
+            "dynamic_operand_count": False,
+            "operands": [
+                {
+                    "code": "r",
+                    "default_access_flags": 2,
+                    "default_access": "definition",
+                    "kinds": [0],
+                    "role": "gpr",
+                },
+                {
+                    "code": "r",
+                    "default_access_flags": 1,
+                    "default_access": "use",
+                    "kinds": [0],
+                    "role": "gpr",
+                },
+                {
+                    "code": "p",
+                    "default_access_flags": 1,
+                    "default_access": "use",
+                    "kinds": [10],
+                    "role": "marker",
+                },
+            ],
+        },
     }
     assert captured_instruction["flags"] == 0x800
     assert [operand["reg"] for operand in captured_instruction["operands"]] == [

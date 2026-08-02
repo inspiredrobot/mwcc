@@ -8,6 +8,7 @@ from pathlib import Path
 from allocator_snapshot import (
     PCODE_MAX_OPCODE,
     PCODE_OPCODE_DESCRIPTORS_ADDRESS,
+    decode_operand_format,
 )
 from pe import PEFile
 from verify_original import verify
@@ -28,11 +29,13 @@ def read_descriptor(pe: PEFile, opcode: int) -> dict:
         raise ValueError(f"invalid PCode opcode 0x{opcode:x}")
     raw = pe.read(PCODE_OPCODE_DESCRIPTORS_ADDRESS + opcode * 0x10, 0x10)
     mnemonic_address, format_address = struct.unpack_from("<II", raw)
+    operand_format = read_c_string(pe, format_address)
     return {
         "opcode": opcode,
         "opcode_hex": f"0x{opcode:03x}",
         "mnemonic": read_c_string(pe, mnemonic_address),
-        "operand_format": read_c_string(pe, format_address),
+        "operand_format": operand_format,
+        "operand_schema": decode_operand_format(operand_format),
         "fixed_operand_count": raw[8],
         "unknown_09": raw[9],
         "flags": f"0x{struct.unpack_from('<H', raw, 0x0A)[0]:04x}",

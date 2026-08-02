@@ -87,7 +87,10 @@ The compact format strings are executable metadata, not display-only names.
 `PCodeUtilities` at `0x004a2660` uses them to allocate the variable-length
 instruction and construct each 12-byte operand, including use (`flag 1`),
 definition (`flag 2`), and read-modify-write (`flag 3`) roles. Recovering that
-format interpreter is the next bytecode-model slice.
+format interpreter is represented by `decode_operand_format`, so both the
+static catalog and live snapshots expose normalized use/definition roles,
+possible operand kinds, and fixed or dynamic expansions. The remaining
+bytecode slice is object provenance inside the `m`, `M`, and `l` cases.
 
 ### Stack frame
 
