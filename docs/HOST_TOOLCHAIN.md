@@ -250,11 +250,22 @@ place those headers on the system-include side. The sandbox runner's
 `--expect-output` option is mandatory for compile experiments because this
 driver can return zero after reporting a compilation abort.
 
+The first `CodeMotion.c` subsystem probe uses
+`config/host_copt_probe_targets.json`. At `-O4,p -inline auto`, its three
+functions measure 0.00%, 80.21%, and 20.69% over positional comparable bytes.
+Both wrappers have the target operation sequence after removing the
+candidate-only EBP frame. The central setup routine reproduces the complete
+eight-bitset allocation loop and its four final analysis calls; its remaining
+body differences are localized to the initial collection walk and assignment
+folding. This is useful matching evidence without promoting the candidate to
+the exact host minor version.
+
 ## Sources
 
 - Richard Atwell, “CodeWarrior Version 6.0,” *MacTech*, February 2001:
   https://preserve.mactech.com/articles/mactech/Vol.17/17.02/Feb01FactoryFloor/index.html
 - CodeWarrior Pro 6 review describing bundled x86 development tools:
   https://preserve.mactech.com/articles/mactech/Vol.17/17.01/CodeWarrior6/index.html
-- Carnegie Mellon Graphics Lab download archive labeling the Win32 packages by
-  CodeWarrior release: https://www.cs.cmu.edu/~cm-gfxpkg/download.html
+- The official Carnegie Mellon Graphics Lab package corpus is identified by
+  filenames and hashes in `(manifest withheld)`; acquisition details
+  are intentionally retained only on the local workstation.

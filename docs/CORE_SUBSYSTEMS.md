@@ -51,10 +51,25 @@ level 4 at `0x004c4530`. The repeated calls are the result we care about: do not
 refactor them into a unique-pass list. Trace strings at `0x0056200c` through
 `0x00562188` make pass identification auditable.
 
-The next optimizer-control leaves to reconstruct are `COpt_00521a10`,
-`COpt_SetLoopCodeMotionMode` at `0x00523650`, and `COpt_00524bd0`. Preserve the
-mode-setting state transitions and their callers before assigning stronger
-semantic names to the two address-only helpers.
+The first `CodeMotion.c` control slice is reconstructed and measured.
+`COpt_00521a10` guards a recursive walk of the active code-motion tree.
+`COpt_SetLoopCodeMotionMode` at `0x00523650` optionally rebuilds an
+object-keyed collection from eligible PCode instructions, initializes eight
+bitsets per basic block, and invokes four analysis stages in a fixed order.
+`COpt_00524bd0` resets the change state, runs two guarded tree passes, and
+releases iteration storage. The address-only names remain conservative until
+the node passes themselves establish stronger roles.
+
+This slice rejects the earlier Boolean interpretation of `0x0058763c`: it is
+the active `CodeMotionNode*` tree root. The optimizer dispatcher tests the
+pointer for null and passes the same value into the neighboring tree routines.
+
+The validated Pro 5 candidate measures these functions at 0.00%, 80.21%, and
+20.69% positional comparable bytes respectively. Both low-scoring wrappers
+have the target operation sequence after removing a candidate-only EBP frame;
+the setup routine has the same complete eight-allocation loop and final pass
+order. Its remaining body differences are an iterator-register permutation
+and one global reset that the candidate folds to an immediate.
 
 ### Register allocation
 

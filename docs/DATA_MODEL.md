@@ -88,6 +88,25 @@ Creation traces snapshot these exact object/type fields beside each operand:
 object tag and kind, type address, object flags, type kind and size, type flags,
 and subtype. These are capture-time facts, not reconstructed source names.
 
+Code-motion setup at `0x00523650` allocates a 32-byte record for every PCode
+block. Each record contains eight pointers: four bitsets sized from the number
+of definition operands at `0x00587ebc`, followed by four bitsets sized from the
+number of use operands at `0x00587e38`. The counts are independently populated
+by the neighboring scan at `0x005246d0`, which increments them from operand
+flags `0x02` and `0x01` respectively. The individual meaning of the four sets
+within each group is not yet assigned.
+
+The global at `0x0058763c` is a `CodeMotionNode*`, not an enable flag. The
+walkers at `0x00521a30`, `0x00524c10`, and `0x00525070` follow sibling and
+child pointers at node offsets `+0x04` and `+0x08`; the first three pointer
+fields are the only node layout promoted so far.
+
+The same setup scans `gPCodeBlocks` and their instruction lists when its mode
+argument is nonzero. An instruction whose flags intersect `0x18` and exclude
+`0x40` contributes the object pointer in operand 2 to the collection rooted at
+`0x005880ac`. This reuses the confirmed instruction and 12-byte operand
+layouts; it does not require another provisional structure.
+
 At `0x004cdef0`, coloring operates on three class/count globals in this order:
 vector (`0x0058849a`, class 9), general-purpose (`0x0058846e`, class 0), then
 floating-point (`0x0058846c`, class 1). The nearby `VR`, `GPR`, and `FPR`

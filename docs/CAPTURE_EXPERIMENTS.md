@@ -46,6 +46,16 @@ functions measured 100% over comparable instruction bytes. The runner now
 requires `--expect-output` for compilation because an earlier missing-header
 abort demonstrated that this driver can still return status zero.
 
+A `CodeMotion.c` build used the same candidate, flags, headers, runner, and
+sandbox shape. The three focused functions measured 0.00%, 80.21%, and 20.69%
+over positional comparable bytes. The target sizes are 22, 407, and 59 bytes;
+the candidate sizes are 28, 411, and 65 bytes. Instruction inspection shows
+that the two wrapper bodies are operation-identical after removing the
+candidate-only EBP frame. The 407-byte setup reproduces the complete bitset
+allocation loop and final call order. A declaration-order experiment reduced
+its score to 75.97% by changing the allocation-state/index registers to
+EBX/EDI, so the clean 80.21% form was retained.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

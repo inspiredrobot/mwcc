@@ -71,24 +71,43 @@
           "functional_status": "control-flow equivalent",
           "match_percent": null,
           "match_note": "unmeasured: host toolchain pending"
-        },
+        }
+      ]
+    },
+    {
+      "name": "CodeMotion",
+      "source_anchor": "CodeMotion.c",
+      "source": "src/backend/CodeMotion.c",
+      "functions": [
         {
           "address": "0x00521a10",
           "name": "COpt_00521a10",
-          "role": "optimizer helper selected for future reconstruction",
-          "evidence": "reference"
+          "role": "guarded traversal of the active code-motion tree",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": 0.0,
+          "match_note": "candidate emits a six-byte EBP frame around an otherwise instruction-identical operation sequence; 12 relocation bytes excluded"
         },
         {
           "address": "0x00523650",
           "name": "COpt_SetLoopCodeMotionMode",
-          "role": "set loop code-motion mode for optimizer passes",
-          "evidence": "reference"
+          "role": "initialize code-motion object collection, per-block bitsets, and analysis stages for the requested mode",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 80.21,
+          "match_note": "comparable positional bytes at -O4,p -inline auto; target 407 bytes versus candidate 411; candidate-only EBP frame plus an initial iterator-register permutation and one global reset folded to an immediate"
         },
         {
           "address": "0x00524bd0",
           "name": "COpt_00524bd0",
-          "role": "optimizer helper selected for future reconstruction",
-          "evidence": "reference"
+          "role": "reset code-motion results, run two guarded tree passes, and release iteration storage",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": 20.69,
+          "match_note": "candidate emits a six-byte EBP frame around an otherwise instruction-identical operation sequence; 32 relocation bytes excluded"
         }
       ]
     },

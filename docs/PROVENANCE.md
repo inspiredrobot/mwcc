@@ -50,7 +50,8 @@ No project-wide license has been selected yet.
     `fa315a60f3863f64831111ec3bff276408bc2c17bab26ff223fa0467c8522576`
   - `CMG2_Win32_CW6_starter_2_1_5.zip`:
     `96e89a420d91213d43b2c775f0083d9f10b01a8e30e2e9fdbcb296275910ff90`
-  Source index: https://www.cs.cmu.edu/~cm-gfxpkg/download.html
+  Acquisition details are intentionally retained only on the local
+  workstation.
 
 For every imported or adapted file, add its source URL, revision, license, and
 material modifications here.

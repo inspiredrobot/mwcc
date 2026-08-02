@@ -1,0 +1,10 @@
+{
+  "format": "mwcc-host-probe-targets-v1",
+  "target_sha256": "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914",
+  "compiler_flags": ["-O4,p", "-inline", "auto"],
+  "functions": [
+    {"name": "COpt_00521a10", "address": "0x00521a10", "size": 22},
+    {"name": "COpt_SetLoopCodeMotionMode", "address": "0x00523650", "size": 407},
+    {"name": "COpt_00524bd0", "address": "0x00524bd0", "size": 59}
+  ]
+}

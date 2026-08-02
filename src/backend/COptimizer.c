@@ -11,6 +11,7 @@
  */
 
 #include "mwcc/backend_types.h"
+#include "mwcc/COpt.h"
 
 extern unsigned char gCOptimizerDumpEnabled; /* 0x00584226 */
 extern unsigned char gOptimizationLevel;     /* 0x005842e1 */
@@ -20,7 +21,6 @@ extern int gValueNumberingChanged;           /* 0x005875c0 */
 extern int gCopyPropagationChanged;          /* 0x005875d0 */
 extern int gAddPropagationChanged;           /* 0x00587f8c */
 extern int gCodeMotionChanged;               /* 0x005875b0 */
-extern int gLoopCodeMotionEnabled;           /* 0x0058763c */
 extern int gStrengthReductionChanged;        /* 0x00587ec4 */
 extern int gLoopTransformChanged;            /* 0x0058807c */
 extern int gConstantPropagationChanged;      /* 0x0058826c */
@@ -34,11 +34,8 @@ extern void COptimizer_Dump(const char* function_name, const char* stage);
 extern void COpt_ValueNumbering(int mode);  /* 0x0051e590 */
 extern void COpt_CopyPropagation(int mode); /* 0x005200e0 */
 extern void COpt_AddPropagation(void);      /* 0x00520bf0 */
-extern void COpt_00521a10(void);
-extern void COpt_00521d10(int value);
+extern void COpt_00521d10(CodeMotionNode* node);
 extern void COpt_00522990(void);
-extern void COpt_SetLoopCodeMotionMode(int mode); /* 0x00523650 */
-extern void COpt_00524bd0(void);
 extern void COpt_StrengthReduction(void);    /* 0x005270c0 */
 extern void COpt_LoopTransformations(void);  /* 0x005289b0 */
 extern void COpt_ArrayToRegister(void);      /* 0x00528bb0 */
@@ -79,12 +76,12 @@ static void COptimizer_RunAddPropagation(PCodeFunction* function)
 static void COptimizer_RunLoopPasses(PCodeFunction* function)
 {
     COpt_00522990();
-    if (gLoopCodeMotionEnabled) {
+    if (gCodeMotionTree_0058763c != 0) {
         COpt_SetLoopCodeMotionMode(1);
         COpt_00521a10();
         COpt_00524bd0();
         COpt_SetLoopCodeMotionMode(0);
-        COpt_00521d10(gLoopCodeMotionEnabled);
+        COpt_00521d10(gCodeMotionTree_0058763c);
         COptimizer_DumpIfChanged(function, gCodeMotionChanged,
                                  "AFTER CODE MOTION");
 
@@ -222,7 +219,7 @@ void COptimizer_Level4(PCodeFunction* function)
     }
 
     COpt_00522990();
-    if (!gLoopCodeMotionEnabled) {
+    if (gCodeMotionTree_0058763c == 0) {
         return;
     }
 

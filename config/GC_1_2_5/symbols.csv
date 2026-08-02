@@ -32,6 +32,9 @@ address,size,kind,name,source,status
 0x004ce5f0,,function,Coloring_SetupVRs,vector precolor initialization and object binding,inferred
 0x004ce710,,function,Coloring_SetupFPRs,Coloring.c xref and FPR diagnostic mapping,inferred
 0x004ce850,,function,Coloring_SetupGPRs,GPR precolor initialization and paired-object flags,inferred
+0x00521a10,,function,COpt_00521a10,CodeMotion.c region and guarded tree traversal,inferred
+0x00523650,,function,COpt_SetLoopCodeMotionMode,CodeMotion.c region and per-block analysis setup,inferred
+0x00524bd0,,function,COpt_00524bd0,CodeMotion.c region and guarded pass coordinator,inferred
 0x00530050,,function,SpillCode_IsDeadInstruction,pre-liveness dead-definition filter,inferred
 0x005301b0,,function,SpillCode_InitializeLiveness,per-block sets and ABI return-register seeds,inferred
 0x00530410,,function,SpillCode_SolveLiveness,backward fixed-point block liveness,inferred
