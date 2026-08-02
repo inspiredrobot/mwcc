@@ -32,6 +32,15 @@ Export the compiler's complete PCode mnemonic and operand-format catalog with:
 ninja pcode-opcodes
 ```
 
+Join an allocator capture to its coloring graph and emit flat provenance facts
+with:
+
+```sh
+python3 tools/allocator_provenance.py allocator.json \
+  --coloring coloring-before.json --coloring coloring-after.json \
+  --output provenance.json
+```
+
 Import or update the executable in the local Ghidra project with:
 
 ```sh

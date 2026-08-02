@@ -156,6 +156,9 @@ class SnapshotReader:
             "kind": raw[0],
             "flags": raw[1],
             "reg": struct.unpack_from("<h", raw, 2)[0],
+            "value_signed": struct.unpack_from("<i", raw, 2)[0],
+            "value_unsigned": struct.unpack_from("<I", raw, 2)[0],
+            "object": f"0x{struct.unpack_from('<I', raw, 6)[0]:08x}",
             "raw": raw.hex(),
         }
 

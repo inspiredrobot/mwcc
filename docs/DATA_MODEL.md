@@ -130,6 +130,12 @@ list:
 - `+0x14`: neighbor count;
 - `+0x16`: inline array of 16-bit neighbor indices.
 
+Allocator capture operands preserve the complete 12-byte record and also expose
+the field at `+0x02` as both signed and unsigned 32-bit values plus the object
+pointer at `+0x06`. `tools/allocator_provenance.py` uses these decoded fields to
+join PCode use/definition sites to graph nodes without discarding the raw
+evidence.
+
 Setup assigns colors 0 through 31 to the physical nodes and then seeds them
 from two shared object lists. Vector and FPR membership use the `RegisterInfo`
 class bytes. GPR membership also recognizes paired values from the object type

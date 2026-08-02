@@ -34,6 +34,12 @@ worse than a visible gap.
 - Reversible query prototype: express common matching questions over exported
   facts and compare candidate engines on the allocator casebook.
 
+`tools/allocator_provenance.py` is the first backend-provenance implementation.
+Its flat `mwcc-allocator-provenance-v1` facts use stable structural IDs rather
+than compiler addresses. The next relation is `created_by`: a PCode instruction
+must point to the exact lowering callsite that emitted it, including when its
+compiler-object pointer is zero.
+
 ## Solver experiments
 
 Prolog or Datalog is attractive because compiler relationships are naturally

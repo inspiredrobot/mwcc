@@ -40,6 +40,13 @@ report virtual registers added or removed, object-binding and graph-field
 changes, color changes, and movement in simplify-stack order between source
 variants.
 
+`tools/allocator_provenance.py` joins these captures into the flat
+`mwcc-allocator-provenance-v1` schema. It assigns stable IDs to blocks,
+instructions, operands, virtual registers, coloring nodes, interference edges,
+simplify positions, coalesces, and object bindings. The old allocator operand
+encoding is decoded as a signed and unsigned 32-bit value at `+0x02` and an
+object pointer at `+0x06`, while preserving the original 12 bytes.
+
 The wrapper also registers `mwcc-auto-capture DIRECTORY`. Invoke it before
 continuing the compiler to write an indexed PCode snapshot for every compiled
 function and GPR coloring snapshots immediately before and after each color
@@ -59,8 +66,8 @@ and read-only compiler/input mounts.
 
 The initial snapshot deliberately stops short of object names and class ranges.
 Those fields will be added after their exact target layouts are recovered. The
-raw 12-byte operand encoding is retained so snapshots taken now can be enriched
-later without rerunning the compiler.
+raw 12-byte operand encoding and decoded object pointer are retained so
+snapshots taken now can be enriched later without rerunning the compiler.
 
 The first Melee validation showed that this boundary is required, not merely
 convenient. Two sources can reach coloring with equivalent long-lived address
@@ -69,6 +76,23 @@ therefore preserve object bindings and virtual-register creation order. A
 separate pre-PCode trace is needed for string pooling, declaration lowering,
 dead-definition removal, and scalar replacement; the coloring snapshot alone
 cannot explain changes that have already happened in those stages.
+
+A real `mnCharSel` capture validates the join. Allocator capture 13 contains 44
+blocks, 165 instructions, 880 operands, and 111 register records. Its before
+and after GPR coloring captures contribute 218 node states and 999 unique
+interference edges per phase. The resulting facts recover, for example, virtual
+register 38's `LWZ` definition, two `ADD` uses, simplify position 70, object
+`0x40d4c2c0`, and final color r8. Virtual registers 39, 47, and 48 likewise
+retain their complete definitions, uses, simplify positions, objects, and
+colors.
+
+The remaining provenance gap is now concrete. A compiler-generated temporary
+can have object pointer zero even when its lifetime is decisive. In
+`CursorThink`, the ninth simultaneously live FPR value is such a temporary, so
+coloring facts can prove the pressure surplus but cannot identify the frontend
+lowering decision that created it. The next capture boundary must associate
+each new PCode instruction with its exact backend creation callsite and compare
+initial and optimized PCode.
 
 ## Initial Melee cases
 

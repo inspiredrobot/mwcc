@@ -104,7 +104,7 @@ build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/Expor
 build {pcode_opcodes}: export_pcode_opcodes tools/pcode_descriptors.py tools/allocator_snapshot.py tools/pe.py tools/verify_original.py | {verified}
 build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
 build {format_stamp}: check_format tools/check_format.py .clang-format {format_inputs}
-build {test_stamp}: check_tests tools/check_tests.py tools/allocator_snapshot.py src/backend/Registers.c src/backend/Coloring.c src/backend/SpillCode.c tests/test_registers.c tests/test_coloring.c tests/test_spill_code.c tests/test_allocator_snapshot.py include/mwcc/Registers.h include/mwcc/Coloring.h include/mwcc/SpillCode.h include/mwcc/backend_types.h
+build {test_stamp}: check_tests tools/check_tests.py tools/allocator_snapshot.py tools/allocator_provenance.py src/backend/Registers.c src/backend/Coloring.c src/backend/SpillCode.c tests/test_registers.c tests/test_coloring.c tests/test_spill_code.c tests/test_allocator_snapshot.py tests/test_allocator_provenance.py include/mwcc/Registers.h include/mwcc/Coloring.h include/mwcc/SpillCode.h include/mwcc/backend_types.h
 {subsystem_validation}
 
 build check: phony {verified} {pe_info} {pcode_opcodes} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}

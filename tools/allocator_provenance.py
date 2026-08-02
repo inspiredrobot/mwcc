@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+"""Flatten MWCC allocator captures into solver-facing provenance facts."""
+
+import argparse
+import json
+import struct
+from pathlib import Path
+
+from allocator_snapshot import (
+    TARGET_SHA256,
+    validate_coloring_snapshot,
+    validate_snapshot,
+)
+
+
+REGISTER_CLASS_BY_KIND = {0: "gpr", 1: "fpr", 9: "vr"}
+REGISTER_CLASS_BY_ID = {0: "gpr", 1: "fpr", 9: "vr"}
+REGISTER_CLASS_ORDER = {"gpr": 0, "fpr": 1, "vr": 2}
+
+
+def load_json(path: Path) -> dict:
+    with path.open(encoding="utf-8") as stream:
+        return json.load(stream)
+
+
+def load_opcode_catalog(path: Path) -> dict[int, dict]:
+    catalog = load_json(path)
+    if catalog.get("format") != "mwcc-pcode-opcodes-v1":
+        raise ValueError(f"unsupported opcode catalog: {path}")
+    if catalog.get("target_sha256") != TARGET_SHA256:
+        raise ValueError(f"opcode catalog targets another compiler: {path}")
+    return {entry["opcode"]: entry for entry in catalog["opcodes"]}
+
+
+def register_id(reg_class: str, register: int) -> str:
+    return f"{reg_class}:{register}"
+
+
+def decode_raw_operand(operand: dict) -> dict:
+    raw = bytes.fromhex(operand["raw"])
+    if len(raw) != 0x0C:
+        raise ValueError(f"PCode operand is not 12 bytes: {operand['raw']}")
+    return {
+        "value_signed": struct.unpack_from("<i", raw, 2)[0],
+        "value_unsigned": struct.unpack_from("<I", raw, 2)[0],
+        "object": f"0x{struct.unpack_from('<I', raw, 6)[0]:08x}",
+    }
+
+
+def normalize_descriptor(descriptor: dict | None) -> dict:
+    if descriptor is None:
+        return {
+            "mnemonic": None,
+            "operand_format": None,
+            "descriptor_flags": None,
+            "encoding": None,
+            "operand_schema": None,
+        }
+    flags = descriptor.get("flags")
+    if isinstance(flags, str):
+        flags = int(flags, 0)
+    return {
+        "mnemonic": descriptor.get("mnemonic"),
+        "operand_format": descriptor.get("operand_format"),
+        "descriptor_flags": flags,
+        "encoding": descriptor.get("encoding"),
+        "operand_schema": descriptor.get("operand_schema"),
+    }
+
+
+def add_register_occurrence(registers: dict, operand: dict) -> None:
+    reg_class = operand.get("register_class")
+    if reg_class is None:
+        return
+    register = operand["register"]
+    key = (reg_class, register)
+    record = registers.setdefault(
+        key,
+        {
+            "id": register_id(reg_class, register),
+            "class": reg_class,
+            "register": register,
+            "is_virtual": register >= 32,
+            "definitions": [],
+            "uses": [],
+            "last_uses": [],
+            "occurrences": [],
+        },
+    )
+    operand_id = operand["id"]
+    record["occurrences"].append(operand_id)
+    if operand["is_definition"]:
+        record["definitions"].append(operand_id)
+    if operand["is_use"]:
+        record["uses"].append(operand_id)
+    if operand["is_last_use"]:
+        record["last_uses"].append(operand_id)
+
+
+def flatten_pcode(snapshot: dict, opcode_catalog: dict[int, dict]) -> dict:
+    validate_snapshot(snapshot)
+    blocks = []
+    instructions = []
+    operands = []
+    registers = {}
+    sequence = 0
+
+    for block_order, block in enumerate(snapshot["blocks"]):
+        block_id = f"b{block['index']}"
+        blocks.append(
+            {
+                "id": block_id,
+                "index": block["index"],
+                "order": block_order,
+                "address": block["address"],
+                "successors": [f"b{index}" for index in block["successors"]],
+                "execution_weight": block["execution_weight"],
+                "flags": block["flags"],
+            }
+        )
+        for block_instruction_index, instruction in enumerate(
+            block["instructions"]
+        ):
+            instruction_id = f"{block_id}:i{block_instruction_index}"
+            descriptor = instruction.get("opcode_descriptor")
+            if descriptor is None:
+                descriptor = opcode_catalog.get(instruction["opcode"])
+            instruction_record = {
+                "id": instruction_id,
+                "block": block_id,
+                "block_instruction_index": block_instruction_index,
+                "sequence": sequence,
+                "address": instruction["address"],
+                "opcode": instruction["opcode"],
+                "flags": instruction["flags"],
+                "operand_count": len(instruction["operands"]),
+                **normalize_descriptor(descriptor),
+            }
+            instructions.append(instruction_record)
+
+            for operand_index, operand in enumerate(instruction["operands"]):
+                operand_id = f"{instruction_id}:o{operand_index}"
+                reg_class = REGISTER_CLASS_BY_KIND.get(operand["kind"])
+                flags = operand["flags"]
+                operand_record = {
+                    "id": operand_id,
+                    "instruction": instruction_id,
+                    "index": operand_index,
+                    "kind": operand["kind"],
+                    "flags": flags,
+                    "register_class": reg_class,
+                    "register": operand["reg"] if reg_class is not None else None,
+                    "is_use": (flags & 1) != 0,
+                    "is_definition": (flags & 2) != 0,
+                    "is_last_use": (flags & 4) != 0,
+                    "raw": operand["raw"],
+                    **decode_raw_operand(operand),
+                }
+                operands.append(operand_record)
+                add_register_occurrence(registers, operand_record)
+            sequence += 1
+
+    register_records = sorted(
+        registers.values(),
+        key=lambda item: (REGISTER_CLASS_ORDER[item["class"]], item["register"]),
+    )
+    return {
+        "blocks": blocks,
+        "instructions": instructions,
+        "operands": operands,
+        "registers": register_records,
+    }
+
+
+def check_coloring_identity(allocator: dict, coloring: dict) -> None:
+    validate_coloring_snapshot(coloring)
+    if coloring.get("target_sha256") != allocator.get("target_sha256"):
+        raise ValueError("allocator and coloring snapshots target different compilers")
+    allocator_index = allocator.get("capture_index")
+    coloring_index = coloring.get("capture_index")
+    if (
+        allocator_index is not None
+        and coloring_index is not None
+        and allocator_index != coloring_index
+    ):
+        raise ValueError(
+            f"capture index mismatch: allocator {allocator_index}, "
+            f"coloring {coloring_index}"
+        )
+
+
+def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
+    nodes = []
+    edges = []
+    simplify_order = []
+    coalesces = []
+    object_bindings = []
+
+    for snapshot_index, snapshot in enumerate(snapshots):
+        check_coloring_identity(allocator, snapshot)
+        reg_class = REGISTER_CLASS_BY_ID[snapshot["register_class"]]
+        phase = snapshot.get("phase", f"snapshot_{snapshot_index}")
+        attempt = snapshot.get("attempt")
+        node_by_register = {
+            node["virtual_register"]: node for node in snapshot["nodes"]
+        }
+
+        for node in snapshot["nodes"]:
+            register = node["virtual_register"]
+            node_id = register_id(reg_class, register)
+            flags = node["flags"]
+            color_or_parent = node["physical_register"]
+            node_record = {
+                "phase": phase,
+                "attempt": attempt,
+                "register": node_id,
+                "address": node["address"],
+                "object": node["object"],
+                "spill_cost": node["spill_cost"],
+                "degree": node["degree"],
+                "color_or_parent": color_or_parent,
+                "flags": flags,
+                "is_spilled": (flags & 0x01) != 0,
+                "is_simplified": (flags & 0x02) != 0,
+                "is_coalesced": (flags & 0x04) != 0,
+                "is_coalesce_target": (flags & 0x08) != 0,
+                "is_second_of_pair": (flags & 0x10) != 0,
+                "is_first_of_pair": (flags & 0x20) != 0,
+                "neighbors": [
+                    register_id(reg_class, neighbor)
+                    for neighbor in node["neighbors"]
+                ],
+            }
+            nodes.append(node_record)
+            if flags & 0x04:
+                coalesces.append(
+                    {
+                        "phase": phase,
+                        "attempt": attempt,
+                        "register": node_id,
+                        "parent": register_id(reg_class, color_or_parent),
+                    }
+                )
+            if node["object"] != "0x00000000":
+                object_bindings.append(
+                    {
+                        "phase": phase,
+                        "attempt": attempt,
+                        "register": node_id,
+                        "object": node["object"],
+                    }
+                )
+
+        seen_edges = set()
+        for register, node in node_by_register.items():
+            for neighbor in node["neighbors"]:
+                edge = tuple(sorted((register, neighbor)))
+                if edge in seen_edges:
+                    continue
+                seen_edges.add(edge)
+                edges.append(
+                    {
+                        "phase": phase,
+                        "attempt": attempt,
+                        "left": register_id(reg_class, edge[0]),
+                        "right": register_id(reg_class, edge[1]),
+                    }
+                )
+
+        for position, register in enumerate(snapshot["simplify_order"]):
+            simplify_order.append(
+                {
+                    "phase": phase,
+                    "attempt": attempt,
+                    "position": position,
+                    "register": register_id(reg_class, register),
+                }
+            )
+
+    return {
+        "coloring_nodes": nodes,
+        "interference_edges": edges,
+        "simplify_order": simplify_order,
+        "coalesces": coalesces,
+        "object_bindings": object_bindings,
+    }
+
+
+def build_provenance(
+    allocator: dict,
+    coloring_snapshots: list[dict] | None = None,
+    opcode_catalog: dict[int, dict] | None = None,
+) -> dict:
+    validate_snapshot(allocator)
+    coloring_snapshots = coloring_snapshots or []
+    opcode_catalog = opcode_catalog or {}
+    return {
+        "format": "mwcc-allocator-provenance-v1",
+        "compiler": allocator["compiler"],
+        "target_sha256": allocator["target_sha256"],
+        "capture_index": allocator.get("capture_index"),
+        "function_pointer": allocator.get("function_pointer"),
+        "virtual_register_counts": allocator["virtual_register_counts"],
+        **flatten_pcode(allocator, opcode_catalog),
+        **flatten_coloring(allocator, coloring_snapshots),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Join MWCC PCode and coloring captures into provenance facts"
+    )
+    parser.add_argument("allocator", type=Path)
+    parser.add_argument("--coloring", type=Path, action="append", default=[])
+    parser.add_argument("--opcodes", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+
+    allocator = load_json(args.allocator)
+    coloring = [load_json(path) for path in args.coloring]
+    opcode_path = args.opcodes
+    if opcode_path is None:
+        default_path = Path("build/GC_1_2_5/pcode-opcodes.json")
+        if default_path.is_file():
+            opcode_path = default_path
+    catalog = load_opcode_catalog(opcode_path) if opcode_path else {}
+    result = build_provenance(allocator, coloring, catalog)
+    text = json.dumps(result, indent=2) + "\n"
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text, encoding="utf-8")
+    else:
+        print(text, end="")
+
+
+if __name__ == "__main__":
+    main()
