@@ -1,3 +1,6 @@
 address,size,kind,name,source,status
 0x0042cd10,,function,IRO_Optimizer,binary and mwcc-inspector GC/1.2.5 breakpoint,confirmed
+0x004a0550,,function,Operands_ForceFPR,Operands.c xref and exact operand-kind control flow,inferred
+0x004a0ba0,,function,Operands_ForceGPR,Operands.c xref and exact operand-kind control flow,inferred
+0x004a0fc0,,function,Operands_Normalize,Operands.c xref and shared operand normalization role,inferred
 0x00540bbc,47,string,mwcc_version_banner,binary string,confirmed

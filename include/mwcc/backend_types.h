@@ -47,6 +47,18 @@ typedef struct CompilerObject {
     RegisterInfo* register_info_2e; /* 0x2e */
 } CompilerObject;
 
+typedef struct Operand {
+    unsigned char kind; /* 0x00 */
+    unsigned char unknown_01;
+    short reg; /* 0x02 */
+    short unknown_04;
+    short secondary_reg;   /* 0x06 */
+    short displacement;    /* 0x08 */
+    unsigned int flags_0a; /* 0x0a */
+    unsigned char unknown_0e[4];
+    CompilerObject* object; /* 0x12 */
+} Operand;
+
 typedef struct ObjectList {
     struct ObjectList* next; /* 0x00 */
     CompilerObject* object;  /* 0x04 */
@@ -180,6 +192,14 @@ typedef char CompilerObject_info_26
 typedef char
     CompilerObject_flags_12[(offsetof(CompilerObject, flags_12) == 0x12) ? 1
                                                                          : -1];
+typedef char Operand_size_16[(sizeof(Operand) == 0x16) ? 1 : -1];
+typedef char Operand_reg_02[(offsetof(Operand, reg) == 0x02) ? 1 : -1];
+typedef char
+    Operand_secondary_06[(offsetof(Operand, secondary_reg) == 0x06) ? 1 : -1];
+typedef char Operand_displacement_08[(offsetof(Operand, displacement) == 0x08)
+                                         ? 1
+                                         : -1];
+typedef char Operand_object_12[(offsetof(Operand, object) == 0x12) ? 1 : -1];
 typedef char CompilerObject_info_2e
     [(offsetof(CompilerObject, register_info_2e) == 0x2e) ? 1 : -1];
 typedef char InterferenceNode_physical_10

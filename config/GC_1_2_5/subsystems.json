@@ -102,6 +102,23 @@
       ]
     },
     {
+      "name": "Operands",
+      "source_anchor": "Operands.c",
+      "source": "src/backend/Operands.c",
+      "functions": [
+        {
+          "address": "0x004a0550",
+          "name": "Operands_ForceFPR",
+          "role": "materialize a direct or indexed operand in an FPR, allocating a temporary destination when needed",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "functionally equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
+        }
+      ]
+    },
+    {
       "name": "Registers",
       "source_anchor": "Registers.c",
       "source": "src/backend/Registers.c",

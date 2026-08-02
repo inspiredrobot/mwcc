@@ -24,6 +24,7 @@ def main() -> None:
         ("coloring", "src/backend/Coloring.c", "tests/test_coloring.c"),
         ("spill_code", "src/backend/SpillCode.c", "tests/test_spill_code.c"),
         ("pcode", "src/backend/PCode.c", "tests/test_pcode.c"),
+        ("operands", "src/backend/Operands.c", "tests/test_operands.c"),
         (
             "pcode_utilities",
             "src/backend/PCodeUtilities.c",
