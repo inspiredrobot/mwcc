@@ -1,0 +1,17 @@
+{
+  "format": "mwcc-host-probe-targets-v1",
+  "target_sha256": "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914",
+  "compiler_flags": ["-O4,p", "-inline", "auto"],
+  "functions": [
+    {
+      "name": "COptimizer_CountExpressionObjectUses",
+      "address": "0x004beda0",
+      "size": 319
+    },
+    {
+      "name": "COptimizer_RecordObjectUse",
+      "address": "0x004beef0",
+      "size": 80
+    }
+  ]
+}

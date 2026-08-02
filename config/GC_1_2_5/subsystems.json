@@ -25,6 +25,33 @@
       ]
     },
     {
+      "name": "COptimizerExpressions",
+      "source_anchor": "COptimizer.c",
+      "source": "src/frontend/COptimizerExpressions.c",
+      "functions": [
+        {
+          "address": "0x004beda0",
+          "name": "COptimizer_CountExpressionObjectUses",
+          "role": "walk frontend expressions and record compiler-object register weights",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 6.77,
+          "match_note": "target 319 bytes versus candidate 346 at -O4,p -inline auto; operation order aligns after accounting for the candidate-only EBP frame and expanded return epilogues"
+        },
+        {
+          "address": "0x004beef0",
+          "name": "COptimizer_RecordObjectUse",
+          "role": "update register metadata for an expression's compiler object",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 3.13,
+          "match_note": "target 80 bytes versus candidate 95 at -O4,p -inline auto; the body is structurally aligned apart from a candidate-only EBP frame and alignment padding"
+        }
+      ]
+    },
+    {
       "name": "CodeGen",
       "source_anchor": "CodeGen.c",
       "source": "src/backend/CodeGen.c",

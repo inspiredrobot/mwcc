@@ -360,6 +360,7 @@ def flatten_creation_trace(
                         "capture_address": codegen_item_address,
                         "header": event.get("codegen_item_header"),
                         "fields": event.get("codegen_item_fields"),
+                        "expression": event.get("codegen_expression_fields"),
                         "pointer_0a_data": event.get(
                             "codegen_pointer_0a_data"
                         ),

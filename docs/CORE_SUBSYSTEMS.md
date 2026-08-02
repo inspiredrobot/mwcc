@@ -51,6 +51,15 @@ level 4 at `0x004c4530`. The repeated calls are the result we care about: do not
 refactor them into a unique-pass list. Trace strings at `0x0056200c` through
 `0x00562188` make pass identification auditable.
 
+The first frontend identity slice is also recovered from `COptimizer.c`.
+CodeGen item kinds 4 through 15 carry an expression pointer at `+0x0a`.
+`COptimizer_CountExpressionObjectUses` at `0x004beda0` recursively follows
+that expression graph; expression kind `0x38` carries a `CompilerObject*` at
+its own `+0x0a`. The shared helper at `0x004beef0` updates the object's
+`RegisterInfo +0x04/+0x22/+0x23` fields. Retail inlines that helper at both
+sites in the recursive walk while retaining it out of line for another
+consumer, giving the reconstruction a binary-supported reuse boundary.
+
 The first `CodeMotion.c` control slice is reconstructed and measured.
 `COpt_00521a10` guards a recursive walk of the active code-motion tree.
 `COpt_SetLoopCodeMotionMode` at `0x00523650` optionally rebuilds an

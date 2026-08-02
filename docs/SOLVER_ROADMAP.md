@@ -40,9 +40,11 @@ than compiler addresses. `created_by` maps ordinary surviving PCode to its
 construction event, lowering epoch, and immediate x86 callsite, including when
 its compiler-object pointer is zero. Optimizer copies instead use `pcode_clones`
 and `derived_from`, preserving their exact parent instruction and optimizer
-callsite. The capture also retains an opaque current-CodeGen-item pointer and
-header as the first frontend/backend bridge. Decoding that item through AST,
-CST, symbol, type, and source-span layouts remains the next provenance layer.
+callsite. The capture also retains the current CodeGen-item pointer and
+recovered 26-byte header. Item kinds 4 through 15 now decode their `+0x0a`
+expression, and expression kind `0x38` joins directly to a `CompilerObject`.
+Recovering the remaining expression kinds plus CST, symbol, type, and
+source-span links remains the next provenance layer.
 
 The CursorThink `fpr:265` validation demonstrates why that bridge matters: an
 objectless allocator node can now be traced to two initial-lowering emissions

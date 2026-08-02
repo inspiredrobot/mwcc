@@ -128,6 +128,9 @@ class SnapshotReader:
     def s16(self, address: int) -> int:
         return struct.unpack("<h", self._read(address, 2))[0]
 
+    def u16(self, address: int) -> int:
+        return struct.unpack("<H", self._read(address, 2))[0]
+
     def u32(self, address: int) -> int:
         return struct.unpack("<I", self._read(address, 4))[0]
 

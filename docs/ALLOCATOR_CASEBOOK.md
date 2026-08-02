@@ -66,10 +66,11 @@ distinct in every capture.
 Auto-capture also traces the two PCode construction wrappers at `0x004a25d0`
 and `0x004a2620` through the common builder return at `0x004a2b6d`. Every event
 records the allocated instruction, creation epoch, immediate x86 callsite, and
-the opaque current-CodeGen-item pointer and 18-byte header from `0x00587130`.
-The raw item identity deliberately precedes a semantic AST claim: it preserves
-the frontend-to-backend join now, while the item layout is still being
-recovered.
+the current-CodeGen-item pointer and header from `0x00587130`. New captures
+retain all 26 recovered header bytes and decode expression fields for item
+kinds 4 through 15. Expression kind `0x38` now supplies a direct, binary-backed
+join to its `CompilerObject`; older captures retain their original 18-byte raw
+headers and remain usable.
 
 Each creation operand with a nonzero compiler-object pointer also retains the
 object tag/kind, type pointer, object flags, and the referenced type's

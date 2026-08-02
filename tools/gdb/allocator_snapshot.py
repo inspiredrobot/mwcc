@@ -565,22 +565,37 @@ class PCodeWrapperBreakpoint(gdb.Breakpoint):
             call_address = None
         codegen_item = reader.u32(CURRENT_CODEGEN_ITEM_ADDRESS)
         item_fields = None
+        expression_fields = None
         pointer_0a_data = None
         pointer_0e_data = None
         if codegen_item:
+            item_kind = reader.u8(codegen_item + 0x04)
             pointer_0a = reader.u32(codegen_item + 0x0A)
             pointer_0e = reader.u32(codegen_item + 0x0E)
             item_fields = {
-                "kind_04": reader.u8(codegen_item + 0x04),
+                "kind_04": item_kind,
                 "byte_05": reader.u8(codegen_item + 0x05),
                 "flags_06": reader.u8(codegen_item + 0x06),
                 "byte_07": reader.u8(codegen_item + 0x07),
-                "signed_08": reader.s16(codegen_item + 0x08),
+                "value_08": reader.u16(codegen_item + 0x08),
                 "pointer_0a": f"0x{pointer_0a:08x}",
                 "pointer_0e": f"0x{pointer_0e:08x}",
+                "pointer_16": f"0x{reader.u32(codegen_item + 0x16):08x}",
             }
             pointer_0a_data = optional_raw(reader, pointer_0a, 0x20)
             pointer_0e_data = optional_raw(reader, pointer_0e, 0x20)
+            if 4 <= item_kind <= 0x0F and pointer_0a:
+                expression_kind = reader.u8(pointer_0a)
+                expression_fields = {
+                    "kind_00": expression_kind,
+                    "value_0a": f"0x{reader.u32(pointer_0a + 0x0A):08x}",
+                    "value_0e": f"0x{reader.u32(pointer_0a + 0x0E):08x}",
+                    "value_12": f"0x{reader.u32(pointer_0a + 0x12):08x}",
+                }
+                if expression_kind == 0x38:
+                    expression_fields["object_0a"] = optional_compiler_object(
+                        reader, reader.u32(pointer_0a + 0x0A)
+                    )
         self.session.pending_creations.append(
             {
                 "epoch": self.session.creation_epoch,
@@ -593,9 +608,10 @@ class PCodeWrapperBreakpoint(gdb.Breakpoint):
                 "opcode_argument": reader.s16(stack_pointer + 4),
                 "codegen_item_address": f"0x{codegen_item:08x}",
                 "codegen_item_header": (
-                    reader.raw(codegen_item, 0x12).hex() if codegen_item else None
+                    reader.raw(codegen_item, 0x1A).hex() if codegen_item else None
                 ),
                 "codegen_item_fields": item_fields,
+                "codegen_expression_fields": expression_fields,
                 "codegen_pointer_0a_data": pointer_0a_data,
                 "codegen_pointer_0e_data": pointer_0e_data,
             }

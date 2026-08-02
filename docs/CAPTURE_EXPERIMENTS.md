@@ -115,6 +115,18 @@ structure, reduces the candidate to 1,479 bytes against a 1,568-byte target,
 and improves the match to 8.50%. The direct initialization form is retained;
 the smaller remaining deficit is localized to repeated entry/link emission.
 
+The first frontend probe reconstructs the `COptimizer.c` expression walk at
+`0x004beda0` and its shared object-use helper at `0x004beef0`. The validated
+candidate produces 346/95 bytes against retail's 319/80, with positional
+comparable scores of 6.77% and 3.13%. This low positional score is explained,
+not merely observed: both candidate functions add an EBP frame, the recursive
+walk repeats the larger frame epilogue at its returns, and the helper adds one
+alignment block. After accounting for those shifts, the dispatch, recursive
+edges, inlined object-use bodies, global updates, and early returns align with
+retail. The idiomatic shared-helper source is retained because retail itself
+keeps the same helper out of line at `0x004beef0` and inlines it at both walk
+sites.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

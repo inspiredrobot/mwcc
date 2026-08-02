@@ -20,6 +20,11 @@ def main() -> None:
         raise FileNotFoundError(f"C compiler not found: {compiler_name}")
 
     tests = [
+        (
+            "coptimizer_expressions",
+            "src/frontend/COptimizerExpressions.c",
+            "tests/test_coptimizer_expressions.c",
+        ),
         ("code_motion", "src/backend/CodeMotion.c", "tests/test_code_motion.c"),
         ("registers", "src/backend/Registers.c", "tests/test_registers.c"),
         ("coloring", "src/backend/Coloring.c", "tests/test_coloring.c"),

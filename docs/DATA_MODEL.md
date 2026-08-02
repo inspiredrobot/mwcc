@@ -134,6 +134,20 @@ fields at `+0x10` and `+0x2e`, plus an object register-info flag at
 the addressability classifier at `0x0048ad10`, and exact opcode ranges to
 decide whether an object contributes an implicit use or definition.
 
+The upstream expression bridge is now concrete. A packed `CodeGenItem` has a
+next link at `+0x00`, kind at `+0x04`, a still-semantically-unnamed 16-bit
+value at `+0x08`, expression pointer at `+0x0a`, another payload pointer at
+`+0x0e`, and a pointer at `+0x16`. CodeGen item kinds 4 through 15 pass the
+`+0x0a` expression into the `COptimizer.c` walk at `0x004beda0`.
+
+A `CExpression` has its kind byte at `+0x00` and three pointer-sized values at
+`+0x0a`, `+0x0e`, and `+0x12`; the second field can also head a list whose
+nodes are `{ next, expression }`. Kind `0x38` is an object reference whose
+`+0x0a` value is a `CompilerObject*`. Its use recorder at `0x004beef0` marks
+`RegisterInfo +0x23`, adds either one or global `0x00587160` to the still
+conservatively named weight at `+0x04`, and marks `+0x22` for direct object
+references. This is the first proven AST-to-object-to-backend metadata path.
+
 The census at `0x005246d0` confirms `PCodeInstruction +0x0c/+0x10` as the
 starting use and definition indices assigned before each instruction's entries
 are counted. Explicit operands contribute only for kinds 0, 1, and 9 with a
@@ -229,10 +243,12 @@ optimized stage snapshots then show which creations survive, disappear, move,
 or are rewritten before coloring.
 
 The provenance export interns repeated CodeGen item addresses as `cgN` facts.
-Each fact retains the 18-byte item header, exact raw fields at offsets `+0x04`
-through `+0x0e`, and best-effort 32-byte snapshots of the values referenced by
-the unaligned fields at `+0x0a` and `+0x0e`. These remain offset-level evidence,
-not AST/type names, until the frontend layouts are recovered.
+Each new capture retains the 26-byte item header, exact raw fields at offsets
+`+0x04` through `+0x16`, and best-effort 32-byte snapshots of the values
+referenced by the unaligned fields at `+0x0a` and `+0x0e`. For item kinds 4
+through 15 it also decodes the expression kind and its three pointer fields;
+kind `0x38` includes the referenced compiler-object fields. Older 18-byte
+headers remain valid evidence and are accepted by the provenance tools.
 
 Optimizer-side instruction copies have a separate identity path. The exact
 clone helper at `0x0049d270` allocates `sizeof(PCodeInstruction) + N * 12`

@@ -105,6 +105,9 @@ def explain_register(provenance: dict, register_id: str) -> dict:
             "codegen_item_fields": (
                 codegen_item.get("fields") if codegen_item else None
             ),
+            "codegen_expression": (
+                codegen_item.get("expression") if codegen_item else None
+            ),
             "codegen_pointer_0a_data": (
                 codegen_item.get("pointer_0a_data") if codegen_item else None
             ),

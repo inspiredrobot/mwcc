@@ -29,9 +29,11 @@ typedef struct PCodeFunction {
 } PCodeFunction;
 
 typedef struct RegisterInfo {
-    unsigned char unknown_00[0x22];
+    unsigned char unknown_00[4];
+    unsigned int weight_04;
+    unsigned char unknown_08[0x1a];
     unsigned char flags_22;
-    unsigned char unknown_23;
+    unsigned char flags_23;
     short physical_register;  /* 0x24 */
     short secondary_register; /* 0x26 */
     unsigned char is_fpr;     /* 0x28 */
@@ -204,6 +206,11 @@ typedef char
     CompilerType_value_2e[(offsetof(CompilerType, value_2e) == 0x2e) ? 1 : -1];
 typedef char
     RegisterInfo_flags_22[(offsetof(RegisterInfo, flags_22) == 0x22) ? 1 : -1];
+typedef char RegisterInfo_weight_04[(offsetof(RegisterInfo, weight_04) == 0x04)
+                                        ? 1
+                                        : -1];
+typedef char
+    RegisterInfo_flags_23[(offsetof(RegisterInfo, flags_23) == 0x23) ? 1 : -1];
 typedef char PCodeFunction_signature_0e
     [(offsetof(PCodeFunction, signature) == 0x0e) ? 1 : -1];
 typedef char PCodeFunctionSignature_result_0e
