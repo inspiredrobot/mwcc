@@ -135,6 +135,21 @@ vector, or compiler object before generating the current entries. Any move
 restarts the node scan, making the pass a concrete fixed point rather than a
 single forward walk.
 
+The first eligibility helper is now reconstructed too. `COpt_00526b50`
+requires the candidate instruction to own exactly one definition entry and
+rejects it when another definition of that same GPR, FPR, vector register, or
+compiler object occurs in the node's definition region. Retail emits four
+copies of the conflict scan. Expressing it as one pooled loop creates a
+275-byte candidate; invoking one semantic inline predicate from the four type
+arms creates a 564-byte candidate against retail's 547-byte extent and is the
+retained, source-like shape.
+
+Auto-capture also emits `mwcc-code-motion-trace-v1` files at the optimized
+boundary. `tools/explain_code_motion.py TRACE --constant VALUE` decodes
+constant objects and prints the candidate block, execution weight, node size,
+predicate chain, and direct/fallback decision. This is the preferred way to
+test a loop-motion hypothesis before changing Melee source.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

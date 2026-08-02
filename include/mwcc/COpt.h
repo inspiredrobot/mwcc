@@ -35,8 +35,9 @@ typedef struct CodeMotionNode {
     struct CodeMotionNode* children; /* 0x08 */
     struct PCodeBlock* entry_block;  /* 0x0c */
     unsigned char unknown_10[0x0c];
-    struct PCodeBlockLink* blocks; /* 0x1c */
-    unsigned char unknown_20[8];
+    struct PCodeBlockLink* blocks;             /* 0x1c */
+    unsigned int* definition_block_membership; /* 0x20 */
+    unsigned char unknown_24[4];
     unsigned int* block_membership; /* 0x28 */
     unsigned char unknown_2c[0x0c];
     int instruction_count; /* 0x38 */
@@ -83,6 +84,7 @@ void COpt_00524bd0(void);
 void COpt_00524c10(CodeMotionNode* node);
 void COpt_00524d90(CodeMotionNode* node);
 void COpt_00525070(CodeMotionNode* node);
+int COpt_00526b50(struct PCodeInstruction* instruction, CodeMotionNode* node);
 
 #ifndef MWCC_SKIP_LAYOUT_ASSERTS
 #include <stddef.h>

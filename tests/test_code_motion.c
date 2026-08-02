@@ -149,13 +149,6 @@ int COpt_005266e0(int definition_index, CodeMotionNode* node)
     return gDefinitionCandidate;
 }
 
-int COpt_00526b50(PCodeInstruction* instruction, CodeMotionNode* node)
-{
-    (void) instruction;
-    (void) node;
-    return gDirectCandidate;
-}
-
 int COpt_00526d80(PCodeInstruction* instruction, CodeMotionNode* node,
                   unsigned int* available_definitions, int arg_3, int arg_4)
 {
@@ -647,6 +640,65 @@ static void TestLoopNodeMotion(void)
     Check(gCopyCount == 2, "motion triggers another fixed-point pass");
 }
 
+static void TestSingleDefinitionInLoop(void)
+{
+    PCodeInstruction instruction;
+    PCodeInstruction peer_instruction;
+    PCodeBlock block;
+    PCodeBlock peer_block;
+    CodeMotionNode node;
+    CodeMotionEntry entries[2];
+    CodeMotionEntryLink current;
+    CodeMotionEntryLink peer;
+    CodeMotionEntryLink* fpr_heads[33];
+    unsigned int membership;
+
+    ResetState();
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&peer_instruction, 0, sizeof(peer_instruction));
+    memset(&block, 0, sizeof(block));
+    memset(&peer_block, 0, sizeof(peer_block));
+    memset(&node, 0, sizeof(node));
+    memset(entries, 0, sizeof(entries));
+    memset(&current, 0, sizeof(current));
+    memset(&peer, 0, sizeof(peer));
+    memset(fpr_heads, 0, sizeof(fpr_heads));
+
+    instruction.block = &block;
+    instruction.first_definition_index = 0;
+    entries[0].instruction = &instruction;
+    entries[0].kind = 1;
+    entries[0].value.reg = 32;
+    current.entry_index = 0;
+    fpr_heads[32] = &current;
+    membership = 1;
+    node.definition_block_membership = &membership;
+    gCodeMotionDefinitionCount_00587ebc = 1;
+    gCodeMotionDefinitionEntries_00587588 = entries;
+    gCodeMotionFPRDefinitionEntries_00587f04 = fpr_heads;
+
+    Check(COpt_00526b50(&instruction, &node) == 1,
+          "single loop definition accepted");
+
+    entries[1].instruction = &instruction;
+    gCodeMotionDefinitionCount_00587ebc = 2;
+    Check(COpt_00526b50(&instruction, &node) == 0,
+          "instruction with two definitions rejected");
+
+    entries[1].instruction = &peer_instruction;
+    peer_instruction.block = &peer_block;
+    peer_block.index = 1;
+    current.next = &peer;
+    peer.entry_index = 1;
+    membership = 1U << peer_block.index;
+    Check(COpt_00526b50(&instruction, &node) == 0,
+          "peer definition inside loop rejected");
+
+    membership = 0;
+    Check(COpt_00526b50(&instruction, &node) == 1,
+          "peer definition outside loop accepted");
+}
+
 static void TestCoordinator(void)
 {
     CodeMotionNode root;
@@ -675,6 +727,7 @@ int main(void)
     TestDefUseCensus();
     TestSetup();
     TestLoopNodeMotion();
+    TestSingleDefinitionInLoop();
     TestCoordinator();
     puts("code-motion model tests passed");
     return 0;

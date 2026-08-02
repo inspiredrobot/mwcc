@@ -224,6 +224,40 @@ a usable fallback in this sandbox. Version-verified software breakpoints at
 the static increment sites plus the reset boundary are both faster and proven
 complete for this capture.
 
+### CursorThink loop-motion decision
+
+A second exact-compiler capture at the same source commit records every
+instruction considered by `COpt_00524d90` and each result in its short-circuit
+predicate chain. It wrote 1,570 events to
+`code-motion-0015.json`. Use the checked-in decoder to select the load by its
+constant payload:
+
+```sh
+python3 tools/explain_code_motion.py code-motion-0015.json --constant=-2.2
+```
+
+The candidate's `-2.2f` is event 512, an LFS defining virtual FPR 267 in block
+462 (execution weight 8) of a 258-instruction loop node. The decisions are
+`00526d80=1`, `00526b50=1`, `005266e0=1`, and `00526500=0`; the final result is
+"moved via direct path." The load moves to optimized block 688, whose execution
+weight is 1.
+
+This falsifies two earlier hypotheses for this case. Register pressure cannot
+be the cause because loop motion runs before register allocation, and this
+path contains no allocator query. Block-frequency profitability is not the
+cause either: the instruction is accepted by the ordinary direct legality and
+invariance chain, not the special `00525fc0` fallback. The retail/candidate
+difference must therefore enter through source control flow, frontend
+provenance, or one of the direct predicate inputs.
+
+Target branch inspection found one such source error in the PR 3001
+reconstruction. Held-slider and cursor-state failures skip the character-kind
+toggle but still reach the later team/button logic; they do not continue the
+outer loop. A nonzero tag state does continue the loop. Correcting those branch
+destinations raises `mnCharSel_CursorThink` from 94.8861% to 94.9820%. The
+candidate still hoists `-2.2f`, so this is a verified semantic repair and a
+narrower starting point rather than a claim that the residual is solved.
+
 ## Stock compiler-object snapshot smoke test
 
 Date: 2026-08-01

@@ -20,6 +20,17 @@ INITIAL_PCODE_ADDRESS = 0x00435B04
 OPTIMIZED_PCODE_ADDRESS = 0x00435B39
 POST_SCHEDULER_PCODE_ADDRESS = 0x00435BAF
 FORWARD_PEEPHOLE_PCODE_ADDRESS = 0x00435BFD
+CODE_MOTION_INSTRUCTION_ADDRESS = 0x00524E04
+CODE_MOTION_DECISION_POINTS = {
+    0x00524E40: "00526d80",
+    0x00524E55: "00526b50",
+    0x00524E6D: "005266e0",
+    0x00524EB2: "00526500",
+    0x00524EEA: "00525fc0",
+}
+CODE_MOTION_ACCEPT_ADDRESS = 0x00524EF1
+CODE_MOTION_FINISH_ADDRESS = 0x00524F05
+CODE_MOTION_RETURN_ADDRESS = 0x00525066
 PCODE_EMIT_ADDRESS = 0x004A25D0
 PCODE_CREATE_ADDRESS = 0x004A2620
 PCODE_BUILDER_RETURN_ADDRESS = 0x004A2B6D
@@ -652,6 +663,94 @@ class PCodeBuilderReturnBreakpoint(gdb.Breakpoint):
         return False
 
 
+class CodeMotionInstructionBreakpoint(gdb.Breakpoint):
+    """Start a trace row for one instruction considered by loop motion."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{CODE_MOTION_INSTRUCTION_ADDRESS:08x}", internal=True
+        )
+        self.session = session
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        self.session.finish_code_motion_event()
+        reader = snapshot_reader(self.session)
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        instruction_address = int(gdb.parse_and_eval("$ebx"))
+        node_address = reader.u32(stack_pointer + 0x24)
+        instruction = reader.instruction(instruction_address)
+        block_address = reader.u32(instruction_address + 0x08)
+        for operand in instruction["operands"]:
+            object_address = int(operand["object"], 0)
+            operand["compiler_object"] = optional_compiler_object(
+                reader, object_address
+            )
+            operand["object_raw_80"] = optional_raw(reader, object_address, 0x80)
+        self.session.pending_code_motion_event = {
+            "sequence": len(self.session.code_motion_events),
+            "instruction": instruction,
+            "block": {
+                "address": f"0x{block_address:08x}",
+                "index": reader.s32(block_address + 0x1C),
+                "execution_weight": reader.s32(block_address + 0x28),
+            },
+            "node": {
+                "address": f"0x{node_address:08x}",
+                "instruction_count": reader.s32(node_address + 0x38),
+            },
+            "predicate_results": {},
+            "moved": False,
+        }
+        return False
+
+
+class CodeMotionPredicateBreakpoint(gdb.Breakpoint):
+    """Record one fixed call-site result in COpt_00524d90's short circuit."""
+
+    def __init__(self, session, address, predicate):
+        super().__init__(f"*0x{address:08x}", internal=True)
+        self.session = session
+        self.predicate = predicate
+
+    def stop(self):
+        event = self.session.pending_code_motion_event
+        if self.session.capture_current and event is not None:
+            event["predicate_results"][self.predicate] = int(
+                gdb.parse_and_eval("$eax")
+            )
+        return False
+
+
+class CodeMotionAcceptBreakpoint(gdb.Breakpoint):
+    def __init__(self, session):
+        super().__init__(f"*0x{CODE_MOTION_ACCEPT_ADDRESS:08x}", internal=True)
+        self.session = session
+
+    def stop(self):
+        event = self.session.pending_code_motion_event
+        if self.session.capture_current and event is not None:
+            event["moved"] = True
+            event["decision_path"] = (
+                "fallback"
+                if "00525fc0" in event["predicate_results"]
+                else "direct"
+            )
+        return False
+
+
+class CodeMotionFinishBreakpoint(gdb.Breakpoint):
+    def __init__(self, session, address):
+        super().__init__(f"*0x{address:08x}", internal=True)
+        self.session = session
+
+    def stop(self):
+        if self.session.capture_current:
+            self.session.finish_code_motion_event()
+        return False
+
+
 class CaptureSession:
     def __init__(self, output, target_index=None, target="stock"):
         self.output = output
@@ -670,6 +769,8 @@ class CaptureSession:
         self.pending_clones = []
         self.virtual_register_events = []
         self.pending_frontend_virtual_register_events = []
+        self.code_motion_events = []
+        self.pending_code_motion_event = None
         self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
         self.pcode_clone_breakpoint = PCodeCloneBreakpoint(self)
         self.pcode_clone_return_breakpoint = PCodeCloneReturnBreakpoint(self)
@@ -716,6 +817,21 @@ class CaptureSession:
         self.pcode_builder_return_breakpoint = PCodeBuilderReturnBreakpoint(self)
         self.allocate_breakpoint = AllocateBreakpoint(self)
         self.coloring_breakpoint = ColoringBreakpoint(self)
+        self.code_motion_instruction_breakpoint = CodeMotionInstructionBreakpoint(
+            self
+        )
+        self.code_motion_predicate_breakpoints = [
+            CodeMotionPredicateBreakpoint(self, address, predicate)
+            for address, predicate in CODE_MOTION_DECISION_POINTS.items()
+        ]
+        self.code_motion_accept_breakpoint = CodeMotionAcceptBreakpoint(self)
+        self.code_motion_finish_breakpoints = [
+            CodeMotionFinishBreakpoint(self, address)
+            for address in (
+                CODE_MOTION_FINISH_ADDRESS,
+                CODE_MOTION_RETURN_ADDRESS,
+            )
+        ]
 
     def begin_function(self, function_pointer):
         self.function_index += 1
@@ -737,11 +853,19 @@ class CaptureSession:
             else []
         )
         self.pending_frontend_virtual_register_events = []
+        self.code_motion_events = []
+        self.pending_code_motion_event = None
         for sequence, event in enumerate(self.virtual_register_events):
             event["sequence"] = sequence
         self.pcode_allocation_breakpoint.enabled = False
         self.pcode_clone_breakpoint.enabled = False
         self.pcode_clone_return_breakpoint.enabled = False
+
+    def finish_code_motion_event(self):
+        if self.pending_code_motion_event is None:
+            return
+        self.code_motion_events.append(self.pending_code_motion_event)
+        self.pending_code_motion_event = None
 
     def write_pcode_stage(self, phase, program_counter):
         reader = snapshot_reader(self)
@@ -752,6 +876,21 @@ class CaptureSession:
         write_snapshot(output, snapshot)
 
         self.write_creation_trace(phase, snapshot)
+        if phase == "optimized":
+            self.finish_code_motion_event()
+            trace = {
+                "format": "mwcc-code-motion-trace-v1",
+                "compiler": self.compiler,
+                "target_sha256": self.target_sha256,
+                "capture_index": self.function_index,
+                "function_pointer": f"0x{self.function_pointer:08x}",
+                "events": self.code_motion_events,
+            }
+            write_snapshot(
+                self.output
+                / f"code-motion-{self.function_index:04d}.json",
+                trace,
+            )
 
         instruction_count = sum(
             len(block["instructions"]) for block in snapshot["blocks"]

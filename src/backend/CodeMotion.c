@@ -54,7 +54,6 @@ extern int COpt_00525fc0(PCodeInstruction* instruction, CodeMotionNode* node,
 extern void COpt_00526230(PCodeInstruction* instruction, CodeMotionNode* node);
 extern int COpt_00526500(unsigned char* definition, CodeMotionNode* node);
 extern int COpt_005266e0(int definition_index, CodeMotionNode* node);
-extern int COpt_00526b50(PCodeInstruction* instruction, CodeMotionNode* node);
 extern int COpt_00526d80(PCodeInstruction* instruction, CodeMotionNode* node,
                          unsigned int* available_definitions, int arg_3,
                          int arg_4);
@@ -741,6 +740,78 @@ void COpt_00524c10(CodeMotionNode* node)
         }
         COpt_00524d90(node);
     }
+}
+
+static int CodeMotion_HasDefinitionInNode(CodeMotionEntryLink* entries,
+                                          int current_index,
+                                          CodeMotionNode* node)
+{
+    for (; entries != 0; entries = entries->next) {
+        int entry_index = entries->entry_index;
+        PCodeBlock* block = gCodeMotionDefinitionEntries_00587588[entry_index]
+                                .instruction->block;
+
+        if (CodeMotion_TestBit(node->definition_block_membership,
+                               block->index) &&
+            entry_index != current_index)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* 0x00526b50; high-level equivalent; 9.42% comparable byte match. */
+int COpt_00526b50(PCodeInstruction* instruction, CodeMotionNode* node)
+{
+    int definition_index = instruction->first_definition_index;
+    CodeMotionEntry* definition;
+
+    if (definition_index >= gCodeMotionDefinitionCount_00587ebc) {
+        return 0;
+    }
+    definition = &gCodeMotionDefinitionEntries_00587588[definition_index];
+    if (definition->instruction != instruction) {
+        return 0;
+    }
+    if (definition_index + 1 < gCodeMotionDefinitionCount_00587ebc &&
+        definition[1].instruction == instruction)
+    {
+        return 0;
+    }
+
+    if (definition->kind == 0) {
+        if (CodeMotion_HasDefinitionInNode(
+                gCodeMotionGPRDefinitionEntries_00587ed4[definition->value
+                                                             .reg],
+                definition_index, node))
+        {
+            return 0;
+        }
+    } else if (definition->kind == 1) {
+        if (CodeMotion_HasDefinitionInNode(
+                gCodeMotionFPRDefinitionEntries_00587f04[definition->value
+                                                             .reg],
+                definition_index, node))
+        {
+            return 0;
+        }
+    } else if (definition->kind == 9) {
+        if (CodeMotion_HasDefinitionInNode(
+                gCodeMotionVRDefinitionEntries_005876f0[definition->value.reg],
+                definition_index, node))
+        {
+            return 0;
+        }
+    } else {
+        if (CodeMotion_HasDefinitionInNode(
+                COpt_00524b90(definition->value.object)->definition_entries,
+                definition_index, node))
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 /* 0x00524d90; high-level equivalent; 9.19% comparable byte match. */
