@@ -107,6 +107,14 @@ This rejects source-level helper sharing here: retail duplicates an inlined
 eligibility expression, and that duplication affects the Boolean/register
 webs in both callers.
 
+The first `COpt_005240b0` form factored six register-head initializations
+through one helper. MWCC inlined and unrolled every zeroing loop eight-wide,
+producing 1,991 bytes and 3.53% comparable match. Spelling the three paired
+GPR/FPR/vector allocations and scalar loops directly matches retail's visible
+structure, reduces the candidate to 1,479 bytes against a 1,568-byte target,
+and improves the match to 8.50%. The direct initialization form is retained;
+the smaller remaining deficit is localized to repeated entry/link emission.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

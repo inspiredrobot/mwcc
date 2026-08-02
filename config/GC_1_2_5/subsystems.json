@@ -120,6 +120,16 @@
           "match_note": "comparable positional bytes at -O4,p -inline auto; target 407 bytes versus candidate 411; candidate-only EBP frame plus an initial iterator-register permutation and one global reset folded to an immediate"
         },
         {
+          "address": "0x005240b0",
+          "name": "COpt_005240b0",
+          "role": "materialize def/use entries and reverse indices for registers and compiler objects",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 8.5,
+          "match_note": "target 1568 bytes versus candidate 1479 at -O4,p -inline auto; explicit paired scalar initialization avoids a helper-induced 512-byte unrolling regression"
+        },
+        {
           "address": "0x005246d0",
           "name": "COpt_005246d0",
           "role": "assign instruction def/use index ranges and census explicit and implicit entries",

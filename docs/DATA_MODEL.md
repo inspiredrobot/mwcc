@@ -143,6 +143,14 @@ definition entries independently. Instruction flag `0x08` adds implicit uses,
 object; flag `0x40` selects per-object compatibility instead of one anonymous
 entry.
 
+`COpt_005240b0` materializes those counts into packed 10-byte entries. Each
+entry stores its originating instruction at `+0x00`, register/object kind at
+`+0x04`, an implicit-object marker at `+0x05`, and a register number or object
+pointer at `+0x06`. Eight-byte links store a next pointer and entry index.
+Separate GPR, FPR, and vector head arrays provide register-to-entry reverse
+indices; `CodeMotionObjectNode +0x10/+0x14` provide the corresponding object
+use/definition lists.
+
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude
 `0x40` contributes the object pointer in operand 2 to the collection rooted at

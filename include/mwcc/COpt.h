@@ -4,6 +4,26 @@
 struct CompilerObject;
 struct PCodeInstruction;
 
+#pragma pack(push, 2)
+typedef union CodeMotionEntryValue {
+    short reg;
+    unsigned int raw;
+    struct CompilerObject* object;
+} CodeMotionEntryValue;
+
+typedef struct CodeMotionEntry {
+    struct PCodeInstruction* instruction; /* 0x00 */
+    unsigned char kind;                   /* 0x04 */
+    unsigned char is_implicit;            /* 0x05 */
+    CodeMotionEntryValue value;           /* 0x06 */
+} CodeMotionEntry;
+
+typedef struct CodeMotionEntryLink {
+    struct CodeMotionEntryLink* next; /* 0x00 */
+    int entry_index;                  /* 0x04 */
+} CodeMotionEntryLink;
+#pragma pack(pop)
+
 typedef struct CodeMotionNode {
     struct CodeMotionNode* unknown_00;
     struct CodeMotionNode* sibling;  /* 0x04 */
@@ -33,8 +53,8 @@ typedef struct CodeMotionObjectNode {
     struct CodeMotionObjectNode* left;            /* 0x04 */
     struct CodeMotionObjectNode* right;           /* 0x08 */
     struct CompilerObject* object;                /* 0x0c */
-    void* unknown_10;
-    void* unknown_14;
+    CodeMotionEntryLink* use_entries;             /* 0x10 */
+    CodeMotionEntryLink* definition_entries;      /* 0x14 */
 } CodeMotionObjectNode;
 
 extern CodeMotionNode* gCodeMotionTree_0058763c;
@@ -45,6 +65,7 @@ void COpt_00521a10(void);
 void COpt_00521a30(CodeMotionNode* node);
 void COpt_00521bb0(CodeMotionNode* node);
 void COpt_SetLoopCodeMotionMode(int mode);
+void COpt_005240b0(int include_implicit);
 void COpt_005246d0(int include_implicit);
 int COpt_005248c0(struct PCodeInstruction* instruction,
                   struct CompilerObject* object);
@@ -74,6 +95,14 @@ typedef char
                                                                         : -1];
 typedef char CodeMotionObjectNode_object_0c
     [(offsetof(CodeMotionObjectNode, object) == 0x0c) ? 1 : -1];
+typedef char
+    CodeMotionEntry_size_0a[(sizeof(CodeMotionEntry) == 0x0a) ? 1 : -1];
+typedef char
+    CodeMotionEntry_value_06[(offsetof(CodeMotionEntry, value) == 0x06) ? 1
+                                                                        : -1];
+typedef char CodeMotionEntryLink_size_08[(sizeof(CodeMotionEntryLink) == 0x08)
+                                             ? 1
+                                             : -1];
 #endif
 
 #endif

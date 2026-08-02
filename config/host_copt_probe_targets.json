@@ -7,6 +7,7 @@
     {"name": "COpt_00521a30", "address": "0x00521a30", "size": 382},
     {"name": "COpt_00521bb0", "address": "0x00521bb0", "size": 352},
     {"name": "COpt_SetLoopCodeMotionMode", "address": "0x00523650", "size": 407},
+    {"name": "COpt_005240b0", "address": "0x005240b0", "size": 1568},
     {"name": "COpt_005246d0", "address": "0x005246d0", "size": 496},
     {"name": "COpt_005248c0", "address": "0x005248c0", "size": 608},
     {"name": "COpt_00524b20", "address": "0x00524b20", "size": 112},

@@ -112,6 +112,12 @@ virtual operands, and then adds the implicit opcode/object entries described
 above. Its true boundary is 496 bytes at `0x005246d0–0x005248bf`; the often
 quoted 1,104-byte range includes the separate 608-byte compatibility predicate.
 
+`COpt_005240b0` completes the inverse mapping. It writes every counted entry
+and links it back to its GPR/FPR/vector register or compiler object. Together,
+the census and builder can now explain the precise entry indices attached to
+an instruction and whether each arose from an explicit operand, anonymous
+implicit memory state, or an opcode/type-compatible object.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

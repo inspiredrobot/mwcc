@@ -6,6 +6,7 @@
  *   0x00521a30  COpt_00521a30
  *   0x00521bb0  COpt_00521bb0
  *   0x00523650  COpt_SetLoopCodeMotionMode
+ *   0x005240b0  COpt_005240b0
  *   0x005246d0  COpt_005246d0
  *   0x005248c0  COpt_005248c0
  *   0x00524bd0  COpt_00524bd0
@@ -32,6 +33,17 @@ extern int gCodeMotionUseCount_00587e38;
 extern CodeMotionBlockState* gCodeMotionBlockState_00587fe4;
 extern int gCodeMotionCounter_005880b8;
 extern int gCodeMotionChanged; /* 0x005875b0 */
+extern short gUsedVirtualRegistersGPR;
+extern short gUsedVirtualRegistersFPR;
+extern short gUsedVirtualRegistersVR;
+extern CodeMotionEntry* gCodeMotionUseEntries_00587650;
+extern CodeMotionEntry* gCodeMotionDefinitionEntries_00587588;
+extern CodeMotionEntryLink** gCodeMotionGPRUseEntries_00587f14;
+extern CodeMotionEntryLink** gCodeMotionGPRDefinitionEntries_00587ed4;
+extern CodeMotionEntryLink** gCodeMotionFPRUseEntries_00587ee8;
+extern CodeMotionEntryLink** gCodeMotionFPRDefinitionEntries_00587f04;
+extern CodeMotionEntryLink** gCodeMotionVRUseEntries_00587c88;
+extern CodeMotionEntryLink** gCodeMotionVRDefinitionEntries_005876f0;
 
 extern void* CodeMotion_Allocate(unsigned int size); /* 0x00441f20 */
 extern void CodeMotion_FreeIteration(void);          /* 0x00441e20 */
@@ -41,13 +53,55 @@ extern unsigned char COpt_0048ad10(CompilerObject* object);
 extern void COpt_005237f0(void);
 extern void COpt_00523920(void);
 extern void COpt_00523a50(void);
-extern void COpt_005240b0(int mode);
 extern void COpt_00524d90(CodeMotionNode* node);
 extern void COpt_00525200(CodeMotionNode* node);
 
 static unsigned int* CodeMotion_AllocateBits(int bit_count)
 {
     return CodeMotion_Allocate(((bit_count + 31) >> 5) * sizeof(unsigned int));
+}
+
+static void CodeMotion_LinkEntry(CodeMotionEntryLink** head, int entry_index)
+{
+    CodeMotionEntryLink* link = CodeMotion_Allocate(sizeof(*link));
+
+    link->entry_index = entry_index;
+    link->next = *head;
+    *head = link;
+}
+
+static CodeMotionEntryLink**
+CodeMotion_RegisterEntryHead(unsigned char kind, short reg, int is_definition)
+{
+    if (kind == 0) {
+        return is_definition ? &gCodeMotionGPRDefinitionEntries_00587ed4[reg]
+                             : &gCodeMotionGPRUseEntries_00587f14[reg];
+    }
+    if (kind == 9) {
+        return is_definition ? &gCodeMotionVRDefinitionEntries_005876f0[reg]
+                             : &gCodeMotionVRUseEntries_00587c88[reg];
+    }
+    return is_definition ? &gCodeMotionFPRDefinitionEntries_00587f04[reg]
+                         : &gCodeMotionFPRUseEntries_00587ee8[reg];
+}
+
+static void CodeMotion_SetExplicitEntry(CodeMotionEntry* entry,
+                                        PCodeInstruction* instruction,
+                                        PCodeOperand* operand)
+{
+    entry->instruction = instruction;
+    entry->kind = operand->kind;
+    entry->value.reg = operand->value.reg;
+}
+
+static void CodeMotion_SetObjectEntry(CodeMotionEntry* entry,
+                                      PCodeInstruction* instruction,
+                                      CompilerObject* object, int is_implicit)
+{
+    entry->instruction = instruction;
+    entry->kind = 5;
+    entry->is_implicit = is_implicit;
+    entry->value.object = object;
 }
 
 /* 0x00521a10; control-flow equivalent; 0.00% positional comparable match. */
@@ -191,6 +245,191 @@ void COpt_SetLoopCodeMotionMode(int mode)
     SpillCode_BuildBlockOrder();
     COpt_00523920();
     COpt_005237f0();
+}
+
+/* 0x005240b0; high-level equivalent; 8.50% comparable byte match. */
+void COpt_005240b0(int include_implicit)
+{
+    PCodeBlock* block;
+    PCodeInstruction* instruction;
+    int index;
+
+    gCodeMotionUseEntries_00587650 = CodeMotion_Allocate(
+        gCodeMotionUseCount_00587e38 * sizeof(CodeMotionEntry));
+    gCodeMotionDefinitionEntries_00587588 = CodeMotion_Allocate(
+        gCodeMotionDefinitionCount_00587ebc * sizeof(CodeMotionEntry));
+    gCodeMotionGPRUseEntries_00587f14 = CodeMotion_Allocate(
+        gUsedVirtualRegistersGPR * sizeof(CodeMotionEntryLink*));
+    gCodeMotionGPRDefinitionEntries_00587ed4 = CodeMotion_Allocate(
+        gUsedVirtualRegistersGPR * sizeof(CodeMotionEntryLink*));
+    for (index = 0; index < gUsedVirtualRegistersGPR; index++) {
+        gCodeMotionGPRUseEntries_00587f14[index] = 0;
+        gCodeMotionGPRDefinitionEntries_00587ed4[index] = 0;
+    }
+    gCodeMotionFPRUseEntries_00587ee8 = CodeMotion_Allocate(
+        gUsedVirtualRegistersFPR * sizeof(CodeMotionEntryLink*));
+    gCodeMotionFPRDefinitionEntries_00587f04 = CodeMotion_Allocate(
+        gUsedVirtualRegistersFPR * sizeof(CodeMotionEntryLink*));
+    for (index = 0; index < gUsedVirtualRegistersFPR; index++) {
+        gCodeMotionFPRUseEntries_00587ee8[index] = 0;
+        gCodeMotionFPRDefinitionEntries_00587f04[index] = 0;
+    }
+    gCodeMotionVRUseEntries_00587c88 = CodeMotion_Allocate(
+        gUsedVirtualRegistersVR * sizeof(CodeMotionEntryLink*));
+    gCodeMotionVRDefinitionEntries_005876f0 = CodeMotion_Allocate(
+        gUsedVirtualRegistersVR * sizeof(CodeMotionEntryLink*));
+    for (index = 0; index < gUsedVirtualRegistersVR; index++) {
+        gCodeMotionVRUseEntries_00587c88[index] = 0;
+        gCodeMotionVRDefinitionEntries_005876f0[index] = 0;
+    }
+
+    for (block = gPCodeBlocks; block != 0; block = block->next) {
+        for (instruction = block->instructions; instruction != 0;
+             instruction = instruction->next)
+        {
+            int use_index;
+            int definition_index;
+            int operand_index;
+
+            if ((instruction->flags & PCodeInstruction_SkipCodeMotion) != 0 ||
+                instruction->operand_count == 0)
+            {
+                continue;
+            }
+            use_index = instruction->first_use_index;
+            definition_index = instruction->first_definition_index;
+            for (operand_index = 0; operand_index < instruction->operand_count;
+                 operand_index++)
+            {
+                PCodeOperand* operand = &instruction->operands[operand_index];
+
+                if ((operand->kind == 0 || operand->kind == 1 ||
+                     operand->kind == 9) &&
+                    operand->value.reg >= 32)
+                {
+                    if ((operand->flags & PCodeOperand_Use) != 0) {
+                        CodeMotion_SetExplicitEntry(
+                            &gCodeMotionUseEntries_00587650[use_index],
+                            instruction, operand);
+                        CodeMotion_LinkEntry(
+                            CodeMotion_RegisterEntryHead(
+                                operand->kind, operand->value.reg, 0),
+                            use_index);
+                        use_index++;
+                    }
+                    if ((operand->flags & PCodeOperand_Definition) != 0) {
+                        CodeMotion_SetExplicitEntry(
+                            &gCodeMotionDefinitionEntries_00587588
+                                [definition_index],
+                            instruction, operand);
+                        CodeMotion_LinkEntry(
+                            CodeMotion_RegisterEntryHead(
+                                operand->kind, operand->value.reg, 1),
+                            definition_index);
+                        definition_index++;
+                    }
+                }
+            }
+
+            if (include_implicit != 0) {
+                unsigned int flags = instruction->flags;
+
+                if ((flags & PCodeInstruction_ImplicitUse) != 0) {
+                    if ((flags & PCodeInstruction_NullObjectMemory) == 0) {
+                        CompilerObject* object =
+                            instruction->operands[2].object;
+                        CodeMotionObjectNode* object_node =
+                            COpt_00524b90(object);
+
+                        CodeMotion_SetObjectEntry(
+                            &gCodeMotionUseEntries_00587650[use_index],
+                            instruction, object, 0);
+                        CodeMotion_LinkEntry(&object_node->use_entries,
+                                             use_index++);
+                    } else {
+                        CodeMotionObjectNode* object_node;
+                        for (object_node = gCodeMotionAllocationList_005870fc;
+                             object_node != 0;
+                             object_node = object_node->allocation_next)
+                        {
+                            if (COpt_005248c0(instruction,
+                                              object_node->object))
+                            {
+                                CodeMotion_SetObjectEntry(
+                                    &gCodeMotionUseEntries_00587650[use_index],
+                                    instruction, object_node->object, 1);
+                                CodeMotion_LinkEntry(&object_node->use_entries,
+                                                     use_index++);
+                            }
+                        }
+                    }
+                } else if ((flags & PCodeInstruction_ImplicitDefinition) != 0)
+                {
+                    if ((flags & PCodeInstruction_NullObjectMemory) == 0) {
+                        CompilerObject* object =
+                            instruction->operands[2].object;
+                        CodeMotionObjectNode* object_node =
+                            COpt_00524b90(object);
+
+                        CodeMotion_SetObjectEntry(
+                            &gCodeMotionDefinitionEntries_00587588
+                                [definition_index],
+                            instruction, object, 0);
+                        CodeMotion_LinkEntry(&object_node->definition_entries,
+                                             definition_index++);
+                    } else {
+                        CodeMotionObjectNode* object_node;
+                        for (object_node = gCodeMotionAllocationList_005870fc;
+                             object_node != 0;
+                             object_node = object_node->allocation_next)
+                        {
+                            if (COpt_005248c0(instruction,
+                                              object_node->object))
+                            {
+                                CodeMotion_SetObjectEntry(
+                                    &gCodeMotionDefinitionEntries_00587588
+                                        [definition_index],
+                                    instruction, object_node->object, 1);
+                                CodeMotion_LinkEntry(
+                                    &object_node->definition_entries,
+                                    definition_index++);
+                            }
+                        }
+                    }
+                } else if ((flags & PCodeInstruction_GPRFixedRange) != 0) {
+                    CodeMotionObjectNode* object_node;
+                    for (object_node = gCodeMotionAllocationList_005870fc;
+                         object_node != 0;
+                         object_node = object_node->allocation_next)
+                    {
+                        CompilerObject* object = object_node->object;
+                        CompilerType* type = object->type;
+
+                        if (object->kind == 0 || COpt_0048ad10(object) != 0 ||
+                            (object->kind == 1 &&
+                             (object->register_info_26->flags_22 != 0 ||
+                              type->kind == 0x0c || type->kind == 0x04 ||
+                              type->kind == 0x05 ||
+                              (type->kind == 0x0a && type->size == 0x0c))))
+                        {
+                            CodeMotion_SetObjectEntry(
+                                &gCodeMotionUseEntries_00587650[use_index],
+                                instruction, object, 1);
+                            CodeMotion_LinkEntry(&object_node->use_entries,
+                                                 use_index++);
+                            CodeMotion_SetObjectEntry(
+                                &gCodeMotionDefinitionEntries_00587588
+                                    [definition_index],
+                                instruction, object, 1);
+                            CodeMotion_LinkEntry(
+                                &object_node->definition_entries,
+                                definition_index++);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /* 0x005246d0; high-level equivalent; 12.62% comparable byte match. */
@@ -430,8 +669,8 @@ void COpt_00524b20(CompilerObject* object)
     node->right = 0;
     node->left = node->right;
     node->object = object;
-    node->unknown_14 = 0;
-    node->unknown_10 = node->unknown_14;
+    node->definition_entries = 0;
+    node->use_entries = node->definition_entries;
     node->allocation_next = gCodeMotionAllocationList_005870fc;
     gCodeMotionAllocationList_005870fc = node;
     *link = node;

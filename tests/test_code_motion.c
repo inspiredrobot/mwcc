@@ -16,8 +16,19 @@ int gCodeMotionUseCount_00587e38;
 void* gCodeMotionBlockState_00587fe4;
 int gCodeMotionCounter_005880b8;
 int gCodeMotionChanged;
+short gUsedVirtualRegistersGPR;
+short gUsedVirtualRegistersFPR;
+short gUsedVirtualRegistersVR;
+CodeMotionEntry* gCodeMotionUseEntries_00587650;
+CodeMotionEntry* gCodeMotionDefinitionEntries_00587588;
+CodeMotionEntryLink** gCodeMotionGPRUseEntries_00587f14;
+CodeMotionEntryLink** gCodeMotionGPRDefinitionEntries_00587ed4;
+CodeMotionEntryLink** gCodeMotionFPRUseEntries_00587ee8;
+CodeMotionEntryLink** gCodeMotionFPRDefinitionEntries_00587f04;
+CodeMotionEntryLink** gCodeMotionVRUseEntries_00587c88;
+CodeMotionEntryLink** gCodeMotionVRDefinitionEntries_005876f0;
 
-static unsigned int gAllocationPool[256];
+static unsigned int gAllocationPool[1024];
 static int gAllocationOffset;
 static int gAllocationSizes[32];
 static int gAllocationCount;
@@ -50,7 +61,7 @@ void* CodeMotion_Allocate(unsigned int size)
     word_count = (size + sizeof(unsigned int) - 1) / sizeof(unsigned int);
     result = &gAllocationPool[gAllocationOffset];
     gAllocationOffset += (int) word_count;
-    Check(gAllocationOffset <= 256, "allocation pool");
+    Check(gAllocationOffset <= 1024, "allocation pool");
     return result;
 }
 
@@ -91,12 +102,6 @@ void COpt_00523a50(void)
     RecordStage(5);
 }
 
-void COpt_005240b0(int mode)
-{
-    Check(mode == 1, "second setup mode");
-    RecordStage(4);
-}
-
 void COpt_00524d90(CodeMotionNode* node)
 {
     RecordNode(10, node);
@@ -127,6 +132,17 @@ static void ResetState(void)
     gCodeMotionBlockState_00587fe4 = 0;
     gCodeMotionCounter_005880b8 = 0;
     gCodeMotionChanged = 0;
+    gUsedVirtualRegistersGPR = 0;
+    gUsedVirtualRegistersFPR = 0;
+    gUsedVirtualRegistersVR = 0;
+    gCodeMotionUseEntries_00587650 = 0;
+    gCodeMotionDefinitionEntries_00587588 = 0;
+    gCodeMotionGPRUseEntries_00587f14 = 0;
+    gCodeMotionGPRDefinitionEntries_00587ed4 = 0;
+    gCodeMotionFPRUseEntries_00587ee8 = 0;
+    gCodeMotionFPRDefinitionEntries_00587f04 = 0;
+    gCodeMotionVRUseEntries_00587c88 = 0;
+    gCodeMotionVRDefinitionEntries_005876f0 = 0;
 }
 
 static void TestGuardedTreePass(void)
@@ -280,7 +296,8 @@ static void TestObjectTreeInsert(void)
     for (allocation = gCodeMotionAllocationList_005870fc; allocation != 0;
          allocation = allocation->allocation_next)
     {
-        Check(allocation->unknown_10 == 0 && allocation->unknown_14 == 0,
+        Check(allocation->use_entries == 0 &&
+                  allocation->definition_entries == 0,
               "object-node state initialized");
         allocation_count++;
     }
@@ -396,6 +413,35 @@ static void TestDefUseCensus(void)
     Check(gCodeMotionUseCount_00587e38 == 3 &&
               gCodeMotionDefinitionCount_00587ebc == 2,
           "implicit object def-use census");
+
+    gUsedVirtualRegistersGPR = 34;
+    gUsedVirtualRegistersFPR = 34;
+    gUsedVirtualRegistersVR = 34;
+    COpt_005240b0(1);
+    Check(gCodeMotionUseEntries_00587650[0].instruction ==
+                  &instructions[0].instruction &&
+              gCodeMotionUseEntries_00587650[0].kind == 0 &&
+              gCodeMotionUseEntries_00587650[0].value.reg == 32,
+          "explicit use entry materialized");
+    Check(gCodeMotionDefinitionEntries_00587588[0].instruction ==
+                  &instructions[0].instruction &&
+              gCodeMotionDefinitionEntries_00587588[0].kind == 1 &&
+              gCodeMotionDefinitionEntries_00587588[0].value.reg == 33,
+          "explicit definition entry materialized");
+    Check(gCodeMotionUseEntries_00587650[1].is_implicit == 1 &&
+              gCodeMotionUseEntries_00587650[1].value.object == &objects[0],
+          "compatible implicit use materialized");
+    Check(gCodeMotionUseEntries_00587650[2].value.object == &objects[0] &&
+              gCodeMotionDefinitionEntries_00587588[1].value.object ==
+                  &objects[0],
+          "shared implicit use-definition materialized");
+    Check(gCodeMotionGPRUseEntries_00587f14[32]->entry_index == 0,
+          "GPR use reverse index");
+    Check(gCodeMotionFPRDefinitionEntries_00587f04[33]->entry_index == 0,
+          "FPR definition reverse index");
+    Check(object_nodes[0].use_entries != 0 &&
+              object_nodes[0].definition_entries != 0,
+          "object reverse indices");
 }
 
 static void TestSetup(void)
@@ -408,7 +454,7 @@ static void TestSetup(void)
     PCodeBlock block;
     TestInstruction instruction;
     CompilerObject object;
-    int expected_stages[] = {4, 5, 6, 7, 8};
+    int expected_stages[] = {5, 6, 7, 8};
     int index;
 
     ResetState();
@@ -430,21 +476,21 @@ static void TestSetup(void)
 
     Check(gCodeMotionObjectTree_005880ac->object == &object,
           "candidate object collected");
-    Check(gAllocationCount == 18,
-          "object node, block state, and eight sets per block");
+    Check(gAllocationCount == 27,
+          "object entries, block state, and eight sets per block");
     Check(gAllocationSizes[0] == (int) sizeof(CodeMotionObjectNode),
           "object-node allocation");
-    Check(gAllocationSizes[1] == 2 * 8 * (int) sizeof(void*),
+    Check(gAllocationSizes[10] == 2 * 8 * (int) sizeof(void*),
           "two block-state records");
-    for (index = 2; index < 18; index++) {
-        if (((index - 2) & 7) < 4) {
+    for (index = 11; index < 27; index++) {
+        if (((index - 11) & 7) < 4) {
             Check(gAllocationSizes[index] == 0, "definition-set size");
         } else {
             Check(gAllocationSizes[index] == 4, "use-set size");
         }
     }
-    Check(gStageCount == 5, "setup stage count");
-    for (index = 0; index < 5; index++) {
+    Check(gStageCount == 4, "setup stage count");
+    for (index = 0; index < 4; index++) {
         Check(gStages[index] == expected_stages[index], "setup stage order");
     }
 }
