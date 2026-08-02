@@ -61,6 +61,34 @@ instructions. Normal constructor events explain 2,315 pre-coloring survivors;
 20 `PCode_CloneInstruction` events explain the remainder. All 20 clones retain
 live parents, yielding complete instruction provenance for this capture.
 
+The subsequent virtual-register-birth capture accounts for 1,157 allocation
+events that reach the target function: 180 object-backed GPRs, 659 direct GPR
+temporaries, 75 object-backed FPRs, and 243 direct FPR temporaries. Every one of
+the 695 live virtual GPR webs and 273 live virtual FPR webs in pre-coloring
+PCode has an origin. `fpr:265` has one and only one origin,
+direct increment `0x004a05b7` in the `Operands.c` routine named here
+`Operands_ForceFPR`. Static control flow shows that its kind-9 operand path
+allocates a destination when no FPR was requested and chooses LFS or LFD from
+the operand type size. The captured web's definition is LFD. Its CodeGen-item
+identity is `0x409124a0`, shared with the already traced LFD/FCMPO lowering.
+
+An earlier run instrumented the same 32 FPR increment instructions but retained
+events only after target selection and reported no direct events. That absence
+was not evidence that direct allocation was unused. The corrected capture
+retains pre-CodeGen events separately and, more importantly, validates the
+entire generated site catalog at runtime. The direct GPRs are allocated before
+the target's CodeGen entry, so the trace buffers them between the compiler's
+explicit register-counter reset at `0x004c23c0` and the next CodeGen boundary.
+Future negative conclusions must check capture-window ownership as well as
+breakpoint coverage.
+
+QEMU user-mode's GDB stub rejected even one hardware data watchpoint. A generic
+"too many hardware breakpoints/watchpoints" diagnostic was returned both for
+three counters and for a GPR-only trial. Counter watchpoints are therefore not
+a usable fallback in this sandbox. Version-verified software breakpoints at
+the static increment sites plus the reset boundary are both faster and proven
+complete for this capture.
+
 ## Stock compiler-object snapshot smoke test
 
 Date: 2026-08-01

@@ -287,7 +287,10 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
 
 
 def flatten_creation_trace(
-    allocator: dict, trace: dict | None, instructions: list[dict]
+    allocator: dict,
+    trace: dict | None,
+    instructions: list[dict],
+    registers: list[dict],
 ) -> dict:
     if trace is None:
         return {
@@ -297,6 +300,8 @@ def flatten_creation_trace(
             "created_by": [],
             "pcode_clones": [],
             "derived_from": [],
+            "virtual_register_creations": [],
+            "register_created_by": [],
             "creation_coverage": None,
         }
     if trace.get("format") != "mwcc-pcode-creation-trace-v1":
@@ -458,6 +463,72 @@ def flatten_creation_trace(
         for creation in creations
         if creation["instruction_address"] not in live_addresses
     ]
+    register_ids = {register["id"] for register in registers}
+    virtual_register_creations = []
+    register_created_by = []
+    for event in trace.get("virtual_register_events", []):
+        event_id = f"vrc{event['sequence']}"
+        object_after = event.get("object_after")
+        register_info = None
+        if object_after is not None:
+            info_field = (
+                "register_info_26"
+                if object_after["kind_02"] == 1
+                else "register_info_2e"
+            )
+            register_info = object_after.get(info_field)
+        primary_register = (
+            register_info.get("physical_register_24")
+            if register_info is not None
+            else event.get("primary_register")
+        )
+        secondary_register = (
+            register_info.get("secondary_register_26")
+            if register_info is not None
+            and event["allocation_kind"] == "pair"
+            else event.get("secondary_register")
+        )
+        virtual_register_creations.append(
+            {
+                "id": event_id,
+                "sequence": event["sequence"],
+                "epoch": event["epoch"],
+                "register_class": event["register_class"],
+                "allocation_kind": event["allocation_kind"],
+                "allocator_address": event["allocator_address"],
+                "allocator_write_return_address": event.get(
+                    "allocator_write_return_address"
+                ),
+                "allocator_address_is_post_write": event.get(
+                    "allocator_address_is_post_write", False
+                ),
+                "allocator_function": event.get("allocator_function"),
+                "allocator_operation": event.get("allocator_operation"),
+                "call_address": event["call_address"],
+                "caller_return_address": event["caller_return_address"],
+                "codegen_item_address": event.get("codegen_item_address"),
+                "object_address": event["object_address"],
+                "object_before": event.get("object_before"),
+                "object_after": object_after,
+                "primary_register": primary_register,
+                "secondary_register": secondary_register,
+            }
+        )
+        for role, register in (
+            ("primary", primary_register),
+            ("secondary", secondary_register),
+        ):
+            if register is None:
+                continue
+            target = register_id(event["register_class"], register)
+            if target in register_ids:
+                register_created_by.append(
+                    {
+                        "register": target,
+                        "creation": event_id,
+                        "role": role,
+                    }
+                )
     return {
         "pcode_creations": creations,
         "creation_operands": creation_operands,
@@ -465,6 +536,8 @@ def flatten_creation_trace(
         "created_by": created_by,
         "pcode_clones": clones,
         "derived_from": derived_from,
+        "virtual_register_creations": virtual_register_creations,
+        "register_created_by": register_created_by,
         "creation_coverage": {
             "live_instruction_count": len(instructions),
             "linked_live_instruction_count": len(created_by) + len(derived_from),
@@ -495,7 +568,12 @@ def build_provenance(
         "function_pointer": allocator.get("function_pointer"),
         "virtual_register_counts": allocator["virtual_register_counts"],
         **pcode,
-        **flatten_creation_trace(allocator, creation_trace, pcode["instructions"]),
+        **flatten_creation_trace(
+            allocator,
+            creation_trace,
+            pcode["instructions"],
+            pcode["registers"],
+        ),
         **flatten_coloring(allocator, coloring_snapshots),
     }
 

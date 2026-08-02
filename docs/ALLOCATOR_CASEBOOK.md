@@ -108,13 +108,13 @@ register 38's `LWZ` definition, two `ADD` uses, simplify position 70, object
 retain their complete definitions, uses, simplify positions, objects, and
 colors.
 
-The remaining provenance gap is now concrete. A compiler-generated temporary
-can have object pointer zero even when its lifetime is decisive. In
-`CursorThink`, the ninth simultaneously live FPR value is such a temporary, so
-coloring facts can prove the pressure surplus but cannot identify the frontend
-lowering decision that created it. The next capture boundary must associate
-each new PCode instruction with its exact backend creation callsite and compare
-initial and optimized PCode.
+Compiler-generated temporaries can have object pointer zero even when their
+lifetimes are decisive. Object bindings alone therefore cannot explain virtual
+register birth. Auto-capture now traces both object-backed allocator calls and
+direct GPR/FPR/VR counter increments. The direct sites are generated from the
+verified PE by `tools/virtual_register_sites.py` and checked into per-version
+catalogs; object-allocator-internal increments are excluded to prevent duplicate
+origins.
 
 That next boundary is implemented. The unconditional capture points are
 `0x00435b04`, after initial cleanup and before optimizer dispatch, and
@@ -136,8 +136,8 @@ nonzero opaque CodeGen-item identities were retained across the 18 emission
 events; three prologue events correctly had no current item.
 
 The focused CursorThink validation closes the original motivating question.
-Emitted function 15 produced 2,509 initial instructions/events, 2,367
-post-optimizer instructions and 2,337 pre-coloring instructions. `fpr:265` is
+Emitted function 15 produced 2,507 initial, 2,365 post-optimizer, and 2,335
+pre-coloring instructions. `fpr:265` is
 defined by `LFD` creation `c1665` and consumed by `FCMPO` creation `c1666`.
 Both are `initial_lowering` events attached to the same opaque CodeGen item of
 raw kind 7; neither was created by the backend optimizer. The node has no
@@ -145,7 +145,15 @@ compiler-object binding, simplifies at position 8, and selects physical f23.
 Its creation-time `LFD` destination already is virtual FPR 265 with object zero,
 while its memory operand retains object `0x40fb6258`. This proves the candidate's
 ninth FPR web is born during frontend-driven initial lowering and survives O4,
-rather than being invented by optimization or color selection.
+rather than being invented by optimization or color selection. Virtual-register
+birth tracing now adds the missing cause: `fpr:265` has a unique direct origin
+at `0x004a05b7` in `Operands_ForceFPR`. That `Operands.c` routine converts a
+kind-9 memory operand to an FPR, allocates a destination when the requested FPR
+is zero, and chooses LFS versus LFD from type size. CursorThink takes the LFD
+path. Across this function the capture records 180 object-backed GPR births, 75
+object-backed FPR births, 659 direct GPR-temporary births, and 243 direct
+FPR-temporary births. All 695 live GPR and 273 live FPR webs now join to exactly
+one birth event; there are no unexplained live allocator webs in this capture.
 
 The same run exposed the next boundary worth instrumenting. Of 2,337 allocator
 instructions, 2,317 join to normal creation events. Stage snapshots prove that

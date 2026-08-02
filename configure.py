@@ -30,6 +30,10 @@ def write_build_ninja(version: str, config_path: Path) -> None:
     optimizer_analysis = build_dir / "optimizer-analysis.md"
     subsystem_inventory = build_dir / "subsystem-inventory.md"
     pcode_opcodes = build_dir / "pcode-opcodes.json"
+    virtual_register_catalog = (
+        Path("config") / version / "virtual_register_sites.json"
+    )
+    virtual_register_stamp = build_dir / "virtual-register-sites.stamp"
     subsystem_manifest = Path("config") / version / "subsystems.json"
     subsystem_stamp = build_dir / "subsystems.stamp"
     source_stamp = build_dir / "sources.stamp"
@@ -94,6 +98,10 @@ rule export_pcode_opcodes
   command = $python tools/pcode_descriptors.py --config $config --output $out
   description = PCODE-OPCODES $out
 
+rule check_virtual_register_sites
+  command = $python tools/virtual_register_sites.py --config $config --check {quote(virtual_register_catalog)} --stamp $out
+  description = VR-SITES $in
+
 rule check_sources
   command = $python tools/check_sources.py --stamp $out
   description = C-SYNTAX $in
@@ -112,16 +120,18 @@ build {ghidra_stamp}: ghidra_import {config_path} | {verified}
 build {optimizer_analysis}: ghidra_export_optimizer tools/ghidra_scripts/ExportOptimizer.java | {ghidra_stamp}
 build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/ExportSubsystems.java | {ghidra_stamp}
 build {pcode_opcodes}: export_pcode_opcodes tools/pcode_descriptors.py tools/allocator_snapshot.py tools/pe.py tools/verify_original.py | {verified}
+build {virtual_register_stamp}: check_virtual_register_sites {virtual_register_catalog} tools/virtual_register_sites.py tools/pe.py | {verified}
 build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
 build {format_stamp}: check_format tools/check_format.py .clang-format {format_inputs}
 build {test_stamp}: check_tests {test_inputs}
 {subsystem_validation}
 
-build check: phony {verified} {pe_info} {pcode_opcodes} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}
+build check: phony {verified} {pe_info} {pcode_opcodes} {virtual_register_stamp} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}
 build ghidra: phony {ghidra_stamp}
 build optimizer-analysis: phony {optimizer_analysis}
 build subsystem-inventory: phony {subsystem_inventory}
 build pcode-opcodes: phony {pcode_opcodes}
+build virtual-register-sites: phony {virtual_register_stamp}
 
 default check
 """

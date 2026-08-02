@@ -34,3 +34,17 @@ For memory/immediate operand questions, inspect
 `PCodeUtilities_BuildInstructionV` uses the exact object kind/type flags
 recorded there for `m`, `M`, and `l`; a zero object and an object-backed kind-4
 operand are different lowering cases.
+
+For register-pressure questions, do not stop at compiler-object allocation.
+`mwcc-auto-capture` records object-backed register allocators and every verified
+direct counter increment from `config/*/virtual_register_sites.json`.
+`tools/explain_register.py` reports these as `virtual_register_origins`. Regenerate
+the catalogs with `tools/virtual_register_sites.py`; never add breakpoint
+addresses from an unverified disassembly by hand.
+
+CursorThink's objectless `fpr:265` is the canonical direct-temporary case. It is
+allocated exactly once at `0x004a05b7` in `Operands_ForceFPR` while a kind-9
+memory operand is converted to an FPR. The operand's type size selects LFS or
+LFD; this instance selects LFD. The extra live web is therefore formed during
+initial PCode lowering, before O4 and coloring. Revisit the source/FE lowering
+shape, not register-selection order, when this origin differs between builds.

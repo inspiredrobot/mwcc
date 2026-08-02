@@ -39,6 +39,15 @@ def explain_register(provenance: dict, register_id: str) -> dict:
     codegen_items = {
         item["id"]: item for item in provenance.get("codegen_items", [])
     }
+    register_creation_links = [
+        item
+        for item in provenance.get("register_created_by", [])
+        if item["register"] == register_id
+    ]
+    virtual_register_creations = {
+        item["id"]: item
+        for item in provenance.get("virtual_register_creations", [])
+    }
     instruction_operands = {}
     for item in provenance["operands"]:
         instruction_operands.setdefault(item["instruction"], []).append(item)
@@ -138,6 +147,13 @@ def explain_register(provenance: dict, register_id: str) -> dict:
         "graph_states": graph_states,
         "simplify_positions": simplify_positions,
         "object_bindings": object_bindings,
+        "virtual_register_origins": [
+            {
+                **link,
+                "event": virtual_register_creations.get(link["creation"]),
+            }
+            for link in register_creation_links
+        ],
     }
 
 

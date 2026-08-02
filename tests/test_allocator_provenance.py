@@ -28,7 +28,7 @@ def allocator_snapshot():
         "compiler": "GC/1.2.5",
         "target_sha256": TARGET_SHA256,
         "function_pointer": "0x00002000",
-        "virtual_register_counts": {"gpr": 34, "fpr": 32, "vr": 32},
+        "virtual_register_counts": {"gpr": 34, "fpr": 33, "vr": 32},
         "capture_index": 7,
         "blocks": [
             {
@@ -49,6 +49,7 @@ def allocator_snapshot():
                             operand(0, 2, 32),
                             operand(0, 5, 33),
                             operand(10, 0, 0),
+                            operand(1, 2, 32),
                         ],
                     },
                     {
@@ -58,7 +59,7 @@ def allocator_snapshot():
                         "opcode": 0x8B,
                         "flags": 0x0A01,
                         "operands": [],
-                    }
+                    },
                 ],
             }
         ],
@@ -161,6 +162,45 @@ def main():
             }
         ],
         "unwrapped_instruction_allocations": [],
+        "virtual_register_events": [
+            {
+                "sequence": 0,
+                "epoch": "initial_lowering",
+                "allocator_address": "0x004c2280",
+                "register_class": "gpr",
+                "allocation_kind": "single",
+                "caller_return_address": "0x00402005",
+                "call_address": "0x00402000",
+                "object_address": "0x00004000",
+                "object_before": None,
+                "object_after": {
+                    "kind_02": 0,
+                    "register_info_26": None,
+                    "register_info_2e": {
+                        "physical_register_24": 32,
+                        "secondary_register_26": 0,
+                    },
+                },
+                "codegen_item_address": "0x00005000",
+            },
+            {
+                "sequence": 1,
+                "epoch": "initial_lowering",
+                "allocator_address": "0x004a05b7",
+                "register_class": "fpr",
+                "allocation_kind": "temporary",
+                "allocator_function": "Operands_ForceFPR",
+                "allocator_operation": "allocate destination for an LFD load",
+                "caller_return_address": None,
+                "call_address": None,
+                "object_address": "0x00000000",
+                "object_before": None,
+                "object_after": None,
+                "codegen_item_address": "0x00005000",
+                "primary_register": 32,
+                "secondary_register": None,
+            },
+        ],
     }
     trace["events"][0]["instruction"]["operands"][0]["compiler_object"] = {
         "address": "0x00004000",
@@ -214,10 +254,24 @@ def main():
     ]
     assert facts["creation_coverage"]["linked_live_instruction_count"] == 2
     assert facts["creation_coverage"]["unlinked_live_instructions"] == []
+    assert facts["register_created_by"] == [
+        {"register": "gpr:32", "creation": "vrc0", "role": "primary"},
+        {"register": "fpr:32", "creation": "vrc1", "role": "primary"},
+    ]
     explanation = explain_register(facts, "gpr:32")
     assert explanation["sites"][0]["mnemonic"] == "MR"
     assert explanation["sites"][0]["lowering_call_address"] == "0x00401000"
+    assert explanation["virtual_register_origins"][0]["event"][
+        "call_address"
+    ] == "0x00402000"
     assert explanation["simplify_positions"][0]["position"] == 0
+    fpr_explanation = explain_register(facts, "fpr:32")
+    assert fpr_explanation["virtual_register_origins"][0]["event"][
+        "allocator_address"
+    ] == "0x004a05b7"
+    assert fpr_explanation["virtual_register_origins"][0]["event"][
+        "allocator_function"
+    ] == "Operands_ForceFPR"
     print("allocator provenance tests passed")
 
 

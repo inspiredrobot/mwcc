@@ -6,6 +6,7 @@ import gdb
 
 
 TOOLS_DIR = Path(__file__).resolve().parents[1]
+REPOSITORY_DIR = TOOLS_DIR.parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
@@ -26,6 +27,12 @@ PCODE_ARENA_ALLOCATOR_RETURN_ADDRESS = 0x00441FD5
 PCODE_CLONE_ADDRESS = 0x0049D270
 PCODE_CLONE_RETURN_ADDRESS = 0x0049D2EC
 CURRENT_CODEGEN_ITEM_ADDRESS = 0x00587130
+VIRTUAL_REGISTER_ALLOCATORS = {
+    0x004C1F60: ("vr", "single"),
+    0x004C2040: ("fpr", "single"),
+    0x004C2120: ("gpr", "pair"),
+    0x004C2280: ("gpr", "single"),
+}
 
 PCODE_WRAPPERS = {
     PCODE_EMIT_ADDRESS: "emit",
@@ -36,6 +43,30 @@ CAPTURE_TARGETS = {
     "stock": ("GC/1.2.5", TARGET_SHA256),
     "ninji": ("GC/1.2.5n", TARGET_NINJI_SHA256),
 }
+VIRTUAL_REGISTER_SITE_CATALOGS = {
+    "stock": "GC_1_2_5",
+    "ninji": "GC_1_2_5n",
+}
+VIRTUAL_REGISTER_COUNTER_RESET_ADDRESS = 0x004C23C0
+
+
+def load_virtual_register_sites(target):
+    version = VIRTUAL_REGISTER_SITE_CATALOGS[target]
+    path = REPOSITORY_DIR / "config" / version / "virtual_register_sites.json"
+    with path.open(encoding="utf-8") as stream:
+        catalog = json.load(stream)
+    if catalog.get("format") != "mwcc-virtual-register-sites-v1":
+        raise gdb.GdbError(f"unsupported virtual-register site catalog: {path}")
+    if catalog.get("target_sha256") != CAPTURE_TARGETS[target][1]:
+        raise gdb.GdbError(f"virtual-register site catalog hash mismatch: {path}")
+    return [
+        {
+            **site,
+            "address": int(site["address"], 0),
+            "counter_address": int(site["counter_address"], 0),
+        }
+        for site in catalog["sites"]
+    ]
 
 
 def snapshot_reader(session=None):
@@ -61,6 +92,10 @@ def write_snapshot(output, snapshot):
 def optional_raw(reader, address, size):
     if address == 0:
         return None
+    try:
+        return reader.raw(address, size).hex()
+    except gdb.MemoryError:
+        return None
 
 
 def optional_compiler_object(reader, address):
@@ -68,13 +103,17 @@ def optional_compiler_object(reader, address):
         return None
     try:
         type_address = reader.u32(address + 0x0E)
+        info_26 = reader.u32(address + 0x26)
+        info_2e = reader.u32(address + 0x2E)
         result = {
             "address": f"0x{address:08x}",
-            "header": reader.raw(address, 0x16).hex(),
+            "header": reader.raw(address, 0x32).hex(),
             "object_tag_00": reader.u8(address),
             "kind_02": reader.u8(address + 0x02),
             "type_address": f"0x{type_address:08x}",
             "flags_12": reader.u32(address + 0x12),
+            "register_info_26": optional_register_info(reader, info_26),
+            "register_info_2e": optional_register_info(reader, info_2e),
             "type": None,
         }
         if type_address != 0:
@@ -88,8 +127,20 @@ def optional_compiler_object(reader, address):
         return result
     except gdb.MemoryError:
         return None
+
+
+def optional_register_info(reader, address):
+    if address == 0:
+        return None
     try:
-        return reader.raw(address, size).hex()
+        return {
+            "address": f"0x{address:08x}",
+            "header": reader.raw(address, 0x2C).hex(),
+            "physical_register_24": reader.s16(address + 0x24),
+            "secondary_register_26": reader.s16(address + 0x26),
+            "is_fpr_28": reader.u8(address + 0x28),
+            "is_vector_2a": reader.u8(address + 0x2A),
+        }
     except gdb.MemoryError:
         return None
 
@@ -143,7 +194,6 @@ class ColoringReturnBreakpoint(gdb.Breakpoint):
     def __init__(self, session, attempt, reg_class, return_address):
         super().__init__(
             f"*0x{return_address:08x}",
-            type=gdb.BP_HARDWARE_BREAKPOINT,
             internal=True,
         )
         self.session = session
@@ -175,7 +225,6 @@ class ColoringBreakpoint(gdb.Breakpoint):
     def __init__(self, session):
         super().__init__(
             f"*0x{SELECT_COLORS_ADDRESS:08x}",
-            type=gdb.BP_HARDWARE_BREAKPOINT,
             internal=True,
         )
         self.session = session
@@ -216,7 +265,6 @@ class AllocateBreakpoint(gdb.Breakpoint):
     def __init__(self, session):
         super().__init__(
             f"*0x{ALLOCATE_REGISTERS_ADDRESS:08x}",
-            type=gdb.BP_HARDWARE_BREAKPOINT,
             internal=True,
         )
         self.session = session
@@ -388,6 +436,116 @@ class PCodeCloneReturnBreakpoint(gdb.Breakpoint):
         return False
 
 
+class VirtualRegisterReturnBreakpoint(gdb.Breakpoint):
+    def __init__(self, session, event, return_address):
+        super().__init__(f"*0x{return_address:08x}", internal=True)
+        self.session = session
+        self.event = event
+
+    def stop(self):
+        if not self.session.capture_current:
+            self.enabled = False
+            return False
+        reader = snapshot_reader(self.session)
+        self.event["sequence"] = len(self.session.virtual_register_events)
+        self.event["object_after"] = optional_compiler_object(
+            reader, int(self.event["object_address"], 0)
+        )
+        self.session.virtual_register_events.append(self.event)
+        self.enabled = False
+        return False
+
+
+class VirtualRegisterAllocatorBreakpoint(gdb.Breakpoint):
+    def __init__(self, session, address):
+        super().__init__(f"*0x{address:08x}", internal=True)
+        self.session = session
+        self.address = address
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        return_address = reader.u32(stack_pointer)
+        call_address = return_address - 5
+        if reader.u8(call_address) != 0xE8:
+            call_address = None
+        object_address = reader.u32(stack_pointer + 4)
+        reg_class, allocation_kind = VIRTUAL_REGISTER_ALLOCATORS[self.address]
+        event = {
+            "epoch": self.session.creation_epoch,
+            "allocator_address": f"0x{self.address:08x}",
+            "register_class": reg_class,
+            "allocation_kind": allocation_kind,
+            "caller_return_address": f"0x{return_address:08x}",
+            "call_address": (
+                f"0x{call_address:08x}" if call_address is not None else None
+            ),
+            "object_address": f"0x{object_address:08x}",
+            "object_before": optional_compiler_object(reader, object_address),
+            "codegen_item_address": (
+                f"0x{reader.u32(CURRENT_CODEGEN_ITEM_ADDRESS):08x}"
+            ),
+        }
+        VirtualRegisterReturnBreakpoint(self.session, event, return_address)
+        return False
+
+
+class DirectVirtualRegisterBreakpoint(gdb.Breakpoint):
+    """Capture a verified direct virtual-register counter increment."""
+
+    def __init__(self, session, site):
+        super().__init__(f"*0x{site['address']:08x}", internal=True)
+        self.session = session
+        self.site = site
+
+    def stop(self):
+        if self.site["allocation_kind"] == "object_allocator_internal":
+            return False
+        reader = snapshot_reader(self.session)
+        event = {
+            "epoch": self.session.creation_epoch,
+            "allocator_address": f"0x{self.site['address']:08x}",
+            "allocator_write_return_address": None,
+            "allocator_address_is_post_write": False,
+            "register_class": self.site["register_class"],
+            "allocation_kind": "temporary",
+            "allocator_function": self.site.get("function"),
+            "allocator_operation": self.site.get("operation"),
+            "caller_return_address": None,
+            "call_address": None,
+            "object_address": "0x00000000",
+            "object_before": None,
+            "object_after": None,
+            "codegen_item_address": (
+                f"0x{reader.u32(CURRENT_CODEGEN_ITEM_ADDRESS):08x}"
+            ),
+            "primary_register": reader.s16(self.site["counter_address"]),
+            "secondary_register": None,
+        }
+        if not self.session.capture_current:
+            self.session.pending_frontend_virtual_register_events.append(event)
+        else:
+            event["sequence"] = len(self.session.virtual_register_events)
+            self.session.virtual_register_events.append(event)
+        return False
+
+
+class VirtualRegisterCounterResetBreakpoint(gdb.Breakpoint):
+    """Delimit pre-CodeGen allocation events at the register-counter reset."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{VIRTUAL_REGISTER_COUNTER_RESET_ADDRESS:08x}", internal=True
+        )
+        self.session = session
+
+    def stop(self):
+        self.session.pending_frontend_virtual_register_events = []
+        return False
+
+
 class PCodeWrapperBreakpoint(gdb.Breakpoint):
     def __init__(self, session, address):
         super().__init__(f"*0x{address:08x}", internal=True)
@@ -492,9 +650,23 @@ class CaptureSession:
         self.optimizer_allocations = []
         self.clone_events = []
         self.pending_clones = []
+        self.virtual_register_events = []
+        self.pending_frontend_virtual_register_events = []
         self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
         self.pcode_clone_breakpoint = PCodeCloneBreakpoint(self)
         self.pcode_clone_return_breakpoint = PCodeCloneReturnBreakpoint(self)
+        self.virtual_register_breakpoints = [
+            VirtualRegisterAllocatorBreakpoint(self, address)
+            for address in VIRTUAL_REGISTER_ALLOCATORS
+        ]
+        self.direct_virtual_register_breakpoints = [
+            DirectVirtualRegisterBreakpoint(self, site)
+            for site in load_virtual_register_sites(target)
+            if site["allocation_kind"] == "temporary"
+        ]
+        self.virtual_register_counter_reset_breakpoint = (
+            VirtualRegisterCounterResetBreakpoint(self)
+        )
         self.codegen_breakpoint = CodeGenBreakpoint(self)
         self.initial_pcode_breakpoint = PCodeStageBreakpoint(
             self,
@@ -541,6 +713,14 @@ class CaptureSession:
         self.optimizer_allocations = []
         self.clone_events = []
         self.pending_clones = []
+        self.virtual_register_events = (
+            self.pending_frontend_virtual_register_events
+            if self.capture_current
+            else []
+        )
+        self.pending_frontend_virtual_register_events = []
+        for sequence, event in enumerate(self.virtual_register_events):
+            event["sequence"] = sequence
         self.pcode_allocation_breakpoint.enabled = False
         self.pcode_clone_breakpoint.enabled = False
         self.pcode_clone_return_breakpoint.enabled = False
@@ -604,6 +784,7 @@ class CaptureSession:
             "through_phase": phase,
             "events": self.creation_events,
             "clone_events": self.clone_events,
+            "virtual_register_events": self.virtual_register_events,
             "unwrapped_instruction_allocations": unwrapped_allocations,
             "optimizer_allocation_count": len(self.optimizer_allocations),
             "pending_event_count": len(self.pending_creations),
