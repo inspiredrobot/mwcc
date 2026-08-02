@@ -86,6 +86,15 @@ link/object webs to ESI/EBX, while retail has no frame and uses EBX/EBP. The
 pointer comparisons, branch topology, allocation call, 24-byte initialization
 order, allocation-list update, and tree-link store otherwise correspond.
 
+The first `COpt_005248c0` reconstruction used semantic helper expressions and
+measured 802 candidate bytes versus 608 target bytes at 7.62%. Repeating the
+target's short-circuit type tests directly reduced the candidate to 690 bytes
+and improved the match to 11.92%. Its switch already lowers to retail's exact
+subtract-and-range opcode dispatch. The remaining bulk is concentrated in the
+candidate-only EBP frame and repeated Boolean/epilogue materialization around
+early returns, so the direct 690-byte form is retained as the cleaner and more
+target-shaped baseline.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

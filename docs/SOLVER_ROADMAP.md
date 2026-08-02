@@ -51,6 +51,15 @@ PCode. The next solver-facing relation should decode `cgN` item fields into the
 recovered frontend node/type graph without replacing unknown offsets with
 guessed semantic names.
 
+`COpt_005248c0` now supplies a concrete rule for that bridge. Given one PCode
+opcode and one `CompilerObject`, it decides whether the object's kind,
+addressability, register-info flag, wrapped type kind, size, subtype, and two
+type-specific fields create an implicit def/use entry. Frontend identity v1
+must therefore preserve at least those exact fields and wrapper edges in its
+facts. The next code-motion slices, `COpt_005246d0` and `COpt_005240b0`, can
+then record not just a def/use index but the explicit operand or
+opcode/object/type rule that created it.
+
 The same validation now has complete pre-coloring instruction provenance. All
 20 instructions which bypassed normal constructors were copies made by
 `PCode_CloneInstruction`; each maps to one of five live parent instructions.

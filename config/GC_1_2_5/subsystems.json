@@ -120,6 +120,16 @@
           "match_note": "comparable positional bytes at -O4,p -inline auto; target 407 bytes versus candidate 411; candidate-only EBP frame plus an initial iterator-register permutation and one global reset folded to an immediate"
         },
         {
+          "address": "0x005248c0",
+          "name": "COpt_005248c0",
+          "role": "test whether a compiler object's type is compatible with an instruction's implicit def/use",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 11.92,
+          "match_note": "target 608 bytes versus candidate 690 at -O4,p -inline auto; opcode range dispatch aligns, while the candidate adds an EBP frame and expands Boolean expressions at repeated early returns"
+        },
+        {
           "address": "0x00524b20",
           "name": "COpt_00524b20",
           "role": "insert a compiler object into the code-motion object index",

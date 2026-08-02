@@ -6,6 +6,7 @@
  *   0x00521a30  COpt_00521a30
  *   0x00521bb0  COpt_00521bb0
  *   0x00523650  COpt_SetLoopCodeMotionMode
+ *   0x005248c0  COpt_005248c0
  *   0x00524bd0  COpt_00524bd0
  *
  * The source-file identity is confirmed by assertion strings referenced by
@@ -34,6 +35,7 @@ extern int gCodeMotionChanged; /* 0x005875b0 */
 extern void* CodeMotion_Allocate(unsigned int size); /* 0x00441f20 */
 extern void CodeMotion_FreeIteration(void);          /* 0x00441e20 */
 extern void SpillCode_BuildBlockOrder(void);         /* 0x0049ce40 */
+extern unsigned char COpt_0048ad10(CompilerObject* object);
 
 extern void COpt_005237f0(void);
 extern void COpt_00523920(void);
@@ -189,6 +191,115 @@ void COpt_SetLoopCodeMotionMode(int mode)
     SpillCode_BuildBlockOrder();
     COpt_00523920();
     COpt_005237f0();
+}
+
+/* 0x005248c0; high-level equivalent; 11.92% comparable byte match. */
+int COpt_005248c0(PCodeInstruction* instruction, CompilerObject* object)
+{
+    CompilerType* type = object->type;
+
+    if (object->kind != 0 && COpt_0048ad10(object) == 0) {
+        if (object->kind != 1) {
+            return 0;
+        }
+        if (object->register_info_26->flags_22 == 0 && type->kind != 0x0c &&
+            type->kind != 0x04 && type->kind != 0x05 &&
+            (type->kind != 0x0a || type->size != 0x0c))
+        {
+            return 0;
+        }
+    }
+
+    switch (instruction->opcode) {
+    case 0x8e:
+    case 0x8f:
+    case 0x90:
+    case 0x91:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+        while (type->kind == 0x0c) {
+            type = type->wrapped_type;
+        }
+        if (type->kind == 2 && type->size == 4) {
+            return 1;
+        }
+        return (type->kind == 4 || type->kind == 5) && type->size >= 4;
+
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x9a:
+    case 0x9b:
+    case 0x9c:
+    case 0x9d:
+        while (type->kind == 0x0c) {
+            type = type->wrapped_type;
+        }
+        if (type->kind == 2 && type->size != 4) {
+            return 1;
+        }
+        return (type->kind == 4 || type->kind == 5) && type->size >= 8;
+
+    case 0xf7:
+    case 0xfc:
+        while (type->kind == 0x0c) {
+            type = type->wrapped_type;
+        }
+        if (type->kind == 4 && type->subtype >= 4 && type->subtype <= 14) {
+            return 1;
+        }
+        if (type->kind == 4) {
+            return type->value_10 == 0x10;
+        }
+        if (type->kind == 5) {
+            return type->value_2e == 0x10;
+        }
+        return 0;
+
+    case 0x22:
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x31:
+    case 0x32:
+    case 0x33:
+    case 0x34:
+        if (type->kind == 0x0c || type->kind == 0x04 || type->kind == 0x05 ||
+            (type->kind == 0x0a && type->size == 0x0c))
+        {
+            return 1;
+        }
+        if (type->kind == 2) {
+            return 0;
+        }
+        return type->size == 4;
+
+    case 0x19:
+    case 0x1a:
+    case 0x1b:
+    case 0x1c:
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+    case 0x20:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+        if ((type->kind == 0x0c || type->kind == 0x04 || type->kind == 0x05 ||
+             (type->kind == 0x0a && type->size == 0x0c)) &&
+            (type->size & 2) != 0)
+        {
+            return 1;
+        }
+        return type->size == 2;
+
+    default:
+        return 1;
+    }
 }
 
 /* 0x00524b20; control-flow equivalent; 26.04% comparable byte match. */

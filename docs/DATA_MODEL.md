@@ -125,6 +125,15 @@ not allocated again. Every new tree node is also prepended to the allocation
 list rooted at `0x005870fc`, allowing iteration storage to be released without
 walking the tree shape.
 
+The compatibility predicate at `0x005248c0` is the first direct bridge from
+instruction selection back to compiler-object type structure. It confirms a
+wrapped-type pointer at `CompilerType +0x06`; kind 12 wrappers are peeled for
+several scalar and floating opcode families. It also confirms type-specific
+fields at `+0x10` and `+0x2e`, plus an object register-info flag at
+`RegisterInfo +0x22`. The predicate combines those fields with object kind,
+the addressability classifier at `0x0048ad10`, and exact opcode ranges to
+decide whether an object contributes an implicit use or definition.
+
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude
 `0x40` contributes the object pointer in operand 2 to the collection rooted at

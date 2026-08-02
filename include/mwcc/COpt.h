@@ -2,6 +2,7 @@
 #define MWCC_COPT_H
 
 struct CompilerObject;
+struct PCodeInstruction;
 
 typedef struct CodeMotionNode {
     struct CodeMotionNode* unknown_00;
@@ -44,6 +45,8 @@ void COpt_00521a10(void);
 void COpt_00521a30(CodeMotionNode* node);
 void COpt_00521bb0(CodeMotionNode* node);
 void COpt_SetLoopCodeMotionMode(int mode);
+int COpt_005248c0(struct PCodeInstruction* instruction,
+                  struct CompilerObject* object);
 void COpt_00524b20(struct CompilerObject* object);
 void COpt_00524bd0(void);
 void COpt_00524c10(CodeMotionNode* node);

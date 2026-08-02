@@ -64,6 +64,11 @@ void SpillCode_BuildBlockOrder(void)
     RecordStage(6);
 }
 
+unsigned char COpt_0048ad10(CompilerObject* object)
+{
+    return object->unknown_01;
+}
+
 static void RecordNode(int stage, CodeMotionNode* node)
 {
     Check(gRecordedNodeCount < 32, "node capacity");
@@ -282,6 +287,56 @@ static void TestObjectTreeInsert(void)
     Check(allocation_count == 3, "all object nodes tracked for release");
 }
 
+static void TestObjectInstructionCompatibility(void)
+{
+    PCodeInstruction instruction;
+    CompilerObject object;
+    CompilerType wrapper;
+    CompilerType type;
+    RegisterInfo info;
+
+    ResetState();
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&object, 0, sizeof(object));
+    memset(&wrapper, 0, sizeof(wrapper));
+    memset(&type, 0, sizeof(type));
+    memset(&info, 0, sizeof(info));
+    object.type = &wrapper;
+    object.register_info_26 = &info;
+    wrapper.kind = 0x0c;
+    wrapper.wrapped_type = &type;
+    type.kind = 2;
+    type.size = 4;
+
+    instruction.opcode = 0x8e;
+    Check(COpt_005248c0(&instruction, &object) == 1,
+          "word operation accepts wrapped word type");
+    type.size = 8;
+    Check(COpt_005248c0(&instruction, &object) == 0,
+          "word operation rejects wrapped doubleword type");
+
+    instruction.opcode = 0x92;
+    Check(COpt_005248c0(&instruction, &object) == 1,
+          "wide operation accepts non-word scalar");
+
+    object.kind = 2;
+    instruction.opcode = 0;
+    Check(COpt_005248c0(&instruction, &object) == 0,
+          "ineligible object kind rejected");
+    object.kind = 1;
+    info.flags_22 = 1;
+    Check(COpt_005248c0(&instruction, &object) == 1,
+          "register-marked object bypasses type filter");
+
+    object.kind = 0;
+    object.type = &type;
+    type.kind = 4;
+    type.subtype = 5;
+    instruction.opcode = 0xf7;
+    Check(COpt_005248c0(&instruction, &object) == 1,
+          "special operation accepts subtype range");
+}
+
 static void TestSetup(void)
 {
     typedef struct TestInstruction {
@@ -358,6 +413,7 @@ int main(void)
     TestTreeWalkOrder();
     TestNodeSummary();
     TestObjectTreeInsert();
+    TestObjectInstructionCompatibility();
     TestSetup();
     TestCoordinator();
     puts("code-motion model tests passed");

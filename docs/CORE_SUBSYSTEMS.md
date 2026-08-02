@@ -94,6 +94,13 @@ iteration allocation list. The binary separates this 112-byte insert from the
 64-byte lookup beginning at `0x00524b90`; treating both as one 176-byte routine
 would hide a real source boundary.
 
+`COpt_005248c0` reconstructs the type-compatibility predicate shared by the
+definition/use census and table builder. It separates word and wide scalar
+families, indexed memory families, and two specialized type-layout families;
+kind-12 type wrappers are peeled where required. This is the first recovered
+code-motion rule that explains how frontend object/type identity creates
+additional virtual def/use entries beyond explicit PCode operands.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,
