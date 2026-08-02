@@ -171,13 +171,13 @@ static int SpillCode_DefinitionBlocksRemoval(PCodeOperand* operand,
         return 0;
     }
     if (operand->kind == 0) {
-        return reg_class != 0 || SpillCode_IsLive(live, operand->reg);
+        return reg_class != 0 || SpillCode_IsLive(live, operand->value.reg);
     }
     if (operand->kind == 1) {
-        return reg_class != 1 || SpillCode_IsLive(live, operand->reg);
+        return reg_class != 1 || SpillCode_IsLive(live, operand->value.reg);
     }
     if (operand->kind == 9) {
-        return reg_class != 9 || SpillCode_IsLive(live, operand->reg);
+        return reg_class != 9 || SpillCode_IsLive(live, operand->value.reg);
     }
     return operand->kind == 2 || operand->kind == 3;
 }
@@ -235,7 +235,7 @@ void SpillCode_MarkLastUses(int reg_class, int register_count)
                 if (operand->kind == reg_class &&
                     (operand->flags & PCodeOperand_Definition) != 0)
                 {
-                    SpillCode_ClearLive(live, operand->reg);
+                    SpillCode_ClearLive(live, operand->value.reg);
                 }
             }
             for (index = 0; index < instruction->operand_count; index++) {
@@ -245,10 +245,10 @@ void SpillCode_MarkLastUses(int reg_class, int register_count)
                 if (operand->kind == reg_class &&
                     (operand->flags & PCodeOperand_Use) != 0)
                 {
-                    if (!SpillCode_IsLive(live, operand->reg)) {
+                    if (!SpillCode_IsLive(live, operand->value.reg)) {
                         operand->flags |= PCodeOperand_LastUse;
                     }
-                    SpillCode_SetLive(live, operand->reg);
+                    SpillCode_SetLive(live, operand->value.reg);
                 }
             }
         }
@@ -327,7 +327,7 @@ static void SpillCode_PrecolorPhysicalRegisters(void)
 static int SpillCode_CopySourceExcluded(PCodeInstruction* instruction, int reg)
 {
     return (instruction->flags & PCodeInstruction_CopySourceExclusion) != 0 &&
-           instruction->operands[1].reg == reg;
+           instruction->operands[1].value.reg == reg;
 }
 
 static void SpillCode_AddDefinitionEdges(PCodeInstruction* instruction,
@@ -347,12 +347,12 @@ static void SpillCode_AddDefinitionEdges(PCodeInstruction* instruction,
             continue;
         }
 
-        SpillCode_ClearLive(live, operand->reg);
+        SpillCode_ClearLive(live, operand->value.reg);
         for (other = 0; other < register_count; other++) {
             if (SpillCode_IsLive(live, (short) other) &&
                 !SpillCode_CopySourceExcluded(instruction, other))
             {
-                SpillCode_SetInterference(operand->reg, other);
+                SpillCode_SetInterference(operand->value.reg, other);
             }
         }
     }
@@ -370,10 +370,10 @@ static void SpillCode_AddUses(PCodeInstruction* instruction, int reg_class,
         if (operand->kind == reg_class &&
             (operand->flags & PCodeOperand_Use) != 0)
         {
-            if (!SpillCode_IsLive(live, operand->reg)) {
+            if (!SpillCode_IsLive(live, operand->value.reg)) {
                 operand->flags |= PCodeOperand_LastUse;
             }
-            SpillCode_SetLive(live, operand->reg);
+            SpillCode_SetLive(live, operand->value.reg);
         }
     }
 }
@@ -388,15 +388,15 @@ static void SpillCode_MarkConstrainedRegister(short reg)
 static void SpillCode_AddGPRConstraints(PCodeInstruction* instruction)
 {
     if ((instruction->flags & PCodeInstruction_GPRResultMask) != 0) {
-        SpillCode_MarkConstrainedRegister(instruction->operands[1].reg);
+        SpillCode_MarkConstrainedRegister(instruction->operands[1].value.reg);
         if ((instruction->flags & PCodeInstruction_GPRPairInterference) != 0) {
-            SpillCode_SetInterference(instruction->operands[0].reg,
-                                      instruction->operands[1].reg);
+            SpillCode_SetInterference(instruction->operands[0].value.reg,
+                                      instruction->operands[1].value.reg);
         }
     } else if (instruction->opcode == 0x3f || instruction->opcode == 0x42) {
-        SpillCode_MarkConstrainedRegister(instruction->operands[1].reg);
+        SpillCode_MarkConstrainedRegister(instruction->operands[1].value.reg);
     } else if (instruction->opcode >= 0x37 && instruction->opcode <= 0x3b) {
-        SpillCode_MarkConstrainedRegister(instruction->operands[0].reg);
+        SpillCode_MarkConstrainedRegister(instruction->operands[0].value.reg);
     }
 
     if ((instruction->flags & PCodeInstruction_GPRFixedRange) != 0) {
@@ -406,7 +406,7 @@ static void SpillCode_AddGPRConstraints(PCodeInstruction* instruction)
             int physical;
             short reg;
 
-            reg = instruction->operands[index].reg;
+            reg = instruction->operands[index].value.reg;
             SpillCode_MarkConstrainedRegister(reg);
             for (physical = 3; physical <= 12; physical++) {
                 SpillCode_SetInterference(reg, physical);
@@ -470,9 +470,9 @@ void SpillCode_BuildLocalLiveness(int reg_class)
                 operand = &instruction->operands[index];
                 if (operand->kind == reg_class &&
                     (operand->flags & PCodeOperand_Use) != 0 &&
-                    !SpillCode_IsLive(liveness->def, operand->reg))
+                    !SpillCode_IsLive(liveness->def, operand->value.reg))
                 {
-                    SpillCode_SetLive(liveness->use, operand->reg);
+                    SpillCode_SetLive(liveness->use, operand->value.reg);
                 }
             }
             for (index = 0; index < instruction->operand_count; index++) {
@@ -481,9 +481,9 @@ void SpillCode_BuildLocalLiveness(int reg_class)
                 operand = &instruction->operands[index];
                 if (operand->kind == reg_class &&
                     (operand->flags & PCodeOperand_Definition) != 0 &&
-                    !SpillCode_IsLive(liveness->use, operand->reg))
+                    !SpillCode_IsLive(liveness->use, operand->value.reg))
                 {
-                    SpillCode_SetLive(liveness->def, operand->reg);
+                    SpillCode_SetLive(liveness->def, operand->value.reg);
                 }
             }
         }
@@ -675,8 +675,10 @@ void SpillCode_CoalesceCopies(int reg_class, int register_count)
                 short first;
                 short second;
 
-                first = SpillCode_CoalesceRoot(instruction->operands[0].reg);
-                second = SpillCode_CoalesceRoot(instruction->operands[1].reg);
+                first =
+                    SpillCode_CoalesceRoot(instruction->operands[0].value.reg);
+                second =
+                    SpillCode_CoalesceRoot(instruction->operands[1].value.reg);
                 if (first == second) {
                     PCode_RemoveRedundantInstruction(instruction);
                 } else if (SpillCode_CanCoalesce(reg_class, first, second)) {
@@ -701,7 +703,8 @@ void SpillCode_CoalesceCopies(int reg_class, int register_count)
 
                 operand = &instruction->operands[index];
                 if (operand->kind == reg_class) {
-                    operand->reg = SpillCode_CoalesceRoot(operand->reg);
+                    operand->value.reg =
+                        SpillCode_CoalesceRoot(operand->value.reg);
                 }
             }
         }
@@ -770,7 +773,7 @@ static void SpillCode_AddOperandCosts(PCodeInstruction* instruction,
 
         operand = &instruction->operands[index];
         if (operand->kind == reg_class && (operand->flags & flag) != 0) {
-            gInterferenceGraph[operand->reg]->spill_cost +=
+            gInterferenceGraph[operand->value.reg]->spill_cost +=
                 block_weight * multiplier;
         }
     }

@@ -77,11 +77,11 @@
     {
       "name": "PCodeUtilities",
       "source_anchor": "PCodeUtilities.c",
-      "source": "include/mwcc/backend_types.h",
+      "source": "src/backend/PCodeUtilities.c",
       "functions": [
         { "address": "0x004a25d0", "name": "PCodeUtilities_EmitInstruction", "role": "construct a variable-length PCode instruction from the opcode descriptor and append it to the current block", "evidence": "inferred" },
         { "address": "0x004a2620", "name": "PCodeUtilities_CreateInstruction", "role": "construct a variable-length PCode instruction from the opcode descriptor without appending it", "evidence": "inferred" },
-        { "address": "0x004a2660", "name": "PCodeUtilities_BuildInstructionV", "role": "interpret compact opcode operand formats and populate 12-byte PCode operands", "evidence": "inferred" }
+        { "address": "0x004a2660", "name": "PCodeUtilities_BuildInstructionV", "role": "interpret compact opcode operand formats and populate 12-byte PCode operands", "evidence": "inferred", "decompiled": true, "functional_status": "functionally equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" }
       ]
     },
     {

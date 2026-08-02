@@ -28,3 +28,9 @@ scheduler artifact. Compare the optimized, scheduled, and forward-peephole
 snapshots first. `mwcc-auto-capture` traces `PCode_CloneInstruction` during O4,
 and `allocator_provenance.py` emits exact `derived_from` links for surviving
 clones.
+
+For memory/immediate operand questions, inspect
+`creation_operands[*].compiler_object` before changing source shape.
+`PCodeUtilities_BuildInstructionV` uses the exact object kind/type flags
+recorded there for `m`, `M`, and `l`; a zero object and an object-backed kind-4
+operand are different lowering cases.

@@ -264,15 +264,16 @@ static void TestCommitAssignments(void)
     storage.instruction.flags = 0x800;
     storage.instruction.operand_count = 2;
     storage.instruction.operands[0].kind = RegClass_GPR;
-    storage.instruction.operands[0].reg = 32;
+    storage.instruction.operands[0].value.reg = 32;
     storage.second_operand.kind = RegClass_GPR;
-    storage.second_operand.reg = 32;
+    storage.second_operand.value.reg = 32;
     block.instructions = &storage.instruction;
     gPCodeBlocks = &block;
 
     Coloring_CommitAssignments(RegClass_GPR, 34);
-    Check(storage.instruction.operands[0].reg == 5, "primary PCode rewrite");
-    Check(storage.second_operand.reg == 5, "second PCode rewrite");
+    Check(storage.instruction.operands[0].value.reg == 5,
+          "primary PCode rewrite");
+    Check(storage.second_operand.value.reg == 5, "second PCode rewrite");
     Check(gRemovedInstructions == 1, "redundant instruction cleanup");
     Check(primary_info.physical_register == 5, "primary object color");
     Check(secondary_info.secondary_register == 5, "secondary object color");

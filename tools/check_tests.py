@@ -24,6 +24,11 @@ def main() -> None:
         ("coloring", "src/backend/Coloring.c", "tests/test_coloring.c"),
         ("spill_code", "src/backend/SpillCode.c", "tests/test_spill_code.c"),
         ("pcode", "src/backend/PCode.c", "tests/test_pcode.c"),
+        (
+            "pcode_utilities",
+            "src/backend/PCodeUtilities.c",
+            "tests/test_pcode_utilities.c",
+        ),
     ]
     with tempfile.TemporaryDirectory(prefix="mwcc-tests-") as temp_dir:
         for name, source, test in tests:

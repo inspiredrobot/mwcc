@@ -373,6 +373,7 @@ def flatten_creation_trace(
                     "kind": operand["kind"],
                     "flags": operand["flags"],
                     "raw": operand["raw"],
+                    "compiler_object": operand.get("compiler_object"),
                     **decode_raw_operand(operand),
                 }
             )

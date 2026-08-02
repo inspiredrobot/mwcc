@@ -71,6 +71,12 @@ The raw item identity deliberately precedes a semantic AST claim: it preserves
 the frontend-to-backend join now, while the item layout is still being
 recovered.
 
+Each creation operand with a nonzero compiler-object pointer also retains the
+object tag/kind, type pointer, object flags, and the referenced type's
+kind/size/flags/subtype. These fields are the exact inputs used by the recovered
+`m`, `M`, and `l` format branches, so memory/immediate and access-flag decisions
+can be explained without guessing an AST name.
+
 On hosts where a `linux/386` container is emulated, host `ptrace` may be
 unavailable. `tools/docker/Dockerfile.debugger` provides native GDB,
 `gdb-multiarch`, and `qemu-user`. Run the verified i386 Wibo binary under

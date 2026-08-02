@@ -40,6 +40,16 @@ def write_build_ninja(version: str, config_path: Path) -> None:
     source_inputs = " ".join(quote(source) for source in source_dependencies)
     format_dependencies = source_dependencies + sorted(Path("tests").rglob("*.c"))
     format_inputs = " ".join(quote(source) for source in format_dependencies)
+    test_dependencies = source_dependencies + sorted(Path("tests").glob("test_*"))
+    test_dependencies += [
+        Path("tools/allocator_provenance.py"),
+        Path("tools/allocator_snapshot.py"),
+        Path("tools/check_tests.py"),
+        Path("tools/compare_pcode_stages.py"),
+        Path("tools/explain_register.py"),
+        Path("tools/gdb/allocator_snapshot.py"),
+    ]
+    test_inputs = " ".join(quote(source) for source in test_dependencies)
     subsystem_validation = ""
     subsystem_check = ""
     if subsystem_manifest.is_file():
@@ -104,7 +114,7 @@ build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/Expor
 build {pcode_opcodes}: export_pcode_opcodes tools/pcode_descriptors.py tools/allocator_snapshot.py tools/pe.py tools/verify_original.py | {verified}
 build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
 build {format_stamp}: check_format tools/check_format.py .clang-format {format_inputs}
-build {test_stamp}: check_tests tools/check_tests.py tools/allocator_snapshot.py tools/allocator_provenance.py tools/compare_pcode_stages.py tools/explain_register.py tools/gdb/allocator_snapshot.py src/backend/Registers.c src/backend/Coloring.c src/backend/SpillCode.c src/backend/PCode.c tests/test_registers.c tests/test_coloring.c tests/test_spill_code.c tests/test_pcode.c tests/test_allocator_snapshot.py tests/test_allocator_provenance.py tests/test_compare_pcode_stages.py include/mwcc/Registers.h include/mwcc/Coloring.h include/mwcc/SpillCode.h include/mwcc/PCode.h include/mwcc/backend_types.h
+build {test_stamp}: check_tests {test_inputs}
 {subsystem_validation}
 
 build check: phony {verified} {pe_info} {pcode_opcodes} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}

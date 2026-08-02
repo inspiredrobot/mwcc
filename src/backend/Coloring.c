@@ -278,12 +278,13 @@ void Coloring_CommitAssignments(int reg_class, int register_count)
 
                 operand = &instruction->operands[index];
                 if (operand->kind == reg_class) {
-                    operand->reg =
-                        gInterferenceGraph[operand->reg]->physical_register;
+                    operand->value.reg = gInterferenceGraph[operand->value.reg]
+                                             ->physical_register;
                 }
             }
             if ((instruction->flags & 0x800) != 0 &&
-                instruction->operands[0].reg == instruction->operands[1].reg)
+                instruction->operands[0].value.reg ==
+                    instruction->operands[1].value.reg)
             {
                 PCode_RemoveRedundantInstruction(instruction);
             }

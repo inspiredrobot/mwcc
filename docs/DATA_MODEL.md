@@ -73,6 +73,21 @@ The normalized schema calls the prefix-derived role the *default* access.
 properties and instruction flags; these codes carry `access_is_contextual` in
 the exported schema rather than pretending the default is final.
 
+The typed reconstruction in `src/backend/PCodeUtilities.c` additionally
+confirms the object-backed branches. `l` consumes either one direct-label value
+or a zero sentinel followed by a tag-5 compiler object. Both `m` and `M`
+consume an object/offset pair: a null object becomes kind 4 with no object
+identity, object kind 2 becomes kind 4 while retaining identity, and other
+tag-5 objects become kind 5. For instructions with flag mask `0x18`, a null
+object adds instruction flag `0x40`; ordinary objects copy source flag bits 1
+and 2 to instruction flags `0x10000` and `0x20000`. Type kind `0x0b` sources
+those bits from `CompilerType + 0x0a`; other objects use
+`CompilerObject + 0x12`.
+
+Creation traces snapshot these exact object/type fields beside each operand:
+object tag and kind, type address, object flags, type kind and size, type flags,
+and subtype. These are capture-time facts, not reconstructed source names.
+
 At `0x004cdef0`, coloring operates on three class/count globals in this order:
 vector (`0x0058849a`, class 9), general-purpose (`0x0058846e`, class 0), then
 floating-point (`0x0058846c`, class 1). The nearby `VR`, `GPR`, and `FPR`

@@ -224,15 +224,15 @@ static void TestLastUseMarkers(void)
     late.operand_count = 1;
     late.operands[0].kind = 0;
     late.operands[0].flags = PCodeOperand_Definition;
-    late.operands[0].reg = 32;
+    late.operands[0].value.reg = 32;
 
     early.instruction.operand_count = 2;
     early.instruction.operands[0].kind = 0;
     early.instruction.operands[0].flags = PCodeOperand_Use;
-    early.instruction.operands[0].reg = 32;
+    early.instruction.operands[0].value.reg = 32;
     early.second_operand.kind = 0;
     early.second_operand.flags = PCodeOperand_Use;
-    early.second_operand.reg = 33;
+    early.second_operand.value.reg = 33;
 
     SpillCode_MarkLastUses(0, 64);
     Check((early.instruction.operands[0].flags & PCodeOperand_LastUse) != 0,
@@ -257,7 +257,7 @@ static void TestDeadInstructionFilter(void)
     instruction.operand_count = 1;
     instruction.operands[0].kind = 0;
     instruction.operands[0].flags = PCodeOperand_Definition;
-    instruction.operands[0].reg = 33;
+    instruction.operands[0].value.reg = 33;
     gDeleteDeadInstructions = 1;
 
     Check(SpillCode_IsDeadInstruction(&instruction, 0, live),
@@ -320,10 +320,10 @@ static void TestLocalLiveness(void)
     instruction.instruction.operand_count = 2;
     instruction.instruction.operands[0].kind = 0;
     instruction.instruction.operands[0].flags = PCodeOperand_Use;
-    instruction.instruction.operands[0].reg = 33;
+    instruction.instruction.operands[0].value.reg = 33;
     instruction.second_operand.kind = 0;
     instruction.second_operand.flags = PCodeOperand_Definition;
-    instruction.second_operand.reg = 34;
+    instruction.second_operand.value.reg = 34;
 
     SpillCode_BuildLocalLiveness(0);
     Check(BitIsSet(use, 33), "upward-exposed use recorded");
@@ -413,7 +413,7 @@ static void TestInterferenceConstruction(void)
     definition.instruction.operand_count = 1;
     definition.instruction.operands[0].kind = 0;
     definition.instruction.operands[0].flags = PCodeOperand_Definition;
-    definition.instruction.operands[0].reg = 33;
+    definition.instruction.operands[0].value.reg = 33;
 
     SpillCode_ConstructInterference(0, 40);
     Check(HasInterference(gInterferenceBits, 0, 31),
@@ -436,17 +436,17 @@ static void TestInterferenceConstruction(void)
     definition.instruction.operand_count = 2;
     definition.instruction.operands[0].kind = 0;
     definition.instruction.operands[0].flags = PCodeOperand_Definition;
-    definition.instruction.operands[0].reg = 33;
+    definition.instruction.operands[0].value.reg = 33;
     definition.second_operand.kind = 0;
     definition.second_operand.flags = PCodeOperand_Use;
-    definition.second_operand.reg = 34;
+    definition.second_operand.value.reg = 34;
 
     SpillCode_ConstructInterference(0, 40);
     Check(!HasInterference(gInterferenceBits, 33, 34),
           "copy source excluded from destination interference");
 
     definition.instruction.flags = PCodeInstruction_GPRResultMask;
-    definition.instruction.operands[1].reg = 39;
+    definition.instruction.operands[1].value.reg = 39;
     SpillCode_ConstructInterference(0, 40);
     Check((gInterferenceBits[((39 * 39) / 2) >> 5] &
            (1U << (((39 * 39) / 2) & 31))) != 0,
@@ -474,17 +474,17 @@ static void TestCopyCoalescing(void)
     copy.instruction.opcode = 0x8b;
     copy.instruction.operand_count = 2;
     copy.instruction.operands[0].kind = 0;
-    copy.instruction.operands[0].reg = 32;
+    copy.instruction.operands[0].value.reg = 32;
     copy.second_operand.kind = 0;
-    copy.second_operand.reg = 33;
+    copy.second_operand.value.reg = 33;
     block.instructions = &copy.instruction;
     gPCodeBlocks = &block;
 
     SpillCode_CoalesceCopies(0, 40);
     Check(gCoalescedRegisters[33] == 32, "lower copy register becomes root");
-    Check(copy.instruction.operands[0].reg == 32,
+    Check(copy.instruction.operands[0].value.reg == 32,
           "copy destination canonicalized");
-    Check(copy.second_operand.reg == 32, "copy source canonicalized");
+    Check(copy.second_operand.value.reg == 32, "copy source canonicalized");
     Check(gRemovedInstructions == 1, "coalesced copy removed");
     Check(HasInterference(bits, 32, 34),
           "child interference transferred to root");
@@ -539,18 +539,18 @@ static void TestSpillCosts(void)
     first_instruction.instruction.operand_count = 3;
     first_instruction.instruction.operands[0].kind = 0;
     first_instruction.instruction.operands[0].flags = 1;
-    first_instruction.instruction.operands[0].reg = 32;
+    first_instruction.instruction.operands[0].value.reg = 32;
     first_instruction.extra_operands[0].kind = 0;
     first_instruction.extra_operands[0].flags = 2;
-    first_instruction.extra_operands[0].reg = 33;
+    first_instruction.extra_operands[0].value.reg = 33;
     first_instruction.extra_operands[1].kind = 0;
     first_instruction.extra_operands[1].flags = 3;
-    first_instruction.extra_operands[1].reg = 34;
+    first_instruction.extra_operands[1].value.reg = 34;
 
     second_instruction.instruction.operand_count = 1;
     second_instruction.instruction.operands[0].kind = 0;
     second_instruction.instruction.operands[0].flags = 1;
-    second_instruction.instruction.operands[0].reg = 32;
+    second_instruction.instruction.operands[0].value.reg = 32;
 
     first_block.instructions = &first_instruction.instruction;
     first_block.execution_weight = 3;

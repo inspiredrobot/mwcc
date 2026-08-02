@@ -162,6 +162,11 @@ def main():
         ],
         "unwrapped_instruction_allocations": [],
     }
+    trace["events"][0]["instruction"]["operands"][0]["compiler_object"] = {
+        "address": "0x00004000",
+        "object_tag_00": 5,
+        "kind_02": 1,
+    }
     facts = build_provenance(
         allocator_snapshot(),
         [coloring_snapshot("before", -1), coloring_snapshot("after", 5)],
@@ -193,6 +198,7 @@ def main():
     assert facts["object_bindings"][0]["object"] == "0x00004000"
     assert facts["pcode_creations"][0]["call_address"] == "0x00401000"
     assert facts["pcode_creations"][0]["codegen_item"] == "cg0"
+    assert facts["creation_operands"][0]["compiler_object"]["kind_02"] == 1
     assert facts["codegen_items"][0]["capture_address"] == "0x00005000"
     assert facts["created_by"] == [
         {"instruction": "b1:i0", "creation": "c0"}

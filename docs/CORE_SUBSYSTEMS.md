@@ -89,8 +89,16 @@ instruction and construct each 12-byte operand, including use (`flag 1`),
 definition (`flag 2`), and read-modify-write (`flag 3`) roles. Recovering that
 format interpreter is represented by `decode_operand_format`, so both the
 static catalog and live snapshots expose normalized use/definition roles,
-possible operand kinds, and fixed or dynamic expansions. The remaining
-bytecode slice is object provenance inside the `m`, `M`, and `l` cases.
+possible operand kinds, and fixed or dynamic expansions.
+
+The shared interpreter is now reconstructed as typed C, including object
+provenance in the `m`, `M`, and `l` cases. Object tag 5 is required for
+object-backed operands. Object kind 2 becomes an immediate-form operand;
+ordinary objects retain their identity in a memory-form operand, while null
+objects become raw immediates. Type/object flag bits feed instruction flags
+`0x10000` and `0x20000` for eligible GPR-result opcodes. The address-backed
+classifier at `0x0048ad10`, which chooses one access-flag subcase for ordinary
+`m` objects, remains the next leaf to recover.
 
 ### Stack frame
 

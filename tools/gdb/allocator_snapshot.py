@@ -61,6 +61,33 @@ def write_snapshot(output, snapshot):
 def optional_raw(reader, address, size):
     if address == 0:
         return None
+
+
+def optional_compiler_object(reader, address):
+    if address == 0:
+        return None
+    try:
+        type_address = reader.u32(address + 0x0E)
+        result = {
+            "address": f"0x{address:08x}",
+            "header": reader.raw(address, 0x16).hex(),
+            "object_tag_00": reader.u8(address),
+            "kind_02": reader.u8(address + 0x02),
+            "type_address": f"0x{type_address:08x}",
+            "flags_12": reader.u32(address + 0x12),
+            "type": None,
+        }
+        if type_address != 0:
+            result["type"] = {
+                "header": reader.raw(type_address, 0x0F).hex(),
+                "kind_00": reader.u8(type_address),
+                "size_02": reader.u32(type_address + 0x02),
+                "flags_0a": reader.u32(type_address + 0x0A),
+                "subtype_0e": reader.u8(type_address + 0x0E),
+            }
+        return result
+    except gdb.MemoryError:
+        return None
     try:
         return reader.raw(address, size).hex()
     except gdb.MemoryError:
@@ -429,7 +456,13 @@ class PCodeBuilderReturnBreakpoint(gdb.Breakpoint):
             return False
         pending = self.session.pending_creations.pop()
         instruction_pointer = int(gdb.parse_and_eval("$eax"))
-        instruction = snapshot_reader(self.session).instruction(instruction_pointer)
+        reader = snapshot_reader(self.session)
+        instruction = reader.instruction(instruction_pointer)
+        for operand in instruction["operands"]:
+            object_address = int(operand["object"], 0)
+            operand["compiler_object"] = optional_compiler_object(
+                reader, object_address
+            )
         if instruction["opcode"] != pending["opcode_argument"]:
             raise gdb.GdbError(
                 "PCode creation opcode changed between wrapper and builder"

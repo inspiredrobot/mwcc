@@ -60,3 +60,38 @@ The capture produced 2,507 initial, 2,365 post-O4, and 2,335 pre-coloring PCode
 instructions. Normal constructor events explain 2,315 pre-coloring survivors;
 20 `PCode_CloneInstruction` events explain the remainder. All 20 clones retain
 live parents, yielding complete instruction provenance for this capture.
+
+## Stock compiler-object snapshot smoke test
+
+Date: 2026-08-01
+
+- source SHA-256:
+  `834ac363e4fed9867ff278c79ff3b9d69ee8cb65a58269e0a36bbeb648fc8103`;
+- compiler SHA-256:
+  `0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914`;
+- Wibo and container identities: same as the CursorThink experiment;
+- GDB command: `mwcc-auto-capture /capture 1 stock`.
+
+The exact sandbox invocation was:
+
+```sh
+docker run --rm --platform linux/arm64 --network none --read-only \
+  --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 \
+  --memory 1g --cpus 2 --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  -e HOME=/tmp \
+  -v /private/tmp/mwcc-gpr:/mwcc:ro \
+  -v /private/tmp/mwcc-directalloc-small:/capture:rw \
+  -v /private/tmp/mwcc-trace.m3a0nK/minimal.c:/input/minimal.c:ro \
+  -v ~/etc/melee/build/wibo_old:/input/wibo_old:ro \
+  -v ~/etc/melee/build/compilers/GC/1.2.5/mwcceppc.exe:/input/mwcceppc.exe:ro \
+  mwcc-debugger:arm64 /bin/sh -c \
+  'qemu-i386 -g 1234 /input/wibo_old /input/mwcceppc.exe \
+  -proc gekko -fp hardware -O4,p -c /input/minimal.c \
+  -o /capture/minimal.o & \
+  gdb-multiarch -q -x /capture/capture.gdb'
+```
+
+One of 27 creation operands retained a compiler object. The trace decoded its
+tag 5, kind 0, object flags `0x00010001`, type kind 2, size 4, type flags 8,
+and subtype 14. The provenance export preserved the same fields and linked all
+10 live optimized instructions to origins.
