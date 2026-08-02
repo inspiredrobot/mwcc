@@ -260,6 +260,15 @@ body differences are localized to the initial collection walk and assignment
 folding. This is useful matching evidence without promoting the candidate to
 the exact host minor version.
 
+The same probe now includes three recursive tree walkers. Their control flow
+and node actions are exact at the source level, but recursive-inlining depth
+separates this candidate from retail: automatic inlining expands seven action
+levels and retail expands eight. The documented `level=8` option does not
+alter the object, while an explicit source `inline` qualifier expands eleven
+levels. This is a useful exact-minor fingerprint: preserve idiomatic recursion
+and treat the remaining body-size difference as host lineage evidence rather
+than manufacturing a manual unroll.
+
 ## Sources
 
 - Richard Atwell, “CodeWarrior Version 6.0,” *MacTech*, February 2001:

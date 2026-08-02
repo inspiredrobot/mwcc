@@ -98,8 +98,11 @@ within each group is not yet assigned.
 
 The global at `0x0058763c` is a `CodeMotionNode*`, not an enable flag. The
 walkers at `0x00521a30`, `0x00524c10`, and `0x00525070` follow sibling and
-child pointers at node offsets `+0x04` and `+0x08`; the first three pointer
-fields are the only node layout promoted so far.
+child pointers at node offsets `+0x04` and `+0x08`. The first two walkers
+process every node after its children, establishing a postorder traversal.
+The third processes leaves only and skips a leaf when the byte at `+0x4f` is
+nonzero. These offsets are promoted in `CodeMotionNode`; the pointer at
+`+0x00` and bytes `+0x0c` through `+0x4e` remain unnamed.
 
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude

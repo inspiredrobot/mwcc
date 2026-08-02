@@ -24,7 +24,8 @@ static int gAllocationCount;
 static int gStages[32];
 static int gStageCount;
 static CompilerObject* gRecordedObject;
-static CodeMotionNode* gRecordedNode;
+static CodeMotionNode* gRecordedNodes[32];
+static int gRecordedNodeCount;
 
 static void Check(int condition, const char* message)
 {
@@ -64,10 +65,11 @@ void SpillCode_BuildBlockOrder(void)
     RecordStage(6);
 }
 
-void COpt_00521a30(CodeMotionNode* node)
+static void RecordNode(int stage, CodeMotionNode* node)
 {
-    gRecordedNode = node;
-    RecordStage(1);
+    Check(gRecordedNodeCount < 32, "node capacity");
+    gRecordedNodes[gRecordedNodeCount++] = node;
+    RecordStage(stage);
 }
 
 void COpt_005237f0(void)
@@ -103,16 +105,19 @@ void COpt_00524b20(CompilerObject* object)
     RecordStage(2);
 }
 
-void COpt_00524c10(CodeMotionNode* node)
+void COpt_00521bb0(CodeMotionNode* node)
 {
-    gRecordedNode = node;
-    RecordStage(10);
+    RecordNode(1, node);
 }
 
-void COpt_00525070(CodeMotionNode* node)
+void COpt_00524d90(CodeMotionNode* node)
 {
-    Check(node == gRecordedNode, "shared tree root");
-    RecordStage(11);
+    RecordNode(10, node);
+}
+
+void COpt_00525200(CodeMotionNode* node)
+{
+    RecordNode(11, node);
 }
 
 static void ResetState(void)
@@ -124,7 +129,8 @@ static void ResetState(void)
     gAllocationCount = 0;
     gStageCount = 0;
     gRecordedObject = 0;
-    gRecordedNode = 0;
+    memset(gRecordedNodes, 0, sizeof(gRecordedNodes));
+    gRecordedNodeCount = 0;
     gCodeMotionTree_0058763c = 0;
     gPCodeBlocks = 0;
     gPCodeBlockCount = 0;
@@ -139,17 +145,51 @@ static void ResetState(void)
 
 static void TestGuardedTreePass(void)
 {
-    int root;
+    CodeMotionNode root;
 
     ResetState();
     COpt_00521a10();
     Check(gStageCount == 0, "null tree skipped");
 
-    root = 0;
-    gCodeMotionTree_0058763c = (CodeMotionNode*) &root;
+    memset(&root, 0, sizeof(root));
+    gCodeMotionTree_0058763c = &root;
     COpt_00521a10();
     Check(gStageCount == 1 && gStages[0] == 1, "tree pass called");
-    Check(gRecordedNode == gCodeMotionTree_0058763c, "tree pass root");
+    Check(gRecordedNodes[0] == gCodeMotionTree_0058763c, "tree pass root");
+}
+
+static void TestTreeWalkOrder(void)
+{
+    CodeMotionNode root;
+    CodeMotionNode child;
+    CodeMotionNode sibling;
+
+    ResetState();
+    memset(&root, 0, sizeof(root));
+    memset(&child, 0, sizeof(child));
+    memset(&sibling, 0, sizeof(sibling));
+    root.children = &child;
+    root.sibling = &sibling;
+
+    COpt_00521a30(&root);
+    Check(gRecordedNodeCount == 3, "postorder node count");
+    Check(gRecordedNodes[0] == &child && gRecordedNodes[1] == &root &&
+              gRecordedNodes[2] == &sibling,
+          "postorder traversal");
+
+    ResetState();
+    COpt_00524c10(&root);
+    Check(gRecordedNodeCount == 3, "second postorder node count");
+    Check(gRecordedNodes[0] == &child && gRecordedNodes[1] == &root &&
+              gRecordedNodes[2] == &sibling,
+          "second postorder traversal");
+
+    ResetState();
+    child.skip_leaf_pass_4f = 0;
+    sibling.skip_leaf_pass_4f = 1;
+    COpt_00525070(&root);
+    Check(gRecordedNodeCount == 1 && gRecordedNodes[0] == &child,
+          "eligible leaves only");
 }
 
 static void TestSetup(void)
@@ -203,11 +243,11 @@ static void TestSetup(void)
 
 static void TestCoordinator(void)
 {
-    int root;
+    CodeMotionNode root;
 
     ResetState();
-    root = 0;
-    gCodeMotionTree_0058763c = (CodeMotionNode*) &root;
+    memset(&root, 0, sizeof(root));
+    gCodeMotionTree_0058763c = &root;
     gCodeMotionCounter_005880b8 = 12;
     gCodeMotionChanged = 1;
 
@@ -223,6 +263,7 @@ static void TestCoordinator(void)
 int main(void)
 {
     TestGuardedTreePass();
+    TestTreeWalkOrder();
     TestSetup();
     TestCoordinator();
     puts("code-motion model tests passed");

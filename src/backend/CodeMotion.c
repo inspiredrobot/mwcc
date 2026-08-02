@@ -15,12 +15,6 @@
 
 #include "mwcc/backend_types.h"
 
-struct CodeMotionNode {
-    struct CodeMotionNode* next;     /* 0x00 */
-    struct CodeMotionNode* sibling;  /* 0x04 */
-    struct CodeMotionNode* children; /* 0x08 */
-};
-
 typedef struct CodeMotionBlockState {
     unsigned int* definition_sets[4]; /* 0x00 */
     unsigned int* use_sets[4];        /* 0x10 */
@@ -41,15 +35,15 @@ extern void* CodeMotion_Allocate(unsigned int size); /* 0x00441f20 */
 extern void CodeMotion_FreeIteration(void);          /* 0x00441e20 */
 extern void SpillCode_BuildBlockOrder(void);         /* 0x0049ce40 */
 
-extern void COpt_00521a30(CodeMotionNode* node);
+extern void COpt_00521bb0(CodeMotionNode* node);
 extern void COpt_005237f0(void);
 extern void COpt_00523920(void);
 extern void COpt_00523a50(void);
 extern void COpt_005240b0(int mode);
 extern void COpt_005246d0(int mode);
 extern void COpt_00524b20(CompilerObject* object);
-extern void COpt_00524c10(CodeMotionNode* node);
-extern void COpt_00525070(CodeMotionNode* node);
+extern void COpt_00524d90(CodeMotionNode* node);
+extern void COpt_00525200(CodeMotionNode* node);
 
 static unsigned int* CodeMotion_AllocateBits(int bit_count)
 {
@@ -61,6 +55,17 @@ void COpt_00521a10(void)
 {
     if (gCodeMotionTree_0058763c != 0) {
         COpt_00521a30(gCodeMotionTree_0058763c);
+    }
+}
+
+/* 0x00521a30; high-level equivalent; 13.73% comparable byte match. */
+void COpt_00521a30(CodeMotionNode* node)
+{
+    for (; node != 0; node = node->sibling) {
+        if (node->children != 0) {
+            COpt_00521a30(node->children);
+        }
+        COpt_00521bb0(node);
     }
 }
 
@@ -132,4 +137,27 @@ void COpt_00524bd0(void)
         COpt_00525070(gCodeMotionTree_0058763c);
     }
     CodeMotion_FreeIteration();
+}
+
+/* 0x00524c10; high-level equivalent; 13.73% comparable byte match. */
+void COpt_00524c10(CodeMotionNode* node)
+{
+    for (; node != 0; node = node->sibling) {
+        if (node->children != 0) {
+            COpt_00524c10(node->children);
+        }
+        COpt_00524d90(node);
+    }
+}
+
+/* 0x00525070; high-level equivalent; 20.83% comparable byte match. */
+void COpt_00525070(CodeMotionNode* node)
+{
+    for (; node != 0; node = node->sibling) {
+        if (node->children != 0) {
+            COpt_00525070(node->children);
+        } else if (node->skip_leaf_pass_4f == 0) {
+            COpt_00525200(node);
+        }
+    }
 }

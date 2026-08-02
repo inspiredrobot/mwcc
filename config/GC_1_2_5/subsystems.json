@@ -90,6 +90,16 @@
           "match_note": "candidate emits a six-byte EBP frame around an otherwise instruction-identical operation sequence; 12 relocation bytes excluded"
         },
         {
+          "address": "0x00521a30",
+          "name": "COpt_00521a30",
+          "role": "walk the code-motion tree in postorder and process every node",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 13.73,
+          "match_note": "plain recursive C at -O4,p -inline auto; target 382 bytes and eight expanded action levels versus candidate 316 bytes and seven levels; explicit inline overshoots to eleven"
+        },
+        {
           "address": "0x00523650",
           "name": "COpt_SetLoopCodeMotionMode",
           "role": "initialize code-motion object collection, per-block bitsets, and analysis stages for the requested mode",
@@ -108,6 +118,26 @@
           "functional_status": "control-flow equivalent",
           "match_percent": 20.69,
           "match_note": "candidate emits a six-byte EBP frame around an otherwise instruction-identical operation sequence; 32 relocation bytes excluded"
+        },
+        {
+          "address": "0x00524c10",
+          "name": "COpt_00524c10",
+          "role": "walk the code-motion tree in postorder and apply the second node pass",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 13.73,
+          "match_note": "plain recursive C at -O4,p -inline auto; target 382 bytes and eight expanded action levels versus candidate 316 bytes and seven levels; explicit inline overshoots to eleven"
+        },
+        {
+          "address": "0x00525070",
+          "name": "COpt_00525070",
+          "role": "walk the code-motion tree and process eligible leaves",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 20.83,
+          "match_note": "plain recursive C at -O4,p -inline auto; target 384 bytes and eight expanded action levels versus candidate 340 bytes and seven levels; leaf eligibility byte confirmed at +0x4f"
         }
       ]
     },

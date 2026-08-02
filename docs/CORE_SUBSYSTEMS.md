@@ -71,6 +71,16 @@ the setup routine has the same complete eight-allocation loop and final pass
 order. Its remaining body differences are an iterator-register permutation
 and one global reset that the candidate folds to an immediate.
 
+The three recursive walkers are also reconstructed. `COpt_00521a30` and
+`COpt_00524c10` visit siblings and process each node after recursively
+processing its children. `COpt_00525070` applies its action only to leaves
+whose byte at `+0x4f` is clear. Plain recursive C is the retained source shape.
+Retail expands eight processing levels before leaving a residual recursive
+call, while the validated candidate expands seven. `-inline auto,level=8` is
+byte-neutral, an explicit `inline` qualifier overshoots to eleven levels, and
+factoring the node body into a helper falls to four. The gap is therefore a
+specific recursive-inliner fingerprint, not a reason to hand-unroll the C.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

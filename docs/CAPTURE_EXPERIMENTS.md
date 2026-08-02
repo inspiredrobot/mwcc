@@ -56,6 +56,19 @@ allocation loop and final call order. A declaration-order experiment reduced
 its score to 75.97% by changing the allocation-state/index registers to
 EBX/EDI, so the clean 80.21% form was retained.
 
+The probe was then extended to the recursive walkers at `0x00521a30`,
+`0x00524c10`, and `0x00525070`. Plain recursive C produced candidate/target
+sizes of 316/382, 316/382, and 340/384 bytes, with comparable positional
+matches of 13.73%, 13.73%, and 20.83%. The candidate automatically expands
+seven action levels before retaining a recursive call; retail expands eight.
+Adding `-inline auto,level=8` did not change a byte. Marking the functions
+explicitly `inline` expanded eleven levels instead (496, 496, and 628 bytes)
+and reduced the matches to 10.23%, 10.23%, and 12.64%. Moving the per-node
+body into a helper reduced expansion to four levels and candidate sizes to
+182, 182, and 244 bytes. The simple recursive form is retained because every
+source-shape alternative moves away from the exact, independently observed
+retail depth.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01
