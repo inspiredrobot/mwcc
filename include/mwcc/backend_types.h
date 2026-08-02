@@ -121,15 +121,10 @@ enum PCodeInstructionFlagMasks {
     PCodeInstruction_DeadCodeBarrierMask = 0x00020434
 };
 
-typedef struct PCodeInstructionContext {
-    unsigned char unknown_00[0x2e];
-    unsigned short flags; /* 0x2e */
-} PCodeInstructionContext;
-
 typedef struct PCodeInstruction {
     struct PCodeInstruction* next;     /* 0x00 */
     struct PCodeInstruction* previous; /* 0x04 */
-    PCodeInstructionContext* context;  /* 0x08 */
+    struct PCodeBlock* block;          /* 0x08 */
     int first_use_index;               /* 0x0c */
     int first_definition_index;        /* 0x10 */
     short opcode;                      /* 0x14 */
@@ -259,8 +254,8 @@ typedef char PCodeInstruction_first_use_0c
     [(offsetof(PCodeInstruction, first_use_index) == 0x0c) ? 1 : -1];
 typedef char PCodeInstruction_first_definition_10
     [(offsetof(PCodeInstruction, first_definition_index) == 0x10) ? 1 : -1];
-typedef char PCodeInstructionContext_flags_2e
-    [(offsetof(PCodeInstructionContext, flags) == 0x2e) ? 1 : -1];
+typedef char PCodeInstruction_block_08
+    [(offsetof(PCodeInstruction, block) == 0x08) ? 1 : -1];
 typedef char PCodeBlock_instructions_14
     [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
 typedef char PCodeBlock_predecessors_0c

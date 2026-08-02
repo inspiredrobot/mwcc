@@ -35,7 +35,7 @@ static void TestClone(unsigned int flags, unsigned int extra_size)
     memset(&source, 0, sizeof(source));
     source.instruction.next = (PCodeInstruction*) 1;
     source.instruction.previous = (PCodeInstruction*) 2;
-    source.instruction.context = (PCodeInstructionContext*) 3;
+    source.instruction.block = (PCodeBlock*) 3;
     source.instruction.opcode = 0x3f;
     source.instruction.flags = flags;
     source.instruction.operand_count = 3;
@@ -47,8 +47,8 @@ static void TestClone(unsigned int flags, unsigned int extra_size)
     expected_size =
         sizeof(PCodeInstruction) + 3 * sizeof(PCodeOperand) + extra_size;
     Check(gAllocationSize == expected_size, "allocation size");
-    Check(clone->next == 0 && clone->previous == 0 && clone->context == 0,
-          "list and context fields remain unowned");
+    Check(clone->next == 0 && clone->previous == 0 && clone->block == 0,
+          "list and block fields remain unowned");
     Check(clone->opcode == source.instruction.opcode, "opcode copy");
     Check(clone->flags == source.instruction.flags, "flags copy");
     Check(clone->operand_count == source.instruction.operand_count,

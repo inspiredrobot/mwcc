@@ -165,6 +165,20 @@ Separate GPR, FPR, and vector head arrays provide register-to-entry reverse
 indices; `CodeMotionObjectNode +0x10/+0x14` provide the corresponding object
 use/definition lists.
 
+The node motion pass at `0x00524d90` confirms `CodeMotionNode +0x28` as a
+block-membership bitset. It also corrects `PCodeInstruction +0x08`: the field
+is the owning `PCodeBlock*`, not a separate context record. Its `+0x1c` index
+selects both node membership and the per-block 32-byte `CodeMotionBlockState`;
+the dead-instruction filter's flags at the pointed-to `+0x2e` are therefore
+the same `PCodeBlock +0x2e` flags already used elsewhere.
+
+For every retained definition entry, the pass follows the class-specific or
+object-specific reverse-definition list, clears those entry indices from its
+working set, and sets the current definition index. Explicit object entries
+use `CodeMotionObjectNode.definition_entries`; implicit object entries do not
+kill the object's explicit definition chain. This transfer runs even when the
+instruction is not moved.
+
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude
 `0x40` contributes the object pointer in operand 2 to the collection rooted at
@@ -341,12 +355,12 @@ sets and the two-register GPR return case.
 
 Before the ordinary backward last-use transfer, `SpillCode_IsDeadInstruction`
 at `0x00530050` recognizes definitions that can be deleted. Instruction flags
-matching mask `0x00020434` and context flags `0x03` are barriers. GPR, FPR, and
+matching mask `0x00020434` and owning-block flags `0x03` are barriers. GPR,
 VR definitions are removable only while analyzing their own class and only
 when their destination is not live; SPR and condition-register definitions are
 always retained. Global option byte `0x005842e1` enables the deletion after all
-operands pass those checks. The instruction context pointer is at
-`PCodeInstruction + 0x08`, with its barrier flags at context offset `0x2e`.
+operands pass those checks. The owning block pointer is at
+`PCodeInstruction + 0x08`, with its barrier flags at `PCodeBlock +0x2e`.
 Tests cover dead, live, context-protected, and instruction-protected
 definitions.
 

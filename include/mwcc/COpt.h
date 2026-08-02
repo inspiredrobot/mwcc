@@ -24,6 +24,11 @@ typedef struct CodeMotionEntryLink {
 } CodeMotionEntryLink;
 #pragma pack(pop)
 
+typedef struct CodeMotionBlockState {
+    unsigned int* definition_sets[4]; /* 0x00 */
+    unsigned int* use_sets[4];        /* 0x10 */
+} CodeMotionBlockState;
+
 typedef struct CodeMotionNode {
     struct CodeMotionNode* unknown_00;
     struct CodeMotionNode* sibling;  /* 0x04 */
@@ -31,7 +36,9 @@ typedef struct CodeMotionNode {
     struct PCodeBlock* entry_block;  /* 0x0c */
     unsigned char unknown_10[0x0c];
     struct PCodeBlockLink* blocks; /* 0x1c */
-    unsigned char unknown_20[0x18];
+    unsigned char unknown_20[8];
+    unsigned int* block_membership; /* 0x28 */
+    unsigned char unknown_2c[0x0c];
     int instruction_count; /* 0x38 */
     int unknown_3c;
     unsigned char unknown_40[0x0d];
@@ -60,6 +67,7 @@ typedef struct CodeMotionObjectNode {
 extern CodeMotionNode* gCodeMotionTree_0058763c;
 extern CodeMotionObjectNode* gCodeMotionAllocationList_005870fc;
 extern CodeMotionObjectNode* gCodeMotionObjectTree_005880ac;
+extern CodeMotionBlockState* gCodeMotionBlockState_00587fe4;
 
 void COpt_00521a10(void);
 void COpt_00521a30(CodeMotionNode* node);
@@ -73,6 +81,7 @@ void COpt_00524b20(struct CompilerObject* object);
 CodeMotionObjectNode* COpt_00524b90(struct CompilerObject* object);
 void COpt_00524bd0(void);
 void COpt_00524c10(CodeMotionNode* node);
+void COpt_00524d90(CodeMotionNode* node);
 void COpt_00525070(CodeMotionNode* node);
 
 #ifndef MWCC_SKIP_LAYOUT_ASSERTS
@@ -85,6 +94,8 @@ typedef char
                                                                         : -1];
 typedef char CodeMotionNode_instruction_count_38
     [(offsetof(CodeMotionNode, instruction_count) == 0x38) ? 1 : -1];
+typedef char CodeMotionNode_block_membership_28
+    [(offsetof(CodeMotionNode, block_membership) == 0x28) ? 1 : -1];
 typedef char
     CodeMotionNode_facts_4d[(offsetof(CodeMotionNode, has_call) == 0x4d) ? 1
                                                                          : -1];

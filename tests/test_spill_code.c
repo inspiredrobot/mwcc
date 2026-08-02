@@ -245,15 +245,15 @@ static void TestLastUseMarkers(void)
 static void TestDeadInstructionFilter(void)
 {
     PCodeInstruction instruction;
-    PCodeInstructionContext context;
+    PCodeBlock block;
     unsigned int live[2];
 
     ResetState();
     memset(&instruction, 0, sizeof(instruction));
-    memset(&context, 0, sizeof(context));
+    memset(&block, 0, sizeof(block));
     memset(live, 0, sizeof(live));
 
-    instruction.context = &context;
+    instruction.block = &block;
     instruction.operand_count = 1;
     instruction.operands[0].kind = 0;
     instruction.operands[0].flags = PCodeOperand_Definition;
@@ -266,10 +266,10 @@ static void TestDeadInstructionFilter(void)
     Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
           "live definition retained");
     live[1] = 0;
-    context.flags = 1;
+    block.flags_2e = 1;
     Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
-          "context-protected definition retained");
-    context.flags = 0;
+          "block-protected definition retained");
+    block.flags_2e = 0;
     instruction.flags = PCodeInstruction_DeadCodeBarrierMask;
     Check(!SpillCode_IsDeadInstruction(&instruction, 0, live),
           "instruction barrier retained");

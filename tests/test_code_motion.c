@@ -13,7 +13,7 @@ CodeMotionObjectNode* gCodeMotionAllocationList_005870fc;
 CodeMotionObjectNode* gCodeMotionObjectTree_005880ac;
 int gCodeMotionDefinitionCount_00587ebc;
 int gCodeMotionUseCount_00587e38;
-void* gCodeMotionBlockState_00587fe4;
+CodeMotionBlockState* gCodeMotionBlockState_00587fe4;
 int gCodeMotionCounter_005880b8;
 int gCodeMotionChanged;
 short gUsedVirtualRegistersGPR;
@@ -36,6 +36,12 @@ static int gStages[32];
 static int gStageCount;
 static CodeMotionNode* gRecordedNodes[32];
 static int gRecordedNodeCount;
+static int gDirectCandidate;
+static int gDefinitionCandidate;
+static int gEntryCandidate;
+static int gFallbackCandidate;
+static int gMoveCount;
+static int gCopyCount;
 
 static void Check(int condition, const char* message)
 {
@@ -102,9 +108,62 @@ void COpt_00523a50(void)
     RecordStage(5);
 }
 
-void COpt_00524d90(CodeMotionNode* node)
+void CodeMotion_CopyBits(unsigned int* destination, const unsigned int* source,
+                         int bit_count)
 {
-    RecordNode(10, node);
+    int index;
+
+    gCopyCount++;
+    for (index = 0; index < (bit_count + 31) / 32; index++) {
+        destination[index] = source[index];
+    }
+}
+
+int COpt_00525fc0(PCodeInstruction* instruction, CodeMotionNode* node,
+                  unsigned int* available_definitions)
+{
+    (void) instruction;
+    (void) node;
+    (void) available_definitions;
+    return gFallbackCandidate;
+}
+
+void COpt_00526230(PCodeInstruction* instruction, CodeMotionNode* node)
+{
+    (void) node;
+    gMoveCount++;
+    instruction->operand_count = 0;
+}
+
+int COpt_00526500(unsigned char* definition, CodeMotionNode* node)
+{
+    (void) definition;
+    (void) node;
+    return gEntryCandidate;
+}
+
+int COpt_005266e0(int definition_index, CodeMotionNode* node)
+{
+    (void) definition_index;
+    (void) node;
+    return gDefinitionCandidate;
+}
+
+int COpt_00526b50(PCodeInstruction* instruction, CodeMotionNode* node)
+{
+    (void) instruction;
+    (void) node;
+    return gDirectCandidate;
+}
+
+int COpt_00526d80(PCodeInstruction* instruction, CodeMotionNode* node,
+                  unsigned int* available_definitions, int arg_3, int arg_4)
+{
+    (void) instruction;
+    (void) node;
+    (void) available_definitions;
+    Check(arg_3 == 0 && arg_4 == 0, "motion analysis arguments");
+    return gDirectCandidate;
 }
 
 void COpt_00525200(CodeMotionNode* node)
@@ -122,6 +181,12 @@ static void ResetState(void)
     gStageCount = 0;
     memset(gRecordedNodes, 0, sizeof(gRecordedNodes));
     gRecordedNodeCount = 0;
+    gDirectCandidate = 0;
+    gDefinitionCandidate = 0;
+    gEntryCandidate = 0;
+    gFallbackCandidate = 0;
+    gMoveCount = 0;
+    gCopyCount = 0;
     gCodeMotionTree_0058763c = 0;
     gPCodeBlocks = 0;
     gPCodeBlockCount = 0;
@@ -180,10 +245,7 @@ static void TestTreeWalkOrder(void)
 
     ResetState();
     COpt_00524c10(&root);
-    Check(gRecordedNodeCount == 3, "second postorder node count");
-    Check(gRecordedNodes[0] == &child && gRecordedNodes[1] == &root &&
-              gRecordedNodes[2] == &sibling,
-          "second postorder traversal");
+    Check(gAllocationCount == 3, "second postorder node count");
 
     ResetState();
     child.skip_leaf_pass_4f = 0;
@@ -495,6 +557,96 @@ static void TestSetup(void)
     }
 }
 
+static void TestLoopNodeMotion(void)
+{
+    CodeMotionNode node;
+    PCodeBlock block;
+    PCodeBlockLink block_link;
+    PCodeInstruction instruction;
+    PCodeInstruction other_instruction;
+    CodeMotionBlockState block_state;
+    CodeMotionEntry entries[3];
+    CodeMotionEntryLink first_reverse;
+    CodeMotionEntryLink second_reverse;
+    CodeMotionEntryLink* gpr_heads[33];
+    unsigned int block_definitions;
+    unsigned int membership;
+
+    ResetState();
+    memset(&node, 0, sizeof(node));
+    memset(&block, 0, sizeof(block));
+    memset(&block_link, 0, sizeof(block_link));
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&other_instruction, 0, sizeof(other_instruction));
+    memset(&block_state, 0, sizeof(block_state));
+    memset(entries, 0, sizeof(entries));
+    memset(gpr_heads, 0, sizeof(gpr_heads));
+
+    block_definitions = 7;
+    membership = 1;
+    block_state.definition_sets[2] = &block_definitions;
+    gCodeMotionBlockState_00587fe4 = &block_state;
+    gCodeMotionDefinitionCount_00587ebc = 3;
+    gCodeMotionDefinitionEntries_00587588 = entries;
+    gCodeMotionGPRDefinitionEntries_00587ed4 = gpr_heads;
+
+    first_reverse.next = &second_reverse;
+    first_reverse.entry_index = 0;
+    second_reverse.next = 0;
+    second_reverse.entry_index = 2;
+    gpr_heads[32] = &first_reverse;
+
+    entries[1].instruction = &instruction;
+    entries[1].kind = 0;
+    entries[1].value.reg = 32;
+    entries[2].instruction = &other_instruction;
+    instruction.block = &block;
+    instruction.first_definition_index = 1;
+    instruction.flags = PCodeInstruction_NullObjectMemory;
+    instruction.operand_count = 1;
+    block.instructions = &instruction;
+    block_link.block = &block;
+    node.blocks = &block_link;
+    node.block_membership = &membership;
+
+    COpt_00524d90(&node);
+    Check(gCopyCount == 1, "one fixed-point pass without motion");
+    Check(gMoveCount == 0, "rejected instruction not moved");
+    Check(gAllocationPool[0] == 2,
+          "definition transfer kills peers and generates current entry");
+
+    ResetState();
+    memset(&node, 0, sizeof(node));
+    memset(&block, 0, sizeof(block));
+    memset(&block_link, 0, sizeof(block_link));
+    memset(&instruction, 0, sizeof(instruction));
+    memset(&block_state, 0, sizeof(block_state));
+    memset(entries, 0, sizeof(entries));
+    memset(gpr_heads, 0, sizeof(gpr_heads));
+    block_definitions = 0;
+    membership = 1;
+    block_state.definition_sets[2] = &block_definitions;
+    gCodeMotionBlockState_00587fe4 = &block_state;
+    gCodeMotionDefinitionCount_00587ebc = 1;
+    gCodeMotionDefinitionEntries_00587588 = entries;
+    gCodeMotionGPRDefinitionEntries_00587ed4 = gpr_heads;
+    entries[0].instruction = &instruction;
+    entries[0].kind = 0;
+    entries[0].value.reg = 32;
+    instruction.block = &block;
+    instruction.operand_count = 1;
+    block.instructions = &instruction;
+    block_link.block = &block;
+    node.blocks = &block_link;
+    node.block_membership = &membership;
+    gDirectCandidate = 1;
+    gDefinitionCandidate = 1;
+
+    COpt_00524d90(&node);
+    Check(gMoveCount == 1, "eligible instruction moved once");
+    Check(gCopyCount == 2, "motion triggers another fixed-point pass");
+}
+
 static void TestCoordinator(void)
 {
     CodeMotionNode root;
@@ -509,9 +661,8 @@ static void TestCoordinator(void)
 
     Check(gCodeMotionCounter_005880b8 == 0, "coordinator counter reset");
     Check(gCodeMotionChanged == 0, "change flag reset");
-    Check(gStageCount == 3, "coordinator stage count");
-    Check(gStages[0] == 10 && gStages[1] == 11 && gStages[2] == 9,
-          "coordinator stage order");
+    Check(gStageCount == 2, "coordinator stage count");
+    Check(gStages[0] == 11 && gStages[1] == 9, "coordinator stage order");
 }
 
 int main(void)
@@ -523,6 +674,7 @@ int main(void)
     TestObjectInstructionCompatibility();
     TestDefUseCensus();
     TestSetup();
+    TestLoopNodeMotion();
     TestCoordinator();
     puts("code-motion model tests passed");
     return 0;

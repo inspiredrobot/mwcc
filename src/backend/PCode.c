@@ -5,7 +5,8 @@
  *   0x0049d270  PCode_CloneInstruction
  *
  * The clone deliberately copies only the opcode, flags, operand count, and
- * operands. List links and context belong to the insertion site. Two flag bits
+ * operands. List links and the owning block belong to the insertion site. Two
+ * flag bits
  * reserve an additional operand-sized slot for a subset of instructions; the
  * semantic reason for that hidden storage is not yet established.
  */

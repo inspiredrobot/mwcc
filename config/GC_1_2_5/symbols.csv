@@ -45,6 +45,7 @@ address,size,kind,name,source,status
 0x00524b90,,function,COpt_00524b90,CodeMotion.c object-tree lookup,inferred
 0x00524bd0,,function,COpt_00524bd0,CodeMotion.c region and guarded pass coordinator,inferred
 0x00524c10,,function,COpt_00524c10,CodeMotion.c postorder tree traversal,inferred
+0x00524d90,,function,COpt_00524d90,per-loop-node instruction motion and reaching-definition transfer,inferred
 0x00525070,,function,COpt_00525070,CodeMotion.c eligible-leaf traversal,inferred
 0x00530050,,function,SpillCode_IsDeadInstruction,pre-liveness dead-definition filter,inferred
 0x005301b0,,function,SpillCode_InitializeLiveness,per-block sets and ABI return-register seeds,inferred

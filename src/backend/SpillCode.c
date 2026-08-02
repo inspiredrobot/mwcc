@@ -191,7 +191,7 @@ int SpillCode_IsDeadInstruction(PCodeInstruction* instruction, int reg_class,
     if ((instruction->flags & PCodeInstruction_DeadCodeBarrierMask) != 0) {
         return 0;
     }
-    if (instruction->context != 0 && (instruction->context->flags & 0x03) != 0)
+    if (instruction->block != 0 && (instruction->block->flags_2e & 0x03) != 0)
     {
         return 0;
     }

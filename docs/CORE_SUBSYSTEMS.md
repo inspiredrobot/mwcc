@@ -127,6 +127,14 @@ the census and builder can now explain the precise entry indices attached to
 an instruction and whether each arose from an explicit operand, anonymous
 implicit memory state, or an opcode/type-compatible object.
 
+`COpt_00524d90` consumes that mapping for one loop node. It repeatedly seeds a
+working reaching-definition set from each member block, asks the neighboring
+eligibility helpers whether an instruction can move, performs the move, and
+updates the set by killing every prior definition of the same GPR, FPR,
+vector, or compiler object before generating the current entries. Any move
+restarts the node scan, making the pass a concrete fixed point rather than a
+single forward walk.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

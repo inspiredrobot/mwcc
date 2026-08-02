@@ -127,6 +127,18 @@ retail. The idiomatic shared-helper source is retained because retail itself
 keeps the same helper out of line at `0x004beef0` and inlines it at both walk
 sites.
 
+`COpt_00524d90` was measured during reconstruction. A first shared-head
+definition-kill loop compiled to 628 bytes versus the 736-byte retail extent;
+disassembly showed that retail has four distinct kill loops for GPR, FPR,
+vector, and object entries. Restoring those semantic arms produced 790 bytes,
+revealing a second specific difference: the candidate inlined the otherwise
+instruction-exact object-tree lookup while retail called it. A callee-side
+`dont_inline` boundary reduced the retained candidate to 757 bytes and 9.19%
+positional comparable match. The remaining 21-byte extent difference and
+positional shift are dominated by the familiar candidate-only EBP frame and
+extra stack homes; the fixed-point scan, eligibility call order, four transfer
+arms, and out-of-line lookup now follow retail structure.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

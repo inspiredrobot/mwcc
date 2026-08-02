@@ -217,6 +217,16 @@
           "match_note": "plain recursive C at -O4,p -inline auto; target 382 bytes and eight expanded action levels versus candidate 316 bytes and seven levels; explicit inline overshoots to eleven"
         },
         {
+          "address": "0x00524d90",
+          "name": "COpt_00524d90",
+          "role": "move eligible instructions within one loop node while updating reaching definitions to a fixed point",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "high-level equivalent",
+          "match_percent": 9.19,
+          "match_note": "target 736-byte extent versus candidate 757 at -O4,p -inline auto; four class-specific definition-kill walks and the out-of-line object lookup match retail structure, with the remaining size shift dominated by the candidate-only EBP frame and stack homes"
+        },
+        {
           "address": "0x00525070",
           "name": "COpt_00525070",
           "role": "walk the code-motion tree and process eligible leaves",
