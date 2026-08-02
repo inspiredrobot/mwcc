@@ -64,3 +64,69 @@ not be confused with the flags that built this Win32 compiler executable.
 Functions may be marked functionally equivalent before binary matching is
 available. Their `match_percent` must remain `null`, with a reason, until an
 actual candidate host compiler produces a comparable object.
+
+## Explain register-pressure changes
+
+Use `mwcc-auto-capture` inside the hardened offline debugger described in
+`docs/CAPTURE_EXPERIMENTS.md`. For a focused Melee function, the capture
+directory contains four PCode stages, the allocator input, coloring graphs,
+and a creation trace for each stage. Join the allocator input to the
+allocator-phase trace, not an earlier partial trace:
+
+```sh
+python3 tools/allocator_provenance.py \
+  capture/allocator-0015.json \
+  --coloring capture/coloring-0015-gpr-01-before.json \
+  --coloring capture/coloring-0015-gpr-01-after.json \
+  --coloring capture/coloring-0015-fpr-01-before.json \
+  --coloring capture/coloring-0015-fpr-01-after.json \
+  --creations capture/pcode-creations-0015-allocator.json \
+  --output capture/provenance.json
+```
+
+The exporter selects `config/GC_1_2_5/virtual_register_sites.json` or the
+Ninji catalog from the capture's compiler SHA-256. This lets an old raw capture
+gain newly recovered function and operation names without rerunning the
+compiler. Pass `--register-sites PATH` only when deliberately using another
+verified catalog.
+
+Explain one web when the final diff already identifies it:
+
+```sh
+python3 tools/explain_register.py capture/provenance.json gpr:399
+python3 tools/explain_register.py capture/provenance.json fpr:265
+```
+
+`virtual_register_origins` distinguishes object-backed allocation from a
+compiler temporary and gives the exact allocator/lowering site. Definition and
+use records then connect that birth to PCode creation, optimizer clone ancestry,
+interference, simplify order, and final color.
+
+Rank a whole function when the responsible web is not known:
+
+```sh
+python3 tools/rank_register_origins.py capture/provenance.json --limit 20
+```
+
+Each group reports total allocations, live and dead allocations, the first and
+last live virtual-register IDs, and the PCode mnemonics that define the live
+webs. A high live count identifies a lowering routine worth decompiling; a high
+dead count identifies work removed before allocation.
+
+For a controlled source experiment, capture both variants and compare them:
+
+```sh
+python3 tools/rank_register_origins.py baseline/provenance.json \
+  --compare candidate/provenance.json --limit 20 \
+  --output origin-delta.json
+```
+
+All deltas are candidate minus baseline. Start with the largest absolute
+`live_delta`; use `allocated_delta` to distinguish a new birth from a lifetime
+that merely became dead or live. Only then inspect register IDs and final
+colors, since inserting one early web can renumber every later temporary.
+
+The CursorThink validation is the completeness test for this workflow: all 695
+live GPR webs and all 273 live FPR webs have exactly one birth origin. Its
+largest source is `Operands_ForceGPR`'s load path, while objectless `fpr:265`
+comes from `Operands_ForceFPR`'s direct LFD path at `0x004a05b7`.

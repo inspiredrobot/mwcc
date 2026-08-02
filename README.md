@@ -42,6 +42,29 @@ python3 tools/allocator_provenance.py allocator.json \
   --output provenance.json
 ```
 
+Use the allocator-phase creation trace when register-birth provenance is
+needed. The exporter automatically enriches exact allocation addresses from
+the verified catalog matching the capture's compiler SHA-256. To rank the
+lowering sites responsible for live virtual registers:
+
+```sh
+python3 tools/rank_register_origins.py provenance.json --limit 20
+```
+
+To compare two source variants, build one provenance file for each and treat
+the first as the baseline:
+
+```sh
+python3 tools/rank_register_origins.py baseline.json \
+  --compare candidate.json --limit 20
+```
+
+`allocated_delta` and `live_delta` are candidate minus baseline. The report
+groups by register class, allocation kind, and exact compiler site, then adds
+the recovered function/operation name and definition mnemonics. This identifies
+the lowering decision that changed pressure before inspecting final physical
+register permutations.
+
 Then explain one allocator web or compare the initial and optimized PCode:
 
 ```sh
@@ -58,6 +81,18 @@ Inside the offline debugger, `mwcc-auto-capture DIRECTORY 15 ninji` limits an
 expensive trace to emitted function 15 and labels it with the verified Melee
 GC/1.2.5n identity. Omit the index to capture every function; omit `ninji` for
 the stock GC/1.2.5 target.
+
+The checked-in direct-allocation catalogs are derived from the verified PE and
+validated by `ninja check`. Regenerate one only from its matching local binary:
+
+```sh
+python3 tools/virtual_register_sites.py \
+  --config config/GC_1_2_5/config.json \
+  --output config/GC_1_2_5/virtual_register_sites.json
+```
+
+See [docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md) for the complete
+capture-to-comparison workflow and interpretation rules.
 
 Import or update the executable in the local Ghidra project with:
 
