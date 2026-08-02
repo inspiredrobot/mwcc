@@ -136,6 +136,14 @@ pointer at `+0x06`. `tools/allocator_provenance.py` uses these decoded fields to
 join PCode use/definition sites to graph nodes without discarding the raw
 evidence.
 
+PCode creation traces use instruction allocation addresses only as within-run
+join keys. Solver-facing exports replace them with `cN` creation IDs and stable
+block/instruction/operand IDs. Each creation retains its epoch, construction
+wrapper, immediate x86 callsite, instruction and operand state at creation, and
+the opaque CodeGen-item pointer/header active during lowering. Initial and
+optimized stage snapshots then show which creations survive, disappear, move,
+or are rewritten before coloring.
+
 Setup assigns colors 0 through 31 to the physical nodes and then seeds them
 from two shared object lists. Vector and FPR membership use the `RegisterInfo`
 class bytes. GPR membership also recognizes paired values from the object type

@@ -33,6 +33,13 @@ These assignments and the sequences below are **confirmed** from the stock
 binary's branches, calls, and adjacent trace strings. “Value numbering” is the
 binary's wording; it belongs to the common-subexpression-elimination family.
 
+The exact universal PCode boundary before this dispatcher is `0x00435b04`,
+after initial cleanup calls at `0x0049d0f0` and `0x0049d0b0`. The optimizer call
+is made at `0x00435b17`. Both the optimized and diagnostic-only paths reconverge
+at `0x00435b39`, the exact post-optimizer boundary. These addresses are
+**confirmed** statically and by an end-to-end stock-binary capture. The
+`INITIAL CODE` print path is conditional and must not be used as the boundary.
+
 ### Level 2
 
 1. common-subexpression elimination, mode 1

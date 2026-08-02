@@ -51,6 +51,9 @@ def main() -> None:
     subprocess.run(
         [sys.executable, "tests/test_compare_coloring_snapshots.py"], check=True
     )
+    subprocess.run(
+        [sys.executable, "tests/test_compare_pcode_stages.py"], check=True
+    )
 
     if args.stamp:
         args.stamp.parent.mkdir(parents=True, exist_ok=True)

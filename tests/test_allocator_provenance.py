@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 from allocator_snapshot import TARGET_SHA256
 from allocator_provenance import build_provenance
+from explain_register import explain_register
 
 
 def operand(kind, flags, register, raw=None):
@@ -104,10 +105,35 @@ def main():
             "operand_schema": {"dynamic_operand_count": False, "operands": []},
         }
     }
+    trace = {
+        "format": "mwcc-pcode-creation-trace-v1",
+        "target_sha256": TARGET_SHA256,
+        "capture_index": 7,
+        "events": [
+            {
+                "sequence": 0,
+                "epoch": "initial_lowering",
+                "wrapper": "emit",
+                "wrapper_address": "0x004a25d0",
+                "caller_return_address": "0x00401005",
+                "call_address": "0x00401000",
+                "codegen_item_address": "0x00005000",
+                "codegen_item_header": "00" * 0x12,
+                "instruction": {
+                    "address": "0x00001100",
+                    "opcode": 0x8B,
+                    "flags": 0x0A01,
+                    "opcode_descriptor": catalog[0x8B],
+                    "operands": [operand(0, 2, 32), operand(0, 1, 33)],
+                },
+            }
+        ],
+    }
     facts = build_provenance(
         allocator_snapshot(),
         [coloring_snapshot("before", -1), coloring_snapshot("after", 5)],
         catalog,
+        trace,
     )
     assert facts["format"] == "mwcc-allocator-provenance-v1"
     assert facts["instructions"][0]["mnemonic"] == "MR"
@@ -132,6 +158,15 @@ def main():
     assert facts["simplify_order"][1]["register"] == "gpr:33"
     assert facts["coalesces"][0]["parent"] == "gpr:32"
     assert facts["object_bindings"][0]["object"] == "0x00004000"
+    assert facts["pcode_creations"][0]["call_address"] == "0x00401000"
+    assert facts["created_by"] == [
+        {"instruction": "b1:i0", "creation": "c0"}
+    ]
+    assert facts["creation_coverage"]["linked_live_instruction_count"] == 1
+    explanation = explain_register(facts, "gpr:32")
+    assert explanation["sites"][0]["mnemonic"] == "MR"
+    assert explanation["sites"][0]["lowering_call_address"] == "0x00401000"
+    assert explanation["simplify_positions"][0]["position"] == 0
     print("allocator provenance tests passed")
 
 

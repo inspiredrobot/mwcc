@@ -48,12 +48,21 @@ encoding is decoded as a signed and unsigned 32-bit value at `+0x02` and an
 object pointer at `+0x06`, while preserving the original 12 bytes.
 
 The wrapper also registers `mwcc-auto-capture DIRECTORY`. Invoke it before
-continuing the compiler to write an indexed PCode snapshot for every compiled
-function and GPR coloring snapshots immediately before and after each color
-selection attempt. The post-selection breakpoint comes from the x86 return
-address at `[esp]`; this avoids relying on debug symbols or GDB unwinding.
-Capture indices follow emitted function order and can be correlated with
-`powerpc-eabi-nm -n` on the output object.
+continuing the compiler to write indexed initial, optimized, and pre-coloring
+PCode snapshots for every compiled function, plus GPR, FPR, and vector coloring
+snapshots immediately before and after each color-selection attempt. The
+post-selection breakpoint comes from the x86 return address at `[esp]`; this
+avoids relying on debug symbols or GDB unwinding. Capture indices follow emitted
+function order and can be correlated with `powerpc-eabi-nm -n` on the output
+object.
+
+Auto-capture also traces the two PCode construction wrappers at `0x004a25d0`
+and `0x004a2620` through the common builder return at `0x004a2b6d`. Every event
+records the allocated instruction, creation epoch, immediate x86 callsite, and
+the opaque current-CodeGen-item pointer and 18-byte header from `0x00587130`.
+The raw item identity deliberately precedes a semantic AST claim: it preserves
+the frontend-to-backend join now, while the item layout is still being
+recovered.
 
 On hosts where a `linux/386` container is emulated, host `ptrace` may be
 unavailable. `tools/docker/Dockerfile.debugger` provides native GDB,
@@ -93,6 +102,25 @@ coloring facts can prove the pressure surplus but cannot identify the frontend
 lowering decision that created it. The next capture boundary must associate
 each new PCode instruction with its exact backend creation callsite and compare
 initial and optimized PCode.
+
+That next boundary is implemented. The unconditional capture points are
+`0x00435b04`, after initial cleanup and before optimizer dispatch, and
+`0x00435b39`, after both optimizer/debug branches reconverge. The nearby
+`INITIAL CODE` diagnostic is conditional and is not a valid universal capture
+point. `tools/compare_pcode_stages.py` reports instructions added, removed,
+mutated, or genuinely reordered while retaining creation callsites.
+`tools/allocator_provenance.py --creations` emits `created_by` facts, and
+`tools/explain_register.py` follows a virtual register through its definition
+and uses, creation epoch/callsite, object binding, interference states,
+simplify positions, coalescing state, and final color.
+
+An end-to-end run against the exact stock GC/1.2.5 SHA-256 in the hardened,
+network-disabled debugger sandbox validated this path. A small `-O4,p` float
+function produced 18 initial instructions and creation events, 17 optimized and
+allocator instructions, complete `created_by` coverage for all 17 survivors,
+one dead creation, one in-place operand rewrite, and no genuine reorder. Five
+nonzero opaque CodeGen-item identities were retained across the 18 emission
+events; three prologue events correctly had no current item.
 
 ## Initial Melee cases
 

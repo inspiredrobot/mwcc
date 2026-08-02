@@ -38,7 +38,16 @@ with:
 ```sh
 python3 tools/allocator_provenance.py allocator.json \
   --coloring coloring-before.json --coloring coloring-after.json \
+  --creations pcode-creations-optimized.json \
   --output provenance.json
+```
+
+Then explain one allocator web or compare the initial and optimized PCode:
+
+```sh
+python3 tools/explain_register.py provenance.json fpr:265
+python3 tools/compare_pcode_stages.py pcode-initial.json pcode-optimized.json \
+  --creations pcode-creations-optimized.json
 ```
 
 Import or update the executable in the local Ghidra project with:

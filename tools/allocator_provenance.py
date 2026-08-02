@@ -286,14 +286,114 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
     }
 
 
+def flatten_creation_trace(
+    allocator: dict, trace: dict | None, instructions: list[dict]
+) -> dict:
+    if trace is None:
+        return {
+            "pcode_creations": [],
+            "creation_operands": [],
+            "created_by": [],
+            "creation_coverage": None,
+        }
+    if trace.get("format") != "mwcc-pcode-creation-trace-v1":
+        raise ValueError("unsupported PCode creation trace")
+    if trace.get("target_sha256") != allocator.get("target_sha256"):
+        raise ValueError("allocator and creation trace target different compilers")
+    allocator_index = allocator.get("capture_index")
+    trace_index = trace.get("capture_index")
+    if (
+        allocator_index is not None
+        and trace_index is not None
+        and allocator_index != trace_index
+    ):
+        raise ValueError(
+            f"capture index mismatch: allocator {allocator_index}, "
+            f"creation trace {trace_index}"
+        )
+
+    creations = []
+    creation_operands = []
+    creation_by_address = {}
+    for event in trace["events"]:
+        creation_id = f"c{event['sequence']}"
+        instruction = event["instruction"]
+        address = instruction["address"]
+        descriptor = instruction.get("opcode_descriptor")
+        creations.append(
+            {
+                "id": creation_id,
+                "sequence": event["sequence"],
+                "epoch": event["epoch"],
+                "wrapper": event["wrapper"],
+                "wrapper_address": event["wrapper_address"],
+                "call_address": event["call_address"],
+                "caller_return_address": event["caller_return_address"],
+                "codegen_item_address": event.get("codegen_item_address"),
+                "codegen_item_header": event.get("codegen_item_header"),
+                "instruction_address": address,
+                "opcode": instruction["opcode"],
+                "flags_at_creation": instruction["flags"],
+                **normalize_descriptor(descriptor),
+            }
+        )
+        creation_by_address[address] = creation_id
+        for index, operand in enumerate(instruction["operands"]):
+            creation_operands.append(
+                {
+                    "id": f"{creation_id}:o{index}",
+                    "creation": creation_id,
+                    "index": index,
+                    "kind": operand["kind"],
+                    "flags": operand["flags"],
+                    "raw": operand["raw"],
+                    **decode_raw_operand(operand),
+                }
+            )
+
+    created_by = []
+    unlinked_instructions = []
+    for instruction in instructions:
+        creation_id = creation_by_address.get(instruction["address"])
+        if creation_id is None:
+            unlinked_instructions.append(instruction["id"])
+            continue
+        created_by.append(
+            {
+                "instruction": instruction["id"],
+                "creation": creation_id,
+            }
+        )
+    live_addresses = {instruction["address"] for instruction in instructions}
+    dead_creations = [
+        creation["id"]
+        for creation in creations
+        if creation["instruction_address"] not in live_addresses
+    ]
+    return {
+        "pcode_creations": creations,
+        "creation_operands": creation_operands,
+        "created_by": created_by,
+        "creation_coverage": {
+            "live_instruction_count": len(instructions),
+            "linked_live_instruction_count": len(created_by),
+            "unlinked_live_instructions": unlinked_instructions,
+            "creation_count": len(creations),
+            "dead_creations": dead_creations,
+        },
+    }
+
+
 def build_provenance(
     allocator: dict,
     coloring_snapshots: list[dict] | None = None,
     opcode_catalog: dict[int, dict] | None = None,
+    creation_trace: dict | None = None,
 ) -> dict:
     validate_snapshot(allocator)
     coloring_snapshots = coloring_snapshots or []
     opcode_catalog = opcode_catalog or {}
+    pcode = flatten_pcode(allocator, opcode_catalog)
     return {
         "format": "mwcc-allocator-provenance-v1",
         "compiler": allocator["compiler"],
@@ -301,7 +401,8 @@ def build_provenance(
         "capture_index": allocator.get("capture_index"),
         "function_pointer": allocator.get("function_pointer"),
         "virtual_register_counts": allocator["virtual_register_counts"],
-        **flatten_pcode(allocator, opcode_catalog),
+        **pcode,
+        **flatten_creation_trace(allocator, creation_trace, pcode["instructions"]),
         **flatten_coloring(allocator, coloring_snapshots),
     }
 
@@ -313,6 +414,7 @@ def main() -> None:
     parser.add_argument("allocator", type=Path)
     parser.add_argument("--coloring", type=Path, action="append", default=[])
     parser.add_argument("--opcodes", type=Path)
+    parser.add_argument("--creations", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -324,7 +426,8 @@ def main() -> None:
         if default_path.is_file():
             opcode_path = default_path
     catalog = load_opcode_catalog(opcode_path) if opcode_path else {}
-    result = build_provenance(allocator, coloring, catalog)
+    creation_trace = load_json(args.creations) if args.creations else None
+    result = build_provenance(allocator, coloring, catalog, creation_trace)
     text = json.dumps(result, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

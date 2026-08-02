@@ -36,9 +36,12 @@ worse than a visible gap.
 
 `tools/allocator_provenance.py` is the first backend-provenance implementation.
 Its flat `mwcc-allocator-provenance-v1` facts use stable structural IDs rather
-than compiler addresses. The next relation is `created_by`: a PCode instruction
-must point to the exact lowering callsite that emitted it, including when its
-compiler-object pointer is zero.
+than compiler addresses. Its `created_by` relation now maps every surviving
+PCode instruction to its exact construction event, lowering epoch and immediate
+x86 callsite, including when its compiler-object pointer is zero. The capture
+also retains an opaque current-CodeGen-item pointer and header as the first
+frontend/backend bridge. Decoding that item through AST, CST, symbol, type, and
+source-span layouts remains the next provenance layer.
 
 ## Solver experiments
 

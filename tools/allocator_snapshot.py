@@ -106,6 +106,9 @@ class SnapshotReader:
     def u8(self, address: int) -> int:
         return self._read(address, 1)[0]
 
+    def raw(self, address: int, size: int) -> bytes:
+        return self._read(address, size)
+
     def s16(self, address: int) -> int:
         return struct.unpack("<h", self._read(address, 2))[0]
 
