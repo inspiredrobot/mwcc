@@ -1,9 +1,12 @@
 address,size,kind,name,source,status
 0x0042cd10,,function,IRO_Optimizer,binary and mwcc-inspector GC/1.2.5 breakpoint,confirmed
 0x004351c0,,function,CodeGen_Generator,binary control flow and external naming reference,confirmed
+0x0048f180,,function,Type_IsUnsigned,canonical unsigned-type checks and load-opcode selection,inferred
 0x004a0550,,function,Operands_ForceFPR,Operands.c xref and exact operand-kind control flow,inferred
+0x004a0680,,function,Operands_ForceGPRPair,paired-register materialization before the scalar GPR path,inferred
 0x004a0ba0,,function,Operands_ForceGPR,Operands.c xref and exact operand-kind control flow,inferred
 0x004a0fc0,,function,Operands_Normalize,Operands.c xref and shared operand normalization role,inferred
+0x004a2060,,function,PCodeUtilities_EmitAddress,address materialization with PCodeUtilities.c xref,inferred
 0x004a9fa0,,function,StackFrameEABI_004a9fa0,StackFrameEABI.c xref,inferred
 0x004aaa40,,function,StackFrameEABI_004aaa40,StackFrameEABI.c xref,inferred
 0x004aba30,,function,StackFrameEABI_MergePrologueEpilogue,source xref and CodeGen trace boundary,inferred

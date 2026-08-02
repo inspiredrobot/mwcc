@@ -160,6 +160,19 @@ definition mnemonics. Its comparison mode ranks allocation and live-web deltas
 between two source captures, so a source experiment can be tied to the first
 changed lowering operation rather than judged only by final assembly.
 
+The largest GPR birth cluster is now represented by the typed
+`Operands_ForceGPR` model at `0x004a0ba0`. The routine selects LBZ, LHZ, LHA,
+or LWZ and their indexed forms from the lowered type, materializes small
+constants with LI, and splits larger constants into an adjusted LIS/ADDI pair.
+At optimization levels above one, a nonzero low half can allocate a distinct
+temporary for the LIS result; that increment is therefore a real lowering
+choice which can change interference before allocation. Eight-byte integer
+types bypass scalar normalization and delegate to the paired-GPR routine at
+`0x004a0680`. These distinctions make the origin ranking actionable: a delta
+at the ForceGPR site can now be classified as a memory-load destination, a
+large-constant helper web, a condition-register extraction, or paired-value
+lowering rather than an undifferentiated GPR increment.
+
 The same run exposed the next boundary worth instrumenting. Of 2,337 allocator
 instructions, 2,317 join to normal creation events. Stage snapshots prove that
 the remaining 20 are among 67 instructions added by O4 before `0x00435b39`.

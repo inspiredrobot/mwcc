@@ -3,6 +3,8 @@
 
 #include "mwcc/backend_types.h"
 
+void Operands_ForceGPR(Operand* operand, CompilerType* type,
+                       short requested_register);
 void Operands_ForceFPR(Operand* operand, CompilerType* type,
                        short requested_register);
 

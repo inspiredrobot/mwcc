@@ -115,6 +115,16 @@
           "functional_status": "functionally equivalent",
           "match_percent": null,
           "match_note": "unmeasured: host toolchain pending"
+        },
+        {
+          "address": "0x004a0ba0",
+          "name": "Operands_ForceGPR",
+          "role": "materialize scalar, address, condition, and memory operands in a GPR, allocating virtual registers when needed",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "functionally equivalent",
+          "match_percent": null,
+          "match_note": "unmeasured: host toolchain pending"
         }
       ]
     },
