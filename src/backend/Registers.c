@@ -6,6 +6,8 @@
 
 #include "mwcc/Registers.h"
 
+#include <string.h>
+
 extern void* Registers_Allocate(unsigned int size);        /* 0x00441fe0 */
 extern void Registers_Zero(void* data, unsigned int size); /* 0x00441db0 */
 extern void Registers_Assert(const char* file, int line);  /* 0x00445780 */
@@ -20,12 +22,64 @@ extern unsigned char gUsedPhysicalGPR[32]; /* 0x00581310 */
 extern unsigned char gUsedPhysicalFPR[32]; /* 0x00581330 */
 extern unsigned char gUsedPhysicalVR[32];  /* 0x00581350 */
 
+extern short gColoringSaveSpan_00581370;
+extern unsigned char gColoringPhysicalUse_00581372[32];
+
 extern short gVRSaveSpan;         /* 0x005883ea */
 extern short gFPRSaveSpan;        /* 0x00588438 */
 extern short gGPRSaveSpan;        /* 0x0058843a */
 extern short gAvailableSavedFPRs; /* 0x00588466 */
 extern short gAvailableSavedGPRs; /* 0x00588468 */
 extern short gAvailableSavedVRs;  /* 0x0058849c */
+
+static void Registers_RestoreClassState(unsigned char* used, short* save_span)
+{
+    *save_span = gColoringSaveSpan_00581370;
+    memcpy(used, gColoringPhysicalUse_00581372, 32);
+}
+
+static void Registers_SaveClassState(const unsigned char* used,
+                                     short save_span)
+{
+    gColoringSaveSpan_00581370 = save_span;
+    memcpy(gColoringPhysicalUse_00581372, used, 32);
+}
+
+/* 0x004c14d0; control-flow equivalent; binary match unmeasured. */
+void Coloring_ResetVRColors(void)
+{
+    Registers_RestoreClassState(gUsedPhysicalVR, &gVRSaveSpan);
+}
+
+/* 0x004c1500; control-flow equivalent; binary match unmeasured. */
+void Coloring_ResetFPRColors(void)
+{
+    Registers_RestoreClassState(gUsedPhysicalFPR, &gFPRSaveSpan);
+}
+
+/* 0x004c1530; control-flow equivalent; binary match unmeasured. */
+void Coloring_ResetGPRColors(void)
+{
+    Registers_RestoreClassState(gUsedPhysicalGPR, &gGPRSaveSpan);
+}
+
+/* 0x004c1560; control-flow equivalent; binary match unmeasured. */
+void Registers_SetupVRs(void)
+{
+    Registers_SaveClassState(gUsedPhysicalVR, gVRSaveSpan);
+}
+
+/* 0x004c1590; control-flow equivalent; binary match unmeasured. */
+void Registers_SetupFPRs(void)
+{
+    Registers_SaveClassState(gUsedPhysicalFPR, gFPRSaveSpan);
+}
+
+/* 0x004c15c0; control-flow equivalent; binary match unmeasured. */
+void Registers_SetupGPRs(void)
+{
+    Registers_SaveClassState(gUsedPhysicalGPR, gGPRSaveSpan);
+}
 
 static void Registers_Require(int condition, int line)
 {
@@ -179,6 +233,89 @@ static short Registers_FindFree(unsigned char* used, int first,
         }
     }
     return -1;
+}
+
+static unsigned int Registers_BuildColorMask(const unsigned char* used,
+                                             int register_count)
+{
+    unsigned int mask;
+    int reg;
+
+    mask = 0;
+    for (reg = 0; reg < register_count; reg++) {
+        if (used[reg] == 0) {
+            mask |= 1U << reg;
+        }
+    }
+    return mask;
+}
+
+static int Registers_CountFree(const unsigned char* used)
+{
+    int count;
+    int reg;
+
+    count = 0;
+    for (reg = 0; reg < 32; reg++) {
+        if (used[reg] == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/* 0x004c19f0; control-flow equivalent; binary match unmeasured. */
+short Coloring_ClaimVRColor(void)
+{
+    return Registers_FindFree(gUsedPhysicalVR, 20, Registers_BindVR);
+}
+
+/* 0x004c1a20; control-flow equivalent; binary match unmeasured. */
+short Coloring_ClaimFPRColor(void)
+{
+    return Registers_FindFree(gUsedPhysicalFPR, 14, Registers_BindFPR);
+}
+
+/* 0x004c1a50; control-flow equivalent; binary match unmeasured. */
+short Coloring_ClaimGPRColor(void)
+{
+    return Registers_FindFree(gUsedPhysicalGPR, 14, Registers_BindGPR);
+}
+
+/* 0x004c1a80; control-flow equivalent; binary match unmeasured. */
+unsigned int Coloring_VRColorMask(void)
+{
+    return Registers_BuildColorMask(gUsedPhysicalVR, 20);
+}
+
+/* 0x004c1aa0; control-flow equivalent; binary match unmeasured. */
+unsigned int Coloring_FPRColorMask(void)
+{
+    return Registers_BuildColorMask(gUsedPhysicalFPR, 14);
+}
+
+/* 0x004c1ac0; control-flow equivalent; binary match unmeasured. */
+unsigned int Coloring_GPRColorMask(void)
+{
+    return Registers_BuildColorMask(gUsedPhysicalGPR, 13);
+}
+
+/* 0x004c1ae0; control-flow equivalent; binary match unmeasured. */
+int Registers_AvailableVRs(void)
+{
+    return Registers_CountFree(gUsedPhysicalVR);
+}
+
+/* 0x004c1b00; control-flow equivalent; binary match unmeasured. */
+int Registers_AvailableFPRs(void)
+{
+    return Registers_CountFree(gUsedPhysicalFPR);
+}
+
+/* 0x004c1b20; control-flow equivalent; binary match unmeasured. */
+int Registers_AvailableGPRs(void)
+{
+    return Registers_CountFree(gUsedPhysicalGPR);
 }
 
 /* 0x004c1f60; high-level equivalent; binary match unmeasured. */

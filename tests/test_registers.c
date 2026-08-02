@@ -13,6 +13,8 @@ short gUsedVirtualRegistersFPR;
 unsigned char gUsedPhysicalGPR[32];
 unsigned char gUsedPhysicalFPR[32];
 unsigned char gUsedPhysicalVR[32];
+short gColoringSaveSpan_00581370;
+unsigned char gColoringPhysicalUse_00581372[32];
 
 short gVRSaveSpan;
 short gFPRSaveSpan;
@@ -60,6 +62,9 @@ static void ResetState(void)
     memset(gUsedPhysicalGPR, 0, sizeof(gUsedPhysicalGPR));
     memset(gUsedPhysicalFPR, 0, sizeof(gUsedPhysicalFPR));
     memset(gUsedPhysicalVR, 0, sizeof(gUsedPhysicalVR));
+    gColoringSaveSpan_00581370 = 0;
+    memset(gColoringPhysicalUse_00581372, 0,
+           sizeof(gColoringPhysicalUse_00581372));
     gVRSaveSpan = 0;
     gFPRSaveSpan = 0;
     gGPRSaveSpan = 0;
@@ -145,10 +150,46 @@ static void TestAutomaticAllocation(void)
           "type-directed FPR classification");
 }
 
+static void TestColoringState(void)
+{
+    unsigned int expected_mask;
+
+    ResetState();
+    gUsedPhysicalGPR[2] = 1;
+    gGPRSaveSpan = 7;
+    Registers_SetupGPRs();
+    Check(gColoringSaveSpan_00581370 == 7, "saved GPR span snapshot");
+    Check(gColoringPhysicalUse_00581372[2] == 1, "saved GPR use snapshot");
+
+    memset(gUsedPhysicalGPR, 1, sizeof(gUsedPhysicalGPR));
+    gGPRSaveSpan = 0;
+    Coloring_ResetGPRColors();
+    Check(gGPRSaveSpan == 7, "restored GPR span");
+    Check(gUsedPhysicalGPR[2] == 1 && gUsedPhysicalGPR[3] == 0,
+          "restored GPR use table");
+
+    expected_mask = ((1U << 13) - 1U) & ~(1U << 2);
+    Check(Coloring_GPRColorMask() == expected_mask, "GPR color mask");
+    Check(Registers_AvailableGPRs() == 31, "available GPR count");
+    Check(Coloring_ClaimGPRColor() == 31, "claim highest saved GPR");
+    Check(gUsedPhysicalGPR[31] == 1, "claimed GPR use bit");
+
+    ResetState();
+    gUsedPhysicalFPR[0] = 1;
+    Check(Coloring_FPRColorMask() == ((1U << 14) - 2U), "FPR color mask");
+    Check(Coloring_ClaimFPRColor() == 31, "claim highest saved FPR");
+
+    ResetState();
+    gUsedPhysicalVR[19] = 1;
+    Check(Coloring_VRColorMask() == ((1U << 19) - 1U), "VR color mask");
+    Check(Coloring_ClaimVRColor() == 31, "claim highest saved VR");
+}
+
 int main(void)
 {
     TestExplicitBindings();
     TestAutomaticAllocation();
+    TestColoringState();
     puts("register model tests passed");
     return 0;
 }

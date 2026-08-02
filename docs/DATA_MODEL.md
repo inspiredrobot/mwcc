@@ -50,6 +50,18 @@ increasing virtual-register numbers or search the physical-use tables from
 register 31 downward. These shared mechanics are reconstructed in
 `src/backend/Registers.c` and covered by a host-side behavioral test.
 
+The 15 state helpers at `0x004c14d0` through `0x004c1b20` complete the
+physical-register state used by color selection. Before a class is allocated,
+its 32-byte physical-use table and save span are copied into shared working
+storage at `0x00581372` and `0x00581370`. Color selection restores that
+snapshot before each attempt. Initial color masks contain free volatile
+registers only: GPR r0-r12, FPR f0-f13, and VR vr0-vr19. When no initial color
+is available, the class-specific claim helper searches downward from register
+31, stopping before r14, f14, or vr20 respectively, and records the claimed
+register through the ordinary binding path. The availability helpers count
+all zero entries in the corresponding 32-byte table. These exact bounds and
+copy directions are confirmed by the stock executable and behaviorally tested.
+
 The three coloring setup routines at `0x004ce5f0`, `0x004ce710`, and
 `0x004ce850` confirm the interference-node layout through its inline neighbor
 list:

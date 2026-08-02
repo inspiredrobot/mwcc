@@ -28,13 +28,6 @@ extern void Coloring_Dump(const char* function_name, const char* stage);
 extern void Coloring_Error(int code, const char* register_class);
 extern void Coloring_Assert(const char* file, int line);
 
-extern void Registers_SetupVRs(void);     /* 0x004c1560 */
-extern void Registers_SetupGPRs(void);    /* 0x004c15c0 */
-extern void Registers_SetupFPRs(void);    /* 0x004c1590 */
-extern int Registers_AvailableVRs(void);  /* 0x004c1ae0 */
-extern int Registers_AvailableGPRs(void); /* 0x004c1b20 */
-extern int Registers_AvailableFPRs(void); /* 0x004c1b00 */
-
 extern void Coloring_SetupVRs(void);  /* 0x004ce5f0 */
 extern void Coloring_SetupGPRs(void); /* 0x004ce850 */
 extern void Coloring_SetupFPRs(void); /* 0x004ce710 */
@@ -42,15 +35,6 @@ extern void SpillCode_00531800(int reg_class, int register_count);
 extern void Coloring_FreeIteration(void);  /* 0x00441e20 */
 extern void StackFrame_CheckAltivec(void); /* 0x004a9c80 */
 
-extern void Coloring_ResetGPRColors(void);       /* 0x004c1530 */
-extern void Coloring_ResetFPRColors(void);       /* 0x004c1500 */
-extern void Coloring_ResetVRColors(void);        /* 0x004c14d0 */
-extern unsigned int Coloring_GPRColorMask(void); /* 0x004c1ac0 */
-extern unsigned int Coloring_FPRColorMask(void); /* 0x004c1aa0 */
-extern unsigned int Coloring_VRColorMask(void);  /* 0x004c1a80 */
-extern short Coloring_ClaimGPRColor(void);       /* 0x004c1a50 */
-extern short Coloring_ClaimFPRColor(void);       /* 0x004c1a20 */
-extern short Coloring_ClaimVRColor(void);        /* 0x004c19f0 */
 extern void PCode_RemoveRedundantInstruction(PCodeInstruction* instruction);
 /* 0x0049d010 */
 

@@ -69,7 +69,10 @@ The shared explicit-binding and automatic-allocation layer is reconstructed in
 `Registers.c`. It accounts for physical use and saved-register ranges for all
 three classes, including paired GPR values. The next allocator target is the
 interference-node lifecycle: census, edge construction, coalescing, simplify,
-color selection, and spill retry state.
+color selection, and spill retry state. The physical-state snapshot/restore,
+initial color masks, availability counts, and saved-color claim helpers are
+also reconstructed for all three classes; GPR coloring begins with r0-r12 and
+claims additional colors downward from r31 through r14.
 
 ### Stack frame
 
