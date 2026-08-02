@@ -269,6 +269,13 @@ levels. This is a useful exact-minor fingerprint: preserve idiomatic recursion
 and treat the remaining body-size difference as host lineage evidence rather
 than manufacturing a manual unroll.
 
+The adjacent nonrecursive node summarizer provides a same-translation-unit
+positive control: `COpt_00521bb0` matches all 344 instruction bytes at the
+same flags. Its target extent contains eight trailing alignment bytes. The
+result shows that the recursive-depth and EBP-frame differences are localized
+compiler fingerprints, not a general inability of this candidate to reproduce
+the retail optimizer.
+
 ## Sources
 
 - Richard Atwell, “CodeWarrior Version 6.0,” *MacTech*, February 2001:

@@ -105,11 +105,6 @@ void COpt_00524b20(CompilerObject* object)
     RecordStage(2);
 }
 
-void COpt_00521bb0(CodeMotionNode* node)
-{
-    RecordNode(1, node);
-}
-
 void COpt_00524d90(CodeMotionNode* node)
 {
     RecordNode(10, node);
@@ -154,8 +149,8 @@ static void TestGuardedTreePass(void)
     memset(&root, 0, sizeof(root));
     gCodeMotionTree_0058763c = &root;
     COpt_00521a10();
-    Check(gStageCount == 1 && gStages[0] == 1, "tree pass called");
-    Check(gRecordedNodes[0] == gCodeMotionTree_0058763c, "tree pass root");
+    Check(gStageCount == 0, "tree pass has no external action");
+    Check(root.unknown_3c == -1, "tree pass initialized root");
 }
 
 static void TestTreeWalkOrder(void)
@@ -172,10 +167,9 @@ static void TestTreeWalkOrder(void)
     root.sibling = &sibling;
 
     COpt_00521a30(&root);
-    Check(gRecordedNodeCount == 3, "postorder node count");
-    Check(gRecordedNodes[0] == &child && gRecordedNodes[1] == &root &&
-              gRecordedNodes[2] == &sibling,
-          "postorder traversal");
+    Check(root.unknown_3c == -1 && child.unknown_3c == -1 &&
+              sibling.unknown_3c == -1,
+          "first walker visits whole tree");
 
     ResetState();
     COpt_00524c10(&root);
@@ -190,6 +184,77 @@ static void TestTreeWalkOrder(void)
     COpt_00525070(&root);
     Check(gRecordedNodeCount == 1 && gRecordedNodes[0] == &child,
           "eligible leaves only");
+}
+
+static void TestNodeSummary(void)
+{
+    CodeMotionNode node;
+    PCodeBlock entry;
+    PCodeBlock body;
+    PCodeBlockLink entry_link;
+    PCodeBlockLink body_link;
+    PCodeBlockLink empty_predecessors;
+    PCodeBlockLink empty_successors;
+    PCodeBlockLink body_successors;
+    PCodeBlockLink body_successor;
+    PCodeInstruction instructions[5];
+    int index;
+
+    ResetState();
+    memset(&node, 0, sizeof(node));
+    memset(&entry, 0, sizeof(entry));
+    memset(&body, 0, sizeof(body));
+    memset(&entry_link, 0, sizeof(entry_link));
+    memset(&body_link, 0, sizeof(body_link));
+    memset(&empty_predecessors, 0, sizeof(empty_predecessors));
+    memset(&empty_successors, 0, sizeof(empty_successors));
+    memset(&body_successors, 0, sizeof(body_successors));
+    memset(&body_successor, 0, sizeof(body_successor));
+    memset(instructions, 0, sizeof(instructions));
+
+    node.entry_block = &entry;
+    node.blocks = &entry_link;
+    node.unknown_50 = 1;
+    node.unknown_51 = 1;
+    node.unknown_55 = 1;
+    node.unknown_56 = 1;
+    entry_link.block = &entry;
+    entry_link.next = &body_link;
+    body_link.block = &body;
+    entry.predecessors = &empty_predecessors;
+    entry.successors = &empty_successors;
+    body.predecessors = &empty_predecessors;
+    body.successors = &body_successors;
+    body_successors.next = &body_successor;
+    entry.instruction_count = 2;
+    body.instruction_count = 5;
+    entry.flags_2e = 0x40;
+    entry.instructions = &instructions[0];
+    for (index = 0; index < 4; index++) {
+        instructions[index].next = &instructions[index + 1];
+    }
+    instructions[0].flags = 0x4000;
+    instructions[1].opcode = 0x12;
+    instructions[2].flags = 0x08;
+    instructions[2].opcode = 0x17;
+    instructions[3].flags = 0x10;
+    instructions[3].opcode = 0x2a;
+    instructions[4].opcode = 0x85;
+
+    COpt_00521bb0(&node);
+
+    Check(node.instruction_count == 7, "instruction count accumulated");
+    Check(node.unknown_3c == -1, "node sentinel initialized");
+    Check(node.skip_leaf_pass_4f == 0, "connected non-entry block found");
+    Check(node.has_call == 1, "call flag classified");
+    Check(node.uses_count_register == 1, "count-register opcode classified");
+    Check(node.has_block_flag_40 == 1, "block flag classified");
+    Check(node.has_indexed_load == 1, "indexed load classified");
+    Check(node.has_indexed_store == 1, "indexed store classified");
+    Check(node.has_memory_barrier == 1, "memory barrier classified");
+    Check(node.unknown_50 == 0 && node.unknown_51 == 0 &&
+              node.unknown_55 == 0 && node.unknown_56 == 0,
+          "node facts reset");
 }
 
 static void TestSetup(void)
@@ -264,6 +329,7 @@ int main(void)
 {
     TestGuardedTreePass();
     TestTreeWalkOrder();
+    TestNodeSummary();
     TestSetup();
     TestCoordinator();
     puts("code-motion model tests passed");

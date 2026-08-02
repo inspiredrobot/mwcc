@@ -69,6 +69,16 @@ body into a helper reduced expansion to four levels and candidate sizes to
 source-shape alternative moves away from the exact, independently observed
 retail depth.
 
+The adjacent node summarizer at `0x00521bb0` then produced an exact positive
+control. Its retained source matches all 344 instruction bytes; the 352-byte
+target extent includes eight zero alignment bytes before `0x00521d10`. An
+initial named `short opcode` local produced 347 bytes and 22.19% comparable
+match. Correcting signed `PCodeBlock +0x2e` handling and the contiguous barrier
+test produced 345 bytes and 61.74%. Removing the named opcode local let copy
+propagation reuse the dead instruction-flags register as its low-word opcode
+value, removed one saved register, and reached 100%. This was a source-object
+lifetime difference, not a `register`-keyword effect.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

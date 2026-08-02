@@ -100,6 +100,16 @@
           "match_note": "plain recursive C at -O4,p -inline auto; target 382 bytes and eight expanded action levels versus candidate 316 bytes and seven levels; explicit inline overshoots to eleven"
         },
         {
+          "address": "0x00521bb0",
+          "name": "COpt_00521bb0",
+          "role": "summarize a code-motion node's block and instruction properties",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "instruction-exact",
+          "match_percent": 100.0,
+          "match_note": "344 instruction bytes exact at -O4,p -inline auto; target extent includes eight trailing alignment bytes before the next function"
+        },
+        {
           "address": "0x00523650",
           "name": "COpt_SetLoopCodeMotionMode",
           "role": "initialize code-motion object collection, per-block bitsets, and analysis stages for the requested mode",

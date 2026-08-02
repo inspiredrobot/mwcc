@@ -81,6 +81,12 @@ byte-neutral, an explicit `inline` qualifier overshoots to eleven levels, and
 factoring the node body into a helper falls to four. The gap is therefore a
 specific recursive-inliner fingerprint, not a reason to hand-unroll the C.
 
+Their first leaf action, `COpt_00521bb0`, is reconstructed instruction-exact.
+It summarizes every block and instruction in a node into the fact bytes used
+by later code-motion passes. All 344 instruction bytes match the validated
+candidate; the target function extent has eight additional alignment bytes.
+This exact result also validates the surrounding node and PCode-block offsets.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

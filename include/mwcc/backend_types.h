@@ -133,13 +133,16 @@ typedef struct PCodeBlockLink {
 
 typedef struct PCodeBlock {
     struct PCodeBlock* next; /* 0x00 */
-    unsigned char unknown_04[0x0c];
+    unsigned char unknown_04[8];
+    PCodeBlockLink* predecessors;           /* 0x0c */
     PCodeBlockLink* successors;             /* 0x10 */
     PCodeInstruction* instructions;         /* 0x14 */
     PCodeInstruction* reverse_instructions; /* 0x18 */
     int index;                              /* 0x1c */
     unsigned char unknown_20[8];
-    int execution_weight; /* 0x28 */
+    int execution_weight;    /* 0x28 */
+    short instruction_count; /* 0x2c */
+    short flags_2e;          /* 0x2e */
 } PCodeBlock;
 
 typedef struct PCodeBlockLiveness {
@@ -231,11 +234,17 @@ typedef char PCodeInstructionContext_flags_2e
     [(offsetof(PCodeInstructionContext, flags) == 0x2e) ? 1 : -1];
 typedef char PCodeBlock_instructions_14
     [(offsetof(PCodeBlock, instructions) == 0x14) ? 1 : -1];
+typedef char PCodeBlock_predecessors_0c
+    [(offsetof(PCodeBlock, predecessors) == 0x0c) ? 1 : -1];
 typedef char
     PCodeBlock_successors_10[(offsetof(PCodeBlock, successors) == 0x10) ? 1
                                                                         : -1];
 typedef char PCodeBlock_weight_28
     [(offsetof(PCodeBlock, execution_weight) == 0x28) ? 1 : -1];
+typedef char PCodeBlock_instruction_count_2c
+    [(offsetof(PCodeBlock, instruction_count) == 0x2c) ? 1 : -1];
+typedef char
+    PCodeBlock_flags_2e[(offsetof(PCodeBlock, flags_2e) == 0x2e) ? 1 : -1];
 typedef char PCodeBlockLiveness_live_out_0c
     [(offsetof(PCodeBlockLiveness, live_out) == 0x0c) ? 1 : -1];
 #endif

@@ -102,7 +102,20 @@ child pointers at node offsets `+0x04` and `+0x08`. The first two walkers
 process every node after its children, establishing a postorder traversal.
 The third processes leaves only and skips a leaf when the byte at `+0x4f` is
 nonzero. These offsets are promoted in `CodeMotionNode`; the pointer at
-`+0x00` and bytes `+0x0c` through `+0x4e` remain unnamed.
+`+0x00` remains unnamed.
+
+The instruction-exact node summarizer at `0x00521bb0` extends that layout.
+`CodeMotionNode +0x0c` is the entry block, `+0x1c` is a `PCodeBlockLink` list,
+`+0x38` accumulates the blocks' signed instruction counts, and `+0x3c` is
+initialized to `-1`. Bytes `+0x4d` through `+0x57` retain instruction and
+control-flow facts: a call, count-register use, the leaf-pass guard, block flag
+`0x40`, indexed loads and stores, and an EIEIO/ISYNC/SYNC barrier class. Four
+still-unnamed fact bytes are reset by the same routine.
+
+This also confirms `PCodeBlock` predecessor and successor list pointers at
+`+0x0c` and `+0x10`, a signed instruction count at `+0x2c`, and a signed flags
+field at `+0x2e`. The summarizer clears the leaf-pass guard when a non-entry
+block has a nonempty predecessor or successor list.
 
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude

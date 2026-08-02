@@ -191,6 +191,23 @@ surviving creations and 20 optimizer clones.
 
 ## Initial Melee cases
 
+### `COpt_00521bb0` host-compiler control
+
+- Source: `src/backend/CodeMotion.c` in this MWCC reconstruction.
+- Symptom: a semantically direct first draft was 347 bytes with an extra saved
+  register and only 22.19% positional comparable match against the 352-byte
+  retail extent.
+- Result: signed `PCodeBlock +0x2e` equality and an unsigned subtract/range
+  expression reproduced the target's exact flag and barrier tests, reaching
+  61.74%. Removing a named `short opcode` local then reached 100% across all
+  344 instruction bytes; the remaining eight target bytes are alignment.
+- Mechanism: the named local extends the opcode value's source lifetime and
+  makes it a separate register web. Repeating `instruction->opcode` lets copy
+  propagation load the opcode into the low half of the register whose flags
+  value just died. That removes one callee-saved register and reproduces the
+  target allocation. Do not introduce a convenience local merely because the
+  field is read repeatedly; compare the web lifetime it creates.
+
 ### `efAsync_Dispatch`
 
 - Source: `src/melee/ef/efasync.c`
