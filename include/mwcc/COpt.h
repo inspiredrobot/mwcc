@@ -1,6 +1,8 @@
 #ifndef MWCC_COPT_H
 #define MWCC_COPT_H
 
+struct CompilerObject;
+
 typedef struct CodeMotionNode {
     struct CodeMotionNode* unknown_00;
     struct CodeMotionNode* sibling;  /* 0x04 */
@@ -25,12 +27,24 @@ typedef struct CodeMotionNode {
     unsigned char has_memory_barrier;  /* 0x57 */
 } CodeMotionNode;
 
+typedef struct CodeMotionObjectNode {
+    struct CodeMotionObjectNode* allocation_next; /* 0x00 */
+    struct CodeMotionObjectNode* left;            /* 0x04 */
+    struct CodeMotionObjectNode* right;           /* 0x08 */
+    struct CompilerObject* object;                /* 0x0c */
+    void* unknown_10;
+    void* unknown_14;
+} CodeMotionObjectNode;
+
 extern CodeMotionNode* gCodeMotionTree_0058763c;
+extern CodeMotionObjectNode* gCodeMotionAllocationList_005870fc;
+extern CodeMotionObjectNode* gCodeMotionObjectTree_005880ac;
 
 void COpt_00521a10(void);
 void COpt_00521a30(CodeMotionNode* node);
 void COpt_00521bb0(CodeMotionNode* node);
 void COpt_SetLoopCodeMotionMode(int mode);
+void COpt_00524b20(struct CompilerObject* object);
 void COpt_00524bd0(void);
 void COpt_00524c10(CodeMotionNode* node);
 void COpt_00525070(CodeMotionNode* node);
@@ -50,6 +64,11 @@ typedef char
                                                                          : -1];
 typedef char CodeMotionNode_barrier_57
     [(offsetof(CodeMotionNode, has_memory_barrier) == 0x57) ? 1 : -1];
+typedef char
+    CodeMotionObjectNode_size_18[(sizeof(CodeMotionObjectNode) == 0x18) ? 1
+                                                                        : -1];
+typedef char CodeMotionObjectNode_object_0c
+    [(offsetof(CodeMotionObjectNode, object) == 0x0c) ? 1 : -1];
 #endif
 
 #endif

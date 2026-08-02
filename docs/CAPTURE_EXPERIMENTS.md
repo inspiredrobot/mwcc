@@ -79,6 +79,13 @@ propagation reuse the dead instruction-flags register as its low-word opcode
 value, removed one saved register, and reached 100%. This was a source-object
 lifetime difference, not a `register`-keyword effect.
 
+`COpt_00524b20` measures 26.04% over 96 comparable bytes, with candidate and
+target extents of 120 and 112 bytes. Disassembly shows the familiar localized
+difference: the candidate creates an EBP frame and consequently maps the tree
+link/object webs to ESI/EBX, while retail has no frame and uses EBX/EBP. The
+pointer comparisons, branch topology, allocation call, 24-byte initialization
+order, allocation-list update, and tree-link store otherwise correspond.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

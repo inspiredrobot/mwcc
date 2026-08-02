@@ -117,6 +117,14 @@ This also confirms `PCodeBlock` predecessor and successor list pointers at
 field at `+0x2e`. The summarizer clears the leaf-pass guard when a non-entry
 block has a nonempty predecessor or successor list.
 
+The object collector at `0x00524b20` indexes `CompilerObject*` identities in
+an unbalanced binary tree. Its 24-byte node contains an allocation-list link at
+`+0x00`, left and right children at `+0x04/+0x08`, the object key at `+0x0c`,
+and two zero-initialized pointers at `+0x10/+0x14`. Duplicate identities are
+not allocated again. Every new tree node is also prepended to the allocation
+list rooted at `0x005870fc`, allowing iteration storage to be released without
+walking the tree shape.
+
 The same setup scans `gPCodeBlocks` and their instruction lists when its mode
 argument is nonzero. An instruction whose flags intersect `0x18` and exclude
 `0x40` contributes the object pointer in operand 2 to the collection rooted at

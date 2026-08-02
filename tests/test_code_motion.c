@@ -9,8 +9,8 @@
 CodeMotionNode* gCodeMotionTree_0058763c;
 PCodeBlock* gPCodeBlocks;
 int gPCodeBlockCount;
-void* gCodeMotionAllocationList_005870fc;
-void* gCodeMotionObjectTree_005880ac;
+CodeMotionObjectNode* gCodeMotionAllocationList_005870fc;
+CodeMotionObjectNode* gCodeMotionObjectTree_005880ac;
 int gCodeMotionDefinitionCount_00587ebc;
 int gCodeMotionUseCount_00587e38;
 void* gCodeMotionBlockState_00587fe4;
@@ -23,7 +23,6 @@ static int gAllocationSizes[32];
 static int gAllocationCount;
 static int gStages[32];
 static int gStageCount;
-static CompilerObject* gRecordedObject;
 static CodeMotionNode* gRecordedNodes[32];
 static int gRecordedNodeCount;
 
@@ -99,12 +98,6 @@ void COpt_005246d0(int mode)
     RecordStage(3);
 }
 
-void COpt_00524b20(CompilerObject* object)
-{
-    gRecordedObject = object;
-    RecordStage(2);
-}
-
 void COpt_00524d90(CodeMotionNode* node)
 {
     RecordNode(10, node);
@@ -123,7 +116,6 @@ static void ResetState(void)
     gAllocationOffset = 0;
     gAllocationCount = 0;
     gStageCount = 0;
-    gRecordedObject = 0;
     memset(gRecordedNodes, 0, sizeof(gRecordedNodes));
     gRecordedNodeCount = 0;
     gCodeMotionTree_0058763c = 0;
@@ -257,6 +249,39 @@ static void TestNodeSummary(void)
           "node facts reset");
 }
 
+static void TestObjectTreeInsert(void)
+{
+    CompilerObject objects[3];
+    CodeMotionObjectNode* allocation;
+    int allocation_count;
+
+    ResetState();
+    memset(objects, 0, sizeof(objects));
+
+    COpt_00524b20(&objects[1]);
+    COpt_00524b20(&objects[0]);
+    COpt_00524b20(&objects[2]);
+    COpt_00524b20(&objects[1]);
+
+    Check(gAllocationCount == 3, "one object node per unique object");
+    Check(gCodeMotionObjectTree_005880ac->object == &objects[1],
+          "first object is tree root");
+    Check(gCodeMotionObjectTree_005880ac->left->object == &objects[0],
+          "lower object inserted left");
+    Check(gCodeMotionObjectTree_005880ac->right->object == &objects[2],
+          "higher object inserted right");
+
+    allocation_count = 0;
+    for (allocation = gCodeMotionAllocationList_005870fc; allocation != 0;
+         allocation = allocation->allocation_next)
+    {
+        Check(allocation->unknown_10 == 0 && allocation->unknown_14 == 0,
+              "object-node state initialized");
+        allocation_count++;
+    }
+    Check(allocation_count == 3, "all object nodes tracked for release");
+}
+
 static void TestSetup(void)
 {
     typedef struct TestInstruction {
@@ -267,7 +292,7 @@ static void TestSetup(void)
     PCodeBlock block;
     TestInstruction instruction;
     CompilerObject object;
-    int expected_stages[] = {2, 3, 4, 5, 6, 7, 8};
+    int expected_stages[] = {3, 4, 5, 6, 7, 8};
     int index;
 
     ResetState();
@@ -282,26 +307,28 @@ static void TestSetup(void)
     gPCodeBlockCount = 2;
     gCodeMotionDefinitionCount_00587ebc = 33;
     gCodeMotionUseCount_00587e38 = 65;
-    gCodeMotionAllocationList_005870fc = &object;
-    gCodeMotionObjectTree_005880ac = &object;
+    gCodeMotionAllocationList_005870fc = (CodeMotionObjectNode*) &object;
+    gCodeMotionObjectTree_005880ac = (CodeMotionObjectNode*) &object;
 
     COpt_SetLoopCodeMotionMode(1);
 
-    Check(gRecordedObject == &object, "candidate object collected");
-    Check(gCodeMotionAllocationList_005870fc == 0, "allocation list reset");
-    Check(gCodeMotionObjectTree_005880ac == 0, "object tree reset");
-    Check(gAllocationCount == 17, "block state and eight sets per block");
-    Check(gAllocationSizes[0] == 2 * 8 * (int) sizeof(void*),
+    Check(gCodeMotionObjectTree_005880ac->object == &object,
+          "candidate object collected");
+    Check(gAllocationCount == 18,
+          "object node, block state, and eight sets per block");
+    Check(gAllocationSizes[0] == (int) sizeof(CodeMotionObjectNode),
+          "object-node allocation");
+    Check(gAllocationSizes[1] == 2 * 8 * (int) sizeof(void*),
           "two block-state records");
-    for (index = 1; index < 17; index++) {
-        if (((index - 1) & 7) < 4) {
+    for (index = 2; index < 18; index++) {
+        if (((index - 2) & 7) < 4) {
             Check(gAllocationSizes[index] == 8, "definition-set size");
         } else {
             Check(gAllocationSizes[index] == 12, "use-set size");
         }
     }
-    Check(gStageCount == 7, "setup stage count");
-    for (index = 0; index < 7; index++) {
+    Check(gStageCount == 6, "setup stage count");
+    for (index = 0; index < 6; index++) {
         Check(gStages[index] == expected_stages[index], "setup stage order");
     }
 }
@@ -330,6 +357,7 @@ int main(void)
     TestGuardedTreePass();
     TestTreeWalkOrder();
     TestNodeSummary();
+    TestObjectTreeInsert();
     TestSetup();
     TestCoordinator();
     puts("code-motion model tests passed");

@@ -25,8 +25,6 @@ typedef struct CodeMotionBlockState {
 extern PCodeBlock* gPCodeBlocks; /* 0x00587c74 */
 extern int gPCodeBlockCount;     /* 0x00587190 */
 
-extern void* gCodeMotionAllocationList_005870fc;
-extern void* gCodeMotionObjectTree_005880ac;
 extern int gCodeMotionDefinitionCount_00587ebc;
 extern int gCodeMotionUseCount_00587e38;
 extern CodeMotionBlockState* gCodeMotionBlockState_00587fe4;
@@ -42,7 +40,6 @@ extern void COpt_00523920(void);
 extern void COpt_00523a50(void);
 extern void COpt_005240b0(int mode);
 extern void COpt_005246d0(int mode);
-extern void COpt_00524b20(CompilerObject* object);
 extern void COpt_00524d90(CodeMotionNode* node);
 extern void COpt_00525200(CodeMotionNode* node);
 
@@ -192,6 +189,33 @@ void COpt_SetLoopCodeMotionMode(int mode)
     SpillCode_BuildBlockOrder();
     COpt_00523920();
     COpt_005237f0();
+}
+
+/* 0x00524b20; control-flow equivalent; 26.04% comparable byte match. */
+void COpt_00524b20(CompilerObject* object)
+{
+    CodeMotionObjectNode** link = &gCodeMotionObjectTree_005880ac;
+    CodeMotionObjectNode* node;
+
+    while ((node = *link) != 0) {
+        if (object < node->object) {
+            link = &node->left;
+        } else if (object > node->object) {
+            link = &node->right;
+        } else {
+            return;
+        }
+    }
+
+    node = CodeMotion_Allocate(sizeof(CodeMotionObjectNode));
+    node->right = 0;
+    node->left = node->right;
+    node->object = object;
+    node->unknown_14 = 0;
+    node->unknown_10 = node->unknown_14;
+    node->allocation_next = gCodeMotionAllocationList_005870fc;
+    gCodeMotionAllocationList_005870fc = node;
+    *link = node;
 }
 
 /* 0x00524bd0; control-flow equivalent; 20.69% comparable byte match. */

@@ -87,6 +87,13 @@ by later code-motion passes. All 344 instruction bytes match the validated
 candidate; the target function extent has eight additional alignment bytes.
 This exact result also validates the surrounding node and PCode-block offsets.
 
+`COpt_00524b20` reconstructs the object-index insertion used by setup. It
+performs an unsigned pointer-keyed binary-tree search, ignores duplicates,
+allocates a 24-byte node, and links that node into both the tree and the
+iteration allocation list. The binary separates this 112-byte insert from the
+64-byte lookup beginning at `0x00524b90`; treating both as one 176-byte routine
+would hide a real source boundary.
+
 ### Register allocation
 
 Start with the coloring coordinator at `0x004cdef0`. It processes vector,

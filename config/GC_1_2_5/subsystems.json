@@ -120,6 +120,16 @@
           "match_note": "comparable positional bytes at -O4,p -inline auto; target 407 bytes versus candidate 411; candidate-only EBP frame plus an initial iterator-register permutation and one global reset folded to an immediate"
         },
         {
+          "address": "0x00524b20",
+          "name": "COpt_00524b20",
+          "role": "insert a compiler object into the code-motion object index",
+          "evidence": "inferred",
+          "decompiled": true,
+          "functional_status": "control-flow equivalent",
+          "match_percent": 26.04,
+          "match_note": "target 112 bytes versus candidate 120 at -O4,p -inline auto; operation sequence and 24-byte node initialization align after removing the candidate-only EBP frame"
+        },
+        {
           "address": "0x00524bd0",
           "name": "COpt_00524bd0",
           "role": "reset code-motion results, run two guarded tree passes, and release iteration storage",

@@ -276,6 +276,12 @@ result shows that the recursive-depth and EBP-frame differences are localized
 compiler fingerprints, not a general inability of this candidate to reproduce
 the retail optimizer.
 
+`COpt_00524b20` supplies another call-bearing control: its complete tree-insert
+operation sequence aligns after removing the candidate's eight-byte EBP-frame
+overhead. Retail begins the separate lookup routine at `0x00524b90`; the
+insert is 112 bytes, not the full 176-byte range to the next previously named
+function.
+
 ## Sources
 
 - Richard Atwell, “CodeWarrior Version 6.0,” *MacTech*, February 2001:
