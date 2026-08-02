@@ -7,8 +7,8 @@
   },
   "matching": {
     "metric": "function code-byte percentage against a candidate Win32 host compiler object",
-    "status": "unavailable",
-    "reason": "the exact Win32 host compiler and project flags are not yet confirmed"
+    "status": "available for focused probes",
+    "reason": "CodeWarrior Pro 5 Win32/x86 2.3 is validated at -O4,p; reconstructed subsystem translation units still need candidate build wiring"
   },
   "modules": [
     {
@@ -71,6 +71,24 @@
           "functional_status": "control-flow equivalent",
           "match_percent": null,
           "match_note": "unmeasured: host toolchain pending"
+        },
+        {
+          "address": "0x00521a10",
+          "name": "COpt_00521a10",
+          "role": "optimizer helper selected for future reconstruction",
+          "evidence": "reference"
+        },
+        {
+          "address": "0x00523650",
+          "name": "COpt_SetLoopCodeMotionMode",
+          "role": "set loop code-motion mode for optimizer passes",
+          "evidence": "reference"
+        },
+        {
+          "address": "0x00524bd0",
+          "name": "COpt_00524bd0",
+          "role": "optimizer helper selected for future reconstruction",
+          "evidence": "reference"
         }
       ]
     },
@@ -143,12 +161,12 @@
         { "address": "0x004c19f0", "name": "Coloring_ClaimVRColor", "role": "claim the highest free saved vector register", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x004c1a20", "name": "Coloring_ClaimFPRColor", "role": "claim the highest free floating-point register from f14 through f31", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x004c1a50", "name": "Coloring_ClaimGPRColor", "role": "claim the highest free general-purpose register from r14 through r31", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1a80", "name": "Coloring_VRColorMask", "role": "build the free volatile vector-register color mask for vr0 through vr19", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1aa0", "name": "Coloring_FPRColorMask", "role": "build the free volatile floating-point color mask for f0 through f13", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1ac0", "name": "Coloring_GPRColorMask", "role": "build the free volatile general-purpose color mask for r0 through r12", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1ae0", "name": "Registers_AvailableVRs", "role": "count free vector registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1b00", "name": "Registers_AvailableFPRs", "role": "count free floating-point registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
-        { "address": "0x004c1b20", "name": "Registers_AvailableGPRs", "role": "count free general-purpose registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
+        { "address": "0x004c1a80", "name": "Coloring_VRColorMask", "role": "build the free volatile vector-register color mask for vr0 through vr19", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
+        { "address": "0x004c1aa0", "name": "Coloring_FPRColorMask", "role": "build the free volatile floating-point color mask for f0 through f13", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
+        { "address": "0x004c1ac0", "name": "Coloring_GPRColorMask", "role": "build the free volatile general-purpose color mask for r0 through r12", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
+        { "address": "0x004c1ae0", "name": "Registers_AvailableVRs", "role": "count free vector registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
+        { "address": "0x004c1b00", "name": "Registers_AvailableFPRs", "role": "count free floating-point registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
+        { "address": "0x004c1b20", "name": "Registers_AvailableGPRs", "role": "count free general-purpose registers across the 32-entry physical-use table", "evidence": "confirmed", "decompiled": true, "functional_status": "control-flow equivalent", "match_percent": 100.0, "match_note": "instruction bytes exact at -O4,p -inline auto; one absolute-address relocation excluded" },
         { "address": "0x004c1b40", "name": "Registers_BindVR", "role": "mark a physical vector register used and optionally bind it to an object", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x004c1c50", "name": "Registers_BindFPR", "role": "mark a physical floating-point register used and optionally bind it to an object", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },
         { "address": "0x004c1d60", "name": "Registers_BindGPRPair", "role": "bind a paired general-purpose register value", "evidence": "inferred", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" },

@@ -236,13 +236,13 @@ static short Registers_FindFree(unsigned char* used, int first,
 }
 
 static unsigned int Registers_BuildColorMask(const unsigned char* used,
-                                             int register_count)
+                                             int last_register)
 {
     unsigned int mask;
     int reg;
 
     mask = 0;
-    for (reg = 0; reg < register_count; reg++) {
+    for (reg = 0; reg <= last_register; reg++) {
         if (used[reg] == 0) {
             mask |= 1U << reg;
         }
@@ -282,37 +282,37 @@ short Coloring_ClaimGPRColor(void)
     return Registers_FindFree(gUsedPhysicalGPR, 14, Registers_BindGPR);
 }
 
-/* 0x004c1a80; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1a80; instruction match 100% at -O4,p -inline auto. */
 unsigned int Coloring_VRColorMask(void)
 {
-    return Registers_BuildColorMask(gUsedPhysicalVR, 20);
+    return Registers_BuildColorMask(gUsedPhysicalVR, 19);
 }
 
-/* 0x004c1aa0; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1aa0; instruction match 100% at -O4,p -inline auto. */
 unsigned int Coloring_FPRColorMask(void)
 {
-    return Registers_BuildColorMask(gUsedPhysicalFPR, 14);
+    return Registers_BuildColorMask(gUsedPhysicalFPR, 13);
 }
 
-/* 0x004c1ac0; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1ac0; instruction match 100% at -O4,p -inline auto. */
 unsigned int Coloring_GPRColorMask(void)
 {
-    return Registers_BuildColorMask(gUsedPhysicalGPR, 13);
+    return Registers_BuildColorMask(gUsedPhysicalGPR, 12);
 }
 
-/* 0x004c1ae0; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1ae0; instruction match 100% at -O4,p -inline auto. */
 int Registers_AvailableVRs(void)
 {
     return Registers_CountFree(gUsedPhysicalVR);
 }
 
-/* 0x004c1b00; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1b00; instruction match 100% at -O4,p -inline auto. */
 int Registers_AvailableFPRs(void)
 {
     return Registers_CountFree(gUsedPhysicalFPR);
 }
 
-/* 0x004c1b20; control-flow equivalent; binary match unmeasured. */
+/* 0x004c1b20; instruction match 100% at -O4,p -inline auto. */
 int Registers_AvailableGPRs(void)
 {
     return Registers_CountFree(gUsedPhysicalGPR);

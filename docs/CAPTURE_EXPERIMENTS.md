@@ -4,6 +4,48 @@ Dynamic results are recorded with the exact input identities and sandbox shape
 so they can be reproduced without treating an untrusted compiler as a host
 tool.
 
+## CodeWarrior Pro 5 Win32/x86 host calibration
+
+Date: 2026-08-02
+
+- candidate: CodeWarrior Professional Release 5 Windows `mwcc.exe`;
+- candidate SHA-256:
+  `738dd623e16597922d2784facf5738377370b45cf2e055a6006093d142570c03`;
+- Wibo SHA-256:
+  `8a8490a6172aa4f0f6ddcadb144ca96f51da6e90e6648ce9adaf4f6babb6e00b`;
+- container image ID:
+  `sha256:8e8ba9b4718eefbf68b585faff84504dabfd2c90293e25e3bc7b18ded0c475eb`;
+- candidate source and extraction hashes: recorded in
+  `(manifest withheld)`;
+- inputs: read-only `probes/host` mount;
+- outputs: a fresh dedicated `/private/tmp/cwpro5-codegen.*` mount.
+
+The version probe and compilation both used `tools/run_host_candidate.py`.
+The compile payload after the fixed sandbox arguments was:
+
+```text
+qemu-i386 /sandbox/wibo /candidate/mwcc.exe -O4,p \
+  -c /input/codegen.c -o /output/codegen.obj
+```
+
+The runner generated the complete Docker argument vector. Its enforced shape
+was `--pull never`, `--network none`, `--read-only`, `--cap-drop ALL`,
+`--security-opt no-new-privileges`, `--pids-limit 64`, `--memory 512m`,
+`--cpus 1`, a 64 MiB `noexec,nosuid,nodev` `/tmp`, three read-only mounts, and
+one dedicated writable output mount. The host imposed a 30-second timeout.
+
+The version command returned 2.3, built May 26 1999. The `-O4,p` object
+reproduced four of five recovered functions exactly after excluding one
+ordinary four-byte address relocation. `tools/host_probe_match.py` reports
+89.23% raw and 91.27% comparable byte match across all five. See
+`docs/HOST_TOOLCHAIN.md` for per-function results and interpretation.
+
+A subsequent `Registers.c` build used `-O4,p -inline auto`, declaration-only
+probe headers, and `-i-` to mark their path as a system include directory. Six
+functions measured 100% over comparable instruction bytes. The runner now
+requires `--expect-output` for compilation because an earlier missing-header
+abort demonstrated that this driver can still return status zero.
+
 ## CursorThink optimizer lineage
 
 Date: 2026-08-01

@@ -105,11 +105,25 @@ compiler release. It remains available as a secondary configuration so the
 patch can eventually be represented in recovered source.
 
 `objdiff.json` is generated for the relocatable target/base objects added as
-the PE is split into translation units. The exact host compiler that produced
-the executable has not yet been identified, so early source files are
-structural decompilation rather than claims of byte matching. Establishing that
-host toolchain is Phase 1; see
+the PE is split into translation units. CodeWarrior Pro 5 Win32/x86 2.3 is now
+validated as the host family: at `-O4,p`, it reproduces four of five focused
+target functions (one modulo a normal address relocation), and its runtime
+library contributes 693 more exact target bytes. The exact host minor build is
+not yet proven, so early subsystem files remain structural decompilation until
+their candidate translation units are wired. See
 [docs/HOST_TOOLCHAIN.md](docs/HOST_TOOLCHAIN.md).
+
+The first real subsystem pass also makes all three register color-mask helpers
+and all three available-register counters instruction-exact, for six checked-in
+100% functions.
+
+Measure a sandbox-generated probe object with:
+
+```sh
+python3 tools/host_probe_match.py \
+  --config config/GC_1_2_5/config.json \
+  --object /dedicated/output/codegen.obj
+```
 
 See [docs/SCOPE.md](docs/SCOPE.md) for priorities and
 [docs/PROVENANCE.md](docs/PROVENANCE.md) for licensing and source provenance.

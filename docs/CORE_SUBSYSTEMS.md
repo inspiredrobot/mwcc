@@ -29,9 +29,12 @@ Print the current reconstructed-function and match table with:
 python3 tools/decomp_status.py
 ```
 
-Binary percentages remain “unmeasured” until the exact Win32 host toolchain is
-available. Functional status can advance independently when exact target
-control flow and observable state changes have been reconstructed.
+CodeWarrior Pro 5 Win32/x86 2.3 now provides a validated matching baseline.
+Six small register-state functions are instruction-exact at
+`-O4,p -inline auto`. A remaining “unmeasured” entry means its reconstructed
+translation unit has not yet been compiled and mapped, not that no usable host
+compiler exists. Functional status can still advance independently when exact
+target control flow and observable state changes have been reconstructed.
 
 ## First vertical slices
 
@@ -47,6 +50,11 @@ Recover the small dispatcher at `0x004c4430`, then level 3 at `0x004c4910` and
 level 4 at `0x004c4530`. The repeated calls are the result we care about: do not
 refactor them into a unique-pass list. Trace strings at `0x0056200c` through
 `0x00562188` make pass identification auditable.
+
+The next optimizer-control leaves to reconstruct are `COpt_00521a10`,
+`COpt_SetLoopCodeMotionMode` at `0x00523650`, and `COpt_00524bd0`. Preserve the
+mode-setting state transitions and their callers before assigning stronger
+semantic names to the two address-only helpers.
 
 ### Register allocation
 

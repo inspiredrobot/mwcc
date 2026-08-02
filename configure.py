@@ -50,9 +50,13 @@ def write_build_ninja(version: str, config_path: Path) -> None:
         Path("tools/allocator_snapshot.py"),
         Path("tools/check_tests.py"),
         Path("tools/compare_pcode_stages.py"),
+        Path("tools/coff.py"),
         Path("tools/explain_register.py"),
         Path("tools/gdb/allocator_snapshot.py"),
+        Path("tools/host_calibration.py"),
+        Path("tools/host_probe_match.py"),
         Path("tools/rank_register_origins.py"),
+        Path("tools/run_host_candidate.py"),
     ]
     test_inputs = " ".join(quote(source) for source in test_dependencies)
     subsystem_validation = ""

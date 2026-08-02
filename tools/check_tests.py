@@ -64,6 +64,9 @@ def main() -> None:
     subprocess.run(
         [sys.executable, "tests/test_rank_register_origins.py"], check=True
     )
+    subprocess.run([sys.executable, "tests/test_coff.py"], check=True)
+    subprocess.run([sys.executable, "tests/test_host_probe_match.py"], check=True)
+    subprocess.run([sys.executable, "tests/test_run_host_candidate.py"], check=True)
 
     if args.stamp:
         args.stamp.parent.mkdir(parents=True, exist_ok=True)

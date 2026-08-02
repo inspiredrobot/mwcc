@@ -1,0 +1,13 @@
+{
+  "format": "mwcc-host-probe-targets-v1",
+  "target_sha256": "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914",
+  "compiler_flags": ["-O4,p", "-inline", "auto"],
+  "functions": [
+    {"name": "Coloring_VRColorMask", "address": "0x004c1a80", "size": 29},
+    {"name": "Coloring_FPRColorMask", "address": "0x004c1aa0", "size": 29},
+    {"name": "Coloring_GPRColorMask", "address": "0x004c1ac0", "size": 29},
+    {"name": "Registers_AvailableVRs", "address": "0x004c1ae0", "size": 21},
+    {"name": "Registers_AvailableFPRs", "address": "0x004c1b00", "size": 21},
+    {"name": "Registers_AvailableGPRs", "address": "0x004c1b20", "size": 21}
+  ]
+}

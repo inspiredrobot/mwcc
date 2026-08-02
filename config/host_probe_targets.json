@@ -1,0 +1,12 @@
+{
+  "format": "mwcc-host-probe-targets-v1",
+  "target_sha256": "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914",
+  "compiler_flags": ["-O4,p"],
+  "functions": [
+    {"name": "absolute_int", "address": "0x00420a10", "size": 17},
+    {"name": "short_predecessor", "address": "0x00412ed0", "size": 22},
+    {"name": "initialize_four_words", "address": "0x00428000", "size": 34},
+    {"name": "xor_64", "address": "0x00474e10", "size": 25},
+    {"name": "test_bit", "address": "0x004bfe60", "size": 32}
+  ]
+}

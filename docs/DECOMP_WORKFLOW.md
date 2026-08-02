@@ -55,10 +55,12 @@ python3 tools/ghidra_project.py export-functions \
 
 ## Matching strategy
 
-The host toolchain is still being fingerprinted. Until it is confirmed, a
-clean structural decompilation is the objective; byte matching is not yet a
-reliable fitness function. When candidate x86 compilers are available, test
-their Release configurations and exact project flags in the offline sandbox.
+CodeWarrior Pro 5 Win32/x86 2.3 is validated as the host family and can now be
+used as a matching fitness function for focused leaves. The exact minor build
+is still being fingerprinted, so a mismatch in call-bearing code must be
+classified against source shape, headers, and compiler flags before changing a
+clean structural decompilation. Test candidate Release configurations only in
+the offline sandbox.
 Melee's PowerPC `-O4,p` flags describe the compiler's output behavior and must
 not be confused with the flags that built this Win32 compiler executable.
 Functions may be marked functionally equivalent before binary matching is

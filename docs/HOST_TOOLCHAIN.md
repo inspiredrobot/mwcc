@@ -71,6 +71,78 @@ its objects contain frame pointers, `0xcccccccc` stack initialization, and
 CodeView debug sections. That sample is plainly a debug configuration and
 cannot be used to reject CodeWarrior 6 against the optimized target.
 
+### The CodeWarrior Pro 5 x86 compiler reproduces target code
+
+An original-media preservation of the CodeWarrior Professional Release 5
+Windows Tools CD contains the standalone `mwcc.exe`, `mwld.exe`, and Win32
+runtime libraries. The disc is not an official CMU download, so its provenance
+is recorded separately in `(manifest withheld)`. Static inspection
+established the ISO9660 volume `CW_PRO5`, the embedded tools ZIP, and every
+component hash before any executable was run.
+
+The hash-verified command-line compiler reports:
+
+```text
+Metrowerks C/C++ Compiler for Windows/x86.
+Copyright (c)1995-1999 Metrowerks, Inc.
+All rights reserved.
+Version 2.3
+Runtime Built: May 26 1999 17:53:15
+```
+
+It was run only through `tools/run_host_candidate.py`, which builds a
+non-shell Docker invocation with no network, a read-only root and input mounts,
+dropped capabilities, `no-new-privileges`, PID/CPU/memory/time limits, and a
+dedicated writable output. The report records the compiler and runner hashes,
+container image ID, exact argument vector, output, and exit status.
+
+The important flag distinction is proven by the compiler's own help and by
+output comparison. `-O4` enables level-four optimization and intrinsics, while
+`-O4,p` also selects speed optimization and scheduling. The latter reproduces
+the target's aligned branch destinations and padding. With `-O4,p`, the first
+probe pass gives:
+
+| Probe | Result |
+| --- | --- |
+| `absolute_int` | 17/17 bytes exact |
+| `short_predecessor` | 22/22 bytes exact |
+| `initialize_four_words` | 34/34 bytes exact |
+| `test_bit` | 28/28 comparable instruction bytes exact; four address-relocation bytes excluded |
+| `xor_64` | 14/25 bytes exact with the current compound-assignment spelling |
+
+Thus four of five functions are instruction-exact. The whole five-function
+set is 89.23% raw byte match and 91.27% over bytes comparable before linking.
+The four successful functions are 100% over all comparable bytes. The
+remaining `xor_64` is a useful discriminator: its instruction set and ABI are
+right, but load/store scheduling differs. It may come from a separately built
+runtime/helper source or expose a host-compiler patch difference; it is not a
+reason to discard the three complete byte matches and one relocation-only
+match.
+
+The preserved Pro 5 `mwcrtl.lib` independently supplies seven complete exact
+functions in the stock target, totaling 693 bytes. They include
+`___throw_catch_compare` (287 bytes), `__rt_modu64@16` (125),
+`__rt_divu64@16` (113), `__chkstk` (55), three more 64-bit helpers (92 bytes
+combined), and no ignored relocations. Together with the official CMU Pro 5.3
+fingerprint, this establishes CodeWarrior Pro 5 Win32/x86 2.3 as the validated
+host family and a productive matching compiler. It does not yet prove that the
+May 1999 executable is the exact minor build used for the April 2001 target.
+
+The first reconstructed subsystem pass compiled `src/backend/Registers.c` at
+`-O4,p -inline auto`. It produced six instruction-exact functions after normal
+absolute-address relocations were excluded: all three `Coloring_*ColorMask`
+functions and all three `Registers_Available*` functions. The initial mask
+spelling used `reg < register_count`; measurement exposed the target's
+`reg <= last_register` spelling through `cmp last; jle`. Correcting that helper
+contract brought the six-function comparable score from 95.24% to 100%.
+
+The reset/setup functions remain a useful exact-minor discriminator. Both a
+shared inline helper and six direct two-statement bodies produce the same
+extra EBP frame with this 2.3 candidate, while retail is frameless. Because the
+source-structure experiment was neutral, the shared helper was retained and
+the mismatch is classified as a compiler/header/option difference rather than
+papered over with duplicate code.
+
 ## Confirmation standard
 
 Do not mark the host compiler or linker confirmed from dates, product names, or
@@ -94,9 +166,11 @@ dropped capabilities, `no-new-privileges`, process and resource limits, and
 only a dedicated scratch directory writable. Record the input hash, exact
 command, container image identity, and sandbox options with every result.
 
-The first candidates should be the immediately preceding CodeWarrior Win32/x86
-compiler releases. A Pro 6 candidate must also be tested, but the contemporary
-Metrowerks statement means it must not be assumed to be the bootstrap compiler.
+The next candidate should be the Pro 5.3 x86 update, if a sufficiently
+well-provenanced Windows copy can be found. It can distinguish an exact host
+minor version from stable 2.3-family code generation. A Pro 6 candidate remains
+useful as a boundary test, but the contemporary Metrowerks statement means it
+must not be assumed to be the bootstrap compiler.
 
 ## Focused code-generation probes
 
@@ -140,6 +214,41 @@ python3 tools/architecture.py \
 The observed result is PE/i386 for the compiler and big-endian ELF/PowerPC for
 the object. The local executable is proprietary, so neither it nor generated
 candidate toolchains belongs in this repository.
+
+## Reproducing host-candidate calibration
+
+Verify the official CMU Pro 5.3 source and binary packages and scan the library
+directly from its ZIP, without extracting or executing it:
+
+```sh
+python3 tools/host_calibration.py \
+  --config config/GC_1_2_5/config.json \
+  --binary-package /path/to/CW5_Win32_CMUgraphics15_binary_console.zip \
+  --source-package /path/to/CW5_Win32_CMUgraphics15_source.zip \
+  --output build/GC_1_2_5/cmu-cw53-calibration.json
+```
+
+After independently acquiring and extracting the candidate, compile
+`probes/host/codegen.c` with `-O4,p` only through the sandbox runner. Then
+measure it against the configured stock PE:
+
+```sh
+python3 tools/host_probe_match.py \
+  --config config/GC_1_2_5/config.json \
+  --object /dedicated/output/codegen.obj \
+  --output build/GC_1_2_5/host-probe-match.json
+```
+
+The runner requires expected SHA-256 values for both the compiler and its
+Win32 compatibility runner. See `docs/CAPTURE_EXPERIMENTS.md` for the audited
+invocation shape. Candidate binaries, runtime libraries, generated objects,
+and reports containing local paths remain local-only.
+
+Real subsystem probes use the declaration-only headers under
+`probes/host/include`, `-inline auto`, and the compiler's `-i-` delimiter to
+place those headers on the system-include side. The sandbox runner's
+`--expect-output` option is mandatory for compile experiments because this
+driver can return zero after reporting a compilation abort.
 
 ## Sources
 

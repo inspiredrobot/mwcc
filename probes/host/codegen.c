@@ -44,7 +44,8 @@ Boolean initialize_four_words(FourWords* value, UInt32 fourth)
 
 UInt64 xor_64(UInt64 left, UInt64 right)
 {
-    return left ^ right;
+    left ^= right;
+    return left;
 }
 
 UInt16 test_bit(const UInt16* words, short bit)
