@@ -19,6 +19,50 @@ The helper distinguishes operand kinds 0, 1, 2, 3, 4, 5, and 9 and constructs
 dependencies against separate register-class tables. These facts are visible
 in this target's instructions and are not imported from an external debugger.
 
+The fixed 16-byte opcode-descriptor table begins at `0x005654b0` and is
+indexed directly by the signed 16-bit opcode. `PCodeUtilities` instruction
+construction at `0x004a2660` confirms this layout:
+
+- `+0x00`: mnemonic string pointer;
+- `+0x04`: compact operand-format string pointer;
+- `+0x08`: fixed operand count, augmented by a leading `#` format field;
+- `+0x09`: an additional byte whose role is not yet established;
+- `+0x0a`: 16-bit instruction flags copied to `PCodeInstruction + 0x16`;
+- `+0x0c`: base PowerPC instruction encoding.
+
+For example, opcode `0x3f` is `ADDI` with format `=r,b,m,p`, flags `0x0201`,
+and encoding `0x38000000`; opcode `0x8b` is `MR` with format `=r,r,p`, flags
+`0x0a01`, and encoding `0x7c000378`. The listing switch at `0x004c4bf0`
+establishes `0x1d1` as the highest opcode. Allocator snapshots now read this
+exact live table, so every captured instruction includes its mnemonic, format,
+descriptor flags, and base encoding rather than only a numeric opcode.
+
+The format interpreter at `0x004a2660` also confirms the following compact
+grammar. A comma is only a separator. With no prefix an operand is a use
+(`flags = 1`); `=` makes it a definition (`flags = 2`), and `+` makes it both
+a use and a definition (`flags = 3`). The operand codes populated by the
+target are:
+
+| Code | Operand representation |
+| --- | --- |
+| `r`, `b` | kind 0, GPR number; `b` clears the access flags for r0 |
+| `f` | kind 1, FPR number |
+| `S` | kind 2, caller-supplied special-register number |
+| `C`, `L`, `X` | kind 2, fixed special-register number 1, 2, or 0 |
+| `c` | kind 3, condition-register field number |
+| `Y`, `Z` | kind 3, all eight condition fields or fixed field 0 |
+| `v` | kind 9, vector-register number |
+| `i` | kind 4, immediate value |
+| `m`, `M` | object/immediate memory forms selected from the arguments |
+| `l` | object-backed or direct label form |
+| `V` | a caller-supplied count of GPRs descending from r31 |
+| `p` | kind 10 marker with no payload |
+
+A leading `#` consumes a count argument, adds it to the descriptor's fixed
+operand count, and supplies the expansion count used by `V`. The `m`, `M`, and
+`l` object decisions are address-backed but still need typed object layouts
+before their subcases should be given stronger semantic names.
+
 At `0x004cdef0`, coloring operates on three class/count globals in this order:
 vector (`0x0058849a`, class 9), general-purpose (`0x0058846e`, class 0), then
 floating-point (`0x0058846c`, class 1). The nearby `VR`, `GPR`, and `FPR`

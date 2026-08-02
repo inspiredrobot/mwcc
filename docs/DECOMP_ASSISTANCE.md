@@ -60,8 +60,14 @@ functional status and a binary match percentage; percentages remain
 - address-backed layouts and pass rules in machine-readable manifests;
 - focused static-analysis exports that can be regenerated from the verified
   executable;
+- a version-pinned PCode opcode catalog generated with `ninja pcode-opcodes`;
 - small probes for isolated optimizer and allocator decisions;
 - a Melee casebook containing predictions, experiments, and outcomes.
 
 This makes progress cumulative: a compiler rule learned for one translation
 unit becomes a reusable diagnostic for every later matching effort.
+
+The longer-term explanation engine also needs frontend provenance. Recovering
+AST and CST structures is in scope when it connects source tokens and object
+identities to the backend decisions above. The solver-facing plan is recorded
+in `docs/SOLVER_ROADMAP.md`.

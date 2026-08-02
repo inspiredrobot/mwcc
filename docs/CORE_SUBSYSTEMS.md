@@ -74,6 +74,21 @@ initial color masks, availability counts, and saved-color claim helpers are
 also reconstructed for all three classes; GPR coloring begins with r0-r12 and
 claims additional colors downward from r31 through r14.
 
+### PCode descriptions
+
+The exact opcode descriptor table at `0x005654b0` is exported to
+`build/GC_1_2_5/pcode-opcodes.json` by `ninja pcode-opcodes`. It contains all
+466 opcodes through `0x1d1`, including mnemonic, operand-format string, fixed
+operand count, flags, and base PowerPC encoding. Allocator snapshots read the
+same table from live compiler memory and attach the descriptor to every PCode
+instruction.
+
+The compact format strings are executable metadata, not display-only names.
+`PCodeUtilities` at `0x004a2660` uses them to allocate the variable-length
+instruction and construct each 12-byte operand, including use (`flag 1`),
+definition (`flag 2`), and read-modify-write (`flag 3`) roles. Recovering that
+format interpreter is the next bytecode-model slice.
+
 ### Stack frame
 
 The generator calls `0x004abe90` immediately before the “AFTER GENERATING

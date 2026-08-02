@@ -9,6 +9,8 @@ from typing import Callable
 
 TARGET_SHA256 = "0443b5c02b1aa7b575b61e0e24c4d5ad6bed8fd54cc42de5a2204a5216001914"
 PCODE_BLOCKS_ADDRESS = 0x00587C74
+PCODE_OPCODE_DESCRIPTORS_ADDRESS = 0x005654B0
+PCODE_MAX_OPCODE = 0x01D1
 INTERFERENCE_GRAPH_ADDRESS = 0x00587E3C
 VIRTUAL_REGISTER_COUNT_ADDRESSES = {
     "gpr": 0x0058846E,
@@ -24,6 +26,7 @@ class SnapshotError(ValueError):
 class SnapshotReader:
     def __init__(self, read_memory: Callable[[int, int], bytes]):
         self.read_memory = read_memory
+        self._opcode_descriptors = {}
 
     def _read(self, address: int, size: int) -> bytes:
         if size == 0:
@@ -47,6 +50,38 @@ class SnapshotReader:
     def s32(self, address: int) -> int:
         return struct.unpack("<i", self._read(address, 4))[0]
 
+    def c_string(self, address: int, max_length: int = 4096) -> str:
+        if address == 0:
+            return ""
+        data = bytearray()
+        while len(data) < max_length:
+            chunk = self._read(address + len(data), min(64, max_length - len(data)))
+            terminator = chunk.find(b"\0")
+            if terminator >= 0:
+                data.extend(chunk[:terminator])
+                return data.decode("ascii", errors="replace")
+            data.extend(chunk)
+        raise SnapshotError(f"unterminated string at 0x{address:08x}")
+
+    def opcode_descriptor(self, opcode: int) -> dict:
+        if opcode < 0 or opcode > PCODE_MAX_OPCODE:
+            raise SnapshotError(f"invalid PCode opcode 0x{opcode:x}")
+        cached = self._opcode_descriptors.get(opcode)
+        if cached is not None:
+            return cached
+        raw = self._read(PCODE_OPCODE_DESCRIPTORS_ADDRESS + opcode * 0x10, 0x10)
+        mnemonic_address, format_address = struct.unpack_from("<II", raw)
+        descriptor = {
+            "mnemonic": self.c_string(mnemonic_address),
+            "operand_format": self.c_string(format_address),
+            "fixed_operand_count": raw[8],
+            "unknown_09": raw[9],
+            "flags": struct.unpack_from("<H", raw, 0x0A)[0],
+            "encoding": f"0x{struct.unpack_from('<I', raw, 0x0C)[0]:08x}",
+        }
+        self._opcode_descriptors[opcode] = descriptor
+        return descriptor
+
     def operand(self, address: int) -> dict:
         raw = self._read(address, 0x0C)
         return {
@@ -58,6 +93,7 @@ class SnapshotReader:
 
     def instruction(self, address: int) -> dict:
         header = self._read(address, 0x1C)
+        opcode = struct.unpack_from("<h", header, 0x14)[0]
         operand_count = struct.unpack_from("<h", header, 0x1A)[0]
         if operand_count < 0 or operand_count > 4096:
             raise SnapshotError(
@@ -67,7 +103,8 @@ class SnapshotReader:
             "address": f"0x{address:08x}",
             "next": struct.unpack_from("<I", header, 0)[0],
             "previous": struct.unpack_from("<I", header, 4)[0],
-            "opcode": struct.unpack_from("<h", header, 0x14)[0],
+            "opcode": opcode,
+            "opcode_descriptor": self.opcode_descriptor(opcode),
             "flags": struct.unpack_from("<I", header, 0x16)[0],
             "operands": [
                 self.operand(address + 0x1C + index * 0x0C)

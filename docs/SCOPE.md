@@ -31,3 +31,19 @@ Melee matches, rather than relying on compiler folklore or local score changes.
 
 The project deliberately starts with the small vertical slice most useful to
 Melee matching. A full compiler decompilation can grow outward from that slice.
+
+## Phase 3: source provenance and solver interfaces
+
+1. Recover token, concrete-syntax-tree (CST), abstract-syntax-tree (AST), type,
+   symbol, and source-location layouts needed to identify the source construct
+   behind an optimizer or allocator object.
+2. Preserve provenance across CST to AST, AST to IR/PCode, virtual-register,
+   allocation, frame-layout, and emitted-instruction transitions.
+3. Export those transitions as stable relational facts suitable for reversible
+   queries and constrained search.
+4. Evaluate Datalog/Prolog, SMT, constraint-programming, and specialized search
+   engines against real Melee cases; choose based on explanatory power and
+   tractability rather than committing to one solver family in advance.
+
+See `docs/SOLVER_ROADMAP.md` for the intended query model and staged
+deliverables.

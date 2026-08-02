@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from allocator_snapshot import (
     INTERFERENCE_GRAPH_ADDRESS,
     PCODE_BLOCKS_ADDRESS,
+    PCODE_OPCODE_DESCRIPTORS_ADDRESS,
     SnapshotReader,
 )
 
@@ -60,6 +61,21 @@ def main():
     struct.pack_into("<h", instruction, 0x2A, 34)
     memory.write(instruction_address, instruction)
 
+    mnemonic_address = 0x1300
+    format_address = 0x1310
+    descriptor = struct.pack(
+        "<II BBHI",
+        mnemonic_address,
+        format_address,
+        3,
+        0,
+        0x0A01,
+        0x7C000378,
+    )
+    memory.write(PCODE_OPCODE_DESCRIPTORS_ADDRESS + 0x8B * 0x10, descriptor)
+    memory.write(mnemonic_address, b"MR\0")
+    memory.write(format_address, b"=r,r,p\0")
+
     snapshot = SnapshotReader(memory.read).snapshot(0xDEADBEEF, 0x004CDEF0)
     assert snapshot["virtual_register_counts"] == {"gpr": 40, "fpr": 35, "vr": 32}
     assert snapshot["function_pointer"] == "0xdeadbeef"
@@ -70,6 +86,14 @@ def main():
     assert captured_block["execution_weight"] == 3
     captured_instruction = captured_block["instructions"][0]
     assert captured_instruction["opcode"] == 0x8B
+    assert captured_instruction["opcode_descriptor"] == {
+        "mnemonic": "MR",
+        "operand_format": "=r,r,p",
+        "fixed_operand_count": 3,
+        "unknown_09": 0,
+        "flags": 0x0A01,
+        "encoding": "0x7c000378",
+    }
     assert captured_instruction["flags"] == 0x800
     assert [operand["reg"] for operand in captured_instruction["operands"]] == [
         33,

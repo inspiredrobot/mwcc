@@ -56,6 +56,15 @@ typedef struct PCodeOperand {
     unsigned char unknown_04[8];
 } PCodeOperand;
 
+typedef struct PCodeOpcodeDescriptor {
+    const char* mnemonic;        /* 0x00 */
+    const char* operand_format;  /* 0x04 */
+    unsigned char operand_count; /* 0x08: fixed operand count */
+    unsigned char unknown_09;
+    unsigned short flags;  /* 0x0a */
+    unsigned int encoding; /* 0x0c: base PowerPC instruction encoding */
+} PCodeOpcodeDescriptor;
+
 enum PCodeOperandFlags {
     PCodeOperand_Use = 0x01,
     PCodeOperand_Definition = 0x02,
@@ -160,6 +169,16 @@ typedef char InterferenceNode_flags_12
 typedef char InterferenceNode_neighbors_16
     [(offsetof(InterferenceNode, neighbors) == 0x16) ? 1 : -1];
 typedef char PCodeOperand_size_0c[(sizeof(PCodeOperand) == 0x0c) ? 1 : -1];
+typedef char PCodeOpcodeDescriptor_size_10
+    [(sizeof(PCodeOpcodeDescriptor) == 0x10) ? 1 : -1];
+typedef char PCodeOpcodeDescriptor_format_04
+    [(offsetof(PCodeOpcodeDescriptor, operand_format) == 0x04) ? 1 : -1];
+typedef char PCodeOpcodeDescriptor_count_08
+    [(offsetof(PCodeOpcodeDescriptor, operand_count) == 0x08) ? 1 : -1];
+typedef char PCodeOpcodeDescriptor_flags_0a
+    [(offsetof(PCodeOpcodeDescriptor, flags) == 0x0a) ? 1 : -1];
+typedef char PCodeOpcodeDescriptor_encoding_0c
+    [(offsetof(PCodeOpcodeDescriptor, encoding) == 0x0c) ? 1 : -1];
 typedef char PCodeInstruction_operands_1c
     [(offsetof(PCodeInstruction, operands) == 0x1c) ? 1 : -1];
 typedef char PCodeInstructionContext_flags_2e

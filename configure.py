@@ -29,6 +29,7 @@ def write_build_ninja(version: str, config_path: Path) -> None:
     ghidra_stamp = build_dir / "ghidra.stamp"
     optimizer_analysis = build_dir / "optimizer-analysis.md"
     subsystem_inventory = build_dir / "subsystem-inventory.md"
+    pcode_opcodes = build_dir / "pcode-opcodes.json"
     subsystem_manifest = Path("config") / version / "subsystems.json"
     subsystem_stamp = build_dir / "subsystems.stamp"
     source_stamp = build_dir / "sources.stamp"
@@ -79,6 +80,10 @@ rule ghidra_export_subsystems
   description = GHIDRA-EXPORT $out
   pool = console
 
+rule export_pcode_opcodes
+  command = $python tools/pcode_descriptors.py --config $config --output $out
+  description = PCODE-OPCODES $out
+
 rule check_sources
   command = $python tools/check_sources.py --stamp $out
   description = C-SYNTAX $in
@@ -96,15 +101,17 @@ build {pe_info}: pe_info {config_path} | {verified}
 build {ghidra_stamp}: ghidra_import {config_path} | {verified}
 build {optimizer_analysis}: ghidra_export_optimizer tools/ghidra_scripts/ExportOptimizer.java | {ghidra_stamp}
 build {subsystem_inventory}: ghidra_export_subsystems tools/ghidra_scripts/ExportSubsystems.java | {ghidra_stamp}
+build {pcode_opcodes}: export_pcode_opcodes tools/pcode_descriptors.py tools/allocator_snapshot.py tools/pe.py tools/verify_original.py | {verified}
 build {source_stamp}: check_sources tools/check_sources.py {source_inputs}
 build {format_stamp}: check_format tools/check_format.py .clang-format {format_inputs}
 build {test_stamp}: check_tests tools/check_tests.py tools/allocator_snapshot.py src/backend/Registers.c src/backend/Coloring.c src/backend/SpillCode.c tests/test_registers.c tests/test_coloring.c tests/test_spill_code.c tests/test_allocator_snapshot.py include/mwcc/Registers.h include/mwcc/Coloring.h include/mwcc/SpillCode.h include/mwcc/backend_types.h
 {subsystem_validation}
 
-build check: phony {verified} {pe_info} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}
+build check: phony {verified} {pe_info} {pcode_opcodes} {source_stamp} {format_stamp} {test_stamp} {subsystem_check}
 build ghidra: phony {ghidra_stamp}
 build optimizer-analysis: phony {optimizer_analysis}
 build subsystem-inventory: phony {subsystem_inventory}
+build pcode-opcodes: phony {pcode_opcodes}
 
 default check
 """

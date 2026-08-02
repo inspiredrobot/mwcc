@@ -26,6 +26,12 @@ python3 configure.py
 ninja check
 ```
 
+Export the compiler's complete PCode mnemonic and operand-format catalog with:
+
+```sh
+ninja pcode-opcodes
+```
+
 Import or update the executable in the local Ghidra project with:
 
 ```sh
@@ -50,6 +56,8 @@ The working subsystem map and agent workflow are in
 [docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md). The concrete allocator
 replay target and its first five Melee cases are in
 [docs/ALLOCATOR_CASEBOOK.md](docs/ALLOCATOR_CASEBOOK.md).
+The staged AST/CST provenance and reversible-query plan is in
+[docs/SOLVER_ROADMAP.md](docs/SOLVER_ROADMAP.md).
 Two useful external references are RootCubed's MIT-licensed
 [mwcc-inspector](https://github.com/RootCubed/mwcc-inspector) and
 [mwcc-debugger](https://github.com/cadmic/mwcc-debugger), whose code is not
