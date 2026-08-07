@@ -87,6 +87,30 @@ host `ptrace`. Runtime hardening remains mandatory: no network, a read-only
 root, no capabilities, `no-new-privileges`, resource limits, tmpfs scratch,
 and read-only compiler/input mounts.
 
+Concrete capture recipe (verified on an arm64 host against a Melee TU). Build
+`mwcc-debugger:arm64` from `Dockerfile.debugger`, write a GDB script that does
+`target remote :1234`, `source /mwcc/tools/gdb/allocator_snapshot.py`,
+`mwcc-auto-capture /capture`, `continue`, then run one hardened container that
+launches the compiler under the stub and attaches GDB in the same namespace:
+
+```sh
+docker run --rm --platform linux/arm64 --network none --read-only \
+  --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid \
+  -e HOME=/tmp -e WIBO_TMP_DIR=/tmp \
+  -v $MELEE:/basebuild:ro -v $WORKTREE:/melee:ro -v $MWCC:/mwcc:ro \
+  -v $CAP:/capture:rw -v $CAP/capture.gdb:/capture.gdb:ro -w /melee \
+  mwcc-debugger:arm64 /bin/sh -c \
+  "qemu-i386 -g 1234 /basebuild/build/wibo_old \
+     /basebuild/build/compilers/GC/1.2.5n/mwcceppc.exe <exact TU cflags> \
+     -c src/melee/<tu>.c -o /capture/<tu>.o & \
+   gdb-multiarch -batch -x /capture.gdb; wait \$!"
+```
+
+The stock `1.2.5` and patched `1.2.5n` compilers share the coloring addresses
+(`0x004cdef0`, `0x004ce2d0`), so a TU can be captured with whichever compiler
+produced the object under study; use `1.2.5n` when its output diverges from
+stock for the function of interest (e.g. `fn_80262648`).
+
 The initial snapshot deliberately stops short of object names and class ranges.
 Those fields will be added after their exact target layouts are recovered. The
 raw 12-byte operand encoding and decoded object pointer are retained so
@@ -99,6 +123,41 @@ therefore preserve object bindings and virtual-register creation order. A
 separate pre-PCode trace is needed for string pooling, declaration lowering,
 dead-definition removal, and scalar replacement; the coloring snapshot alone
 cannot explain changes that have already happened in those stages.
+
+### The built-in per-pass IR dumper is a `ret` stub (do not re-attempt)
+
+The compiler contains a complete per-pass IR/asm dump scaffold, but the actual
+dump routine is stubbed out in the shipped release build, so it produces no
+output. Verified against `GC/1.2.5n` (region byte-identical to stock `1.2.5`),
+2026-08-02:
+
+- `gCOptimizerDumpEnabled` is the gate byte at `0x00584226` (`.bss`, so it is
+  not file-patchable; it defaults to 0). Its **only** writer is the single
+  `mov byte [0x00584226], 0` initializer at `0x0042c8db` (immediate at file
+  offset `0x2bce1` in the `1.2.5n` image). No code path ever sets it to 1, so
+  there is no command-line flag or environment variable to enable dumping.
+- Every stage label exists as a real string: `BEFORE GLOBAL OPTIMIZATION`,
+  `AFTER CODE MOTION` (VA `0x00562060` in stock), `AFTER STRENGTH REDUCTION`,
+  `AFTER REGISTER COLORING` (`0x0054fbd4`), etc.
+  They are referenced by live `push str; push name; call COptimizer_Dump`
+  sequences inside `COptimizer_Level4` (`0x004c4620`), `COptimizer_Level3`
+  (`0x004c4a00`), and the coloring path in `CodeGen_Generator` (`0x00435c0e`).
+- All of those call sites target `COptimizer_Dump` at `0x004c4bd0`, whose body
+  is a single `c3` (`ret`) followed by alignment padding. The dump
+  implementation was compiled out; the call setup is dead code. `Coloring.c`'s
+  `Coloring_Dump` reference resolves to the same stub.
+
+Consequence: you **cannot** observe the loop-code-motion / LICM hoist (or any
+other pre-coloring pass boundary) by flipping the gate byte and reading the
+compiler's stdout — enabling it via GDB or a one-byte patch of the `0x0042c8db`
+immediate is inert (confirmed: a trivial O4 loop function compiles cleanly and
+prints nothing). The pre-PCode trace called for above must therefore come from
+a memory snapshot of the IR taken at a pass boundary (e.g. a new breakpoint
+after `COpt_00524bd0`, the code-motion step at `0x00524bd0`, read via the same
+`allocator_snapshot` PCode reader), not from the binary's own dumper. Modelling
+the LICM cost decision directly (`COpt_SetLoopCodeMotionMode` `0x00523650`,
+`COpt_00521a10`, `COpt_00524bd0`) remains the only way to *predict* a hoist
+rather than merely observe its result.
 
 A real `mnCharSel` capture validates the join. Allocator capture 13 contains 44
 blocks, 165 instructions, 880 operands, and 111 register records. Its before
@@ -330,6 +389,87 @@ surviving creations and 20 optimizer clones.
   grows the frame and rotates another web. This is an order-only allocator
   case, not evidence for a larger aggregate.
 
+### `fn_80262648`
+
+- Source: `src/melee/mn/mncharsel.c` (Melee `(branch withheld)`, PR #(withheld),
+  compiled with the target `GC/1.2.5n`; capture indices below are from that
+  compiler, not stock).
+- Symptom: instruction-identical to retail (every GPR difference is
+  `ARG_MISMATCH`), 98.66% under `functionRelocDiffs=data_value`. Three
+  callee-saved webs form a 3-cycle: the `&mnCharSel_803F0A48` (`icons`) base
+  is retail r31 / candidate r30; the loop-local re-materialized
+  `mnCharSel_804A0BD0` base is retail r27 / candidate r31; `n_doors` is retail
+  r30 / candidate r27. An independent `f22`/`f23` FPR swap and an
+  `HSD_AObjReqAnim` `@ha`-temp scheduling difference account for the rest.
+- Capture: allocation index 16 (nm `-n` text order; `mnCharSel_8025FDEC` is 13,
+  matching the earlier calibration). One GPR coloring attempt.
+- **Derived GPR color model (validated).** `Coloring_GPRColorMask` and
+  `Coloring_ClaimGPRColor` are still `extern` stubs, but the captured
+  before/after pairs pin their behavior: the initial `color_mask` is the
+  volatiles `{r0, r3..r12}`; callee-saved registers are *claimed on demand
+  high-to-low* (`r31, r30, ..., r14`) and OR'd into the mask; `SelectColors`
+  otherwise takes the lowest set bit of `available`. Replaying `SelectColors`
+  with this mask over the captured `simplify_order` reproduces the compiler's
+  colors exactly for 24 of 25 functions in this TU (the 25th differs only on
+  coalesced roots with color >= 32, which the plain replay does not resolve).
+- Prediction: because the stream is identical, only select order can move the
+  three webs. A brute-force over the early select slots found 24 permutations
+  that yield retail r31/r27/r30 for the three webs; every one selects the
+  `icons` base first and `n_doors` second, ahead of the re-materialized
+  `804A0BD0` base. So the residual is a reachable ordering, not a missing
+  interference/coalescing edge.
+- Result: rejected as source-fixable. The three rotating webs are all
+  compiler-materialized bases (two global-address materializations plus the
+  `n_doors` count); no nameable local owns them. Declaration-order and type
+  sweeps of the real locals (`n_doors` position/`s32`/one-field carrier,
+  `css`-first, `prev_port` widening, swapping the two loop walker
+  declarations) never fell below the baseline and never flipped the base-web
+  order. An explicit `CSSIcon* icon_tbl = icons` regressed to 96.35% by
+  changing the addressing mode. This is the same terminal callee-saved
+  permutation class as `grCorneria_801E25C4`: the ordering is set by
+  `SimplifyGraph` dynamics over equal-spill-cost compiler webs, which
+  instruction-identical source edits cannot steer.
+
+### `mnCharSel_CursorThink`, `fn_802640A0`, `fn_802633B0`
+
+Same TU/PR (#(withheld)); all instruction-identical to retail (only `ARG_MISMATCH`
+plus a few scheduling `INSERT`/`DELETE` pairs). The GPR model reproduces each
+one's colors exactly, and the FPR model (below) likewise. They fall into two
+non-source-steerable classes:
+
+- **Extra-callee-saved (register-pressure) class — `CursorThink` (95.15%).**
+  C saves one *more* callee register than retail in *both* files: GPR `stmw
+  r18` vs retail `r19`, and FPR `f23..f31` (9) vs retail `f24..f31` (8). The
+  extra `f23` band and `r18` band are then reused by many short webs, so the
+  single extra live value at peak pressure cascades into ~530 GPR + ~130 FPR
+  `ARG_MISMATCH` rows. The FPR 9-clique bottleneck is `vr265`, a compiler
+  temp (`object=0`) holding the `804DC4F0` double constant — but retail also
+  keeps that constant callee-saved (its `f26`), so the surplus is one extra
+  simultaneously-live FP value at peak, not that constant per se. This is the
+  documented "anchor split / -2.2f hoist" residual; it is a frontend
+  pressure/lowering difference, and prior spelling-unification attempts (see
+  the Melee session notes) failed. Not a select-order case.
+- **Same-span permutation class — `802640A0` (97.26%), `802633B0` (98.36%).**
+  Both use the identical callee-saved span as retail (no extra register) but
+  permute it. `802640A0` is a broad many-to-many reallocation (`C r18` maps to
+  five different retail registers across regions), not a clean clique rotation.
+  `802633B0` is closer to nameable: its inner row-render loop rotates
+  `name_color`/`used_name_color` (`GXColor*` aliases) against the `j`/`page_off`
+  counters, and retail ranks the initializer-bearing pointer aliases first
+  (the it_8026C75C lever). But declaration-order sweeps of those five inner
+  locals moved the score only +0.012pp (98.3578 -> 98.3701), because the clique
+  is entangled with an outer `r22`/`r23` swap and a swapped pair of int->float
+  conversion stack temps (`0x90`/`0x98`) that are compiler-owned. No coordinated
+  stream-preserving edit closes it.
+
+**Validated FPR color model.** Identical shape to the GPR model: initial mask =
+volatiles `{f0..f13}`; callee-saved claimed high-to-low `f31..f14`; lowest set
+bit otherwise. Reproduces CursorThink's FPR colors exactly (0/310 mismatches).
+The stock auto-capture only records `reg_class==0`; capturing FPR needs the
+`ColoringBreakpoint` filter widened to `reg_class in (0,1)` and the snapshot
+filename parameterized by class (`-gpr-`/`-fpr-`). Worth folding into
+`tools/gdb/allocator_snapshot.py`.
+
 ### `fn_8016E2BC`
 
 - Source: `src/melee/gm/gm_16AE.c`
@@ -415,3 +555,200 @@ Each case accumulates entries with this minimum schema:
 Rejected predictions remain in the record. They constrain the compiler model
 and prevent later agents from repeating a source-shape sweep without a new
 mechanistic reason.
+
+## Case: melee vi1201v1 `un_8031FD18_OnEnter` — simplify dynamics recovered; residual bounded (2026-08-02)
+
+508-instruction scene-setup function, pure GPR callee-saved permutation at
+99.40%. Five captures across five source structures (`(case study withheld)`,
+cap0=original single-gobj source, cap=per-block locals, cap2=decl reorder,
+cap3=camera+koopa inline helpers, cap4=cap3+head helper) produced two major
+new results, both replay-validated exactly:
+
+### Simplify stack construction is now fully modeled *(confirmed, 5/5 captures exact)*
+
+The select stack order is reproduced bit-exactly by:
+
+- **Pass-based ascending scans**: repeatedly scan live nodes in ascending
+  virtual-register order, removing (pushing) any node whose current degree
+  (`len(neighbors)`, physical neighbors included, physicals never removed) is
+  `< 29`; a node skipped in a pass is only revisited on the NEXT full pass.
+- **k = 29** for GPR (allocatable registers: 32 minus r1, r2, r13).
+- **Jam-break**: when a full pass makes no progress, remove the
+  lowest-numbered remaining node (spill costs were all zero at this capture
+  boundary, so cost/degree ranking degenerates to list order).
+
+Consequence: pop order = [never-eligible core, descending vreg] ++
+[everything else, descending vreg]. Combined with the select model (lowest
+available bit, claims r31 down), colors are a pure function of the
+interference graph and the virtual-register NUMBERING.
+
+### Web numbering laws *(inferred, consistent across all 5 captures)*
+
+- vr32 = the parameter-copy web.
+- User decl webs: **reverse declaration order** starting at 33 (one slot per
+  variable; a variable's first web takes the decl slot).
+- Extra webs of a multiply-assigned variable: after all decl slots, grouped
+  by variable in reverse decl order, within a variable by creation order.
+- Inline-helper locals occupy a mid region (~44-57), helpers in **reverse
+  call order**; single-block volatile temps number forward by block from ~66;
+  optimizer-created webs (string-pool base, CSE'd zero, LICM-hoisted call
+  targets, strength-reduction IVs) number in a transform-order tail region.
+- Coalescing keeps the **minimum** id of the family as root (confirmed:
+  koopa jobj family {47,48,49,51} rooted at 47 in cap4).
+
+### Search results for this case
+
+Free-numbering annealing over the 19 callee-saved webs reaches retail 19/19
+on the cap3/cap4 graphs (many solutions collected; all require the string
+base numbered into the decl region, the loop IV numbered above the LICM
+webs, and the koopa gobj below the koopa jobj root). Source-reachable
+numberings (decl permutations x variable sharing partitions x helper decl
+swaps) cap at 11/19 on those graphs and 10/19 on cap0-2. On cap0-2 graphs
+even free numbering caps at 18/19, so the inline-helper structures changed
+the interference graph itself (pre-RA PCode 511 vs 508 instructions with an
+identical final stream — post-coloring cleanup hides pre-RA differences, so
+graph identity does NOT follow from final-stream identity).
+
+Structural sweep results (all stream-identical): camera+koopa helpers are
+the best found (99.52%, camera/koopa gobj webs + stand/fog blocks now
+retail); flat loop (no SetupScene inline) breaks the stream head (early
+string-base hoist + split zero web); a vi1101-style `char* data` user
+pointer to the string pool drops a callee-saved register; helper params and
+decl swaps regress or are neutral. Residual: 43 operand rows over the
+head/loop cluster {zero, char_index, cobj, IV, JObjCallback base, fn base,
+loop gobj, koopa jobj}. The required numbering placements (IV above the
+LICM webs, string base below the helper regions) have no discovered source
+mechanism; candidate next levers are optimizer-pass-order sensitivity of
+the hoists (first vs second code-motion round) and helper-boundary
+variations not yet enumerated. Search scripts and captures in
+`(case study withheld)`.
+
+## Numbering-region law + fixability diagnostic (2026-08-06, melee close-residual sweep)
+
+Extends the vi1201v1 numbering laws with a general vreg-REGION map, derived by
+mapping first-def block/opcode + coloring `object` for every vreg across
+mnDataDel_8024FE4C (allocator-0013) and ftCo_800A8940 (allocator-0088):
+
+- **32** = the fighter/first param.
+- **33-40** = DIRECT named locals, reverse declaration order. Only these are
+  steerable by C declaration order.
+- **41-50** = named COPIES / derived values (a rename of a local, a field-base
+  pointer, a call-result copy). Numbered by CREATION position (block/expr
+  order), NOT declaration. Decl-order sweeps are inert on these.
+- **52-85+** = fresh expression temps and strength-reduced induction variables.
+  Numbered by FORWARD block order, multiple per block (a loop's SR walker lands
+  in that loop's block; the more setup blocks precede the loop, the higher its
+  number).
+
+Coloring = descending-vreg select for non-jammed nodes (jam threshold degree
+>=29, jam-core colored first). So HIGHER vreg claims a callee-saved reg FIRST.
+
+### Diagnostic for a callee-saved swap {webX, webY} (classify by vreg + object):
+1. **Both direct named locals (<41, `object`!=0):** decl-order fixable. Sweep
+   declaration order (reverse-decl controls the pair).
+2. **A copy/derived named web (41-50):** number set by creation block/expr
+   position, not decl. Only movable by relocating the producing expression
+   (stream-affecting) — usually terminal for stream-neutral source.
+3. **A TEMP / SR-IV (52+) vs anything lower:** the temp ALWAYS outranks and
+   claims first. The ONLY reachable fix is JAMMING the lower web (raise its
+   pre-RA degree >=29 so it enters the jam-core ahead of the temp). Jamming is
+   a register-PRESSURE property driven by the inline/interference structure, not
+   by any C-level reordering. This is the vi1201v1 "inline-boundary" class and is
+   terminal for stream-neutral source unless the exact pressure-raising inline
+   restructuring is found.
+
+### Why the melee close-residuals are stuck
+mnDataDel: walker (TEMP vr81) vs gobj (copy vr41) -> case 3, jamming needed,
+unreachable. ftCo_800A8940: result/spill-ptr/flag are copies vr35-51 -> case 2.
+un_8031D9F8: walker temp vs pos/counts copies -> case 3. This is why decl-order
+sweeps are inert across the board: the residual swaps virtually never involve two
+DIRECT named locals (<41). The gettable class (case 1) is rare because the easy
+direct-local swaps are already matched.
+
+## Case: grPura_802125F0 (melee grpura) — SOLVED via replay-search, 2026-08-06
+
+First function matched end-to-end by this pipeline. Residual: one web (the
+second-half jobj value) colored r29 (destructive reuse of the dying base) vs
+retail r27; 441-instruction stream otherwise identical.
+
+Validated claim rule (reproduced the capture exactly): callee-saved cluster =
+webs needing callee-saved registers, selected in descending-vreg order; each
+web takes the LOWEST-numbered already-claimed register free w.r.t. colored
+neighbors, else claims the next fresh register descending r31→r14.
+
+Replay-search over all cluster orders found the requirement: the misplaced
+webs must color AFTER the named webs that claim r28/r27. Since copy-region
+(re-def) webs sort above all named webs, the ONLY realizable fix is making
+them named-region webs: fresh locals declared last (reverse-decl gives them
+the lowest named vregs).
+
+Second blocker and its lever: a def of a VIRGIN named local from a
+repeated-GVN-class memory expression lowers as `temp = load; cmp temp;
+named = copy temp`, and the copy web-aliases (node flags=4,
+physical_register = alias target) only into RENAMED re-def webs — never into
+virgin named webs — leaving `lwz r0; cmplwi r0; mr rCS,r0` (or with a
+chained-opaque def, a fused `mr. rCS,r0`). The fix: embed the assignment in
+the first consuming call argument — `use(x = expr)` — which lowers the load
+directly into x's web. Copy-prop defeats alias-based class splits (gp2 = gp
+forms) before GVN, so base-aliasing is not a substitute.
+
+Region facts confirmed by this case: the named region is elastic (grows past
+40 with more locals; copies start above it); named slots are consumed even by
+locals whose webs get renamed to the fresh region (gp=61, gobj=81 here while
+their slots 34/35 remained as dead nodes); a user-statement-level null test
+after a def (HSD_ASSERT) is associated with the named→fresh renames observed
+(gp, gobj), while inline-expansion-internal asserts are not (jobj-A, child
+stayed named).
+
+## grOldPupupu_80210D10 (melee groldpupupu) — SOLVED via replay-search, 2026-08-06
+
+Baseline: identical 255-insn stream, 4-web callee-saved cycle (gp/anchor/
+magic4330/walker vs retail r31/r29/r30/r27). Two capture+replay rounds, each
+yielding exactly ONE winning select order, drove two new general levers:
+
+1. **Param-web carrier.** The parameter web (vreg 32, param arena) is
+   special-cased FIRST in the simplify order, ahead of every other band.
+   Re-defining a dead-after-first-use param with a derived pointer
+   (`gobj = (T*) GET_GROUND(gobj); gp = (T2*) gobj;` as two statements) puts
+   the load in the first fresh claim (r31) with zero stream cost. A named
+   local can never reach this: decl-with-initializer rank caps inside the
+   named/copy super-band and cannot cross obj0 temps.
+2. **Static-inline top-pool helper.** Inline-body webs color above the
+   0x408b frontend/optimizer arena. Moving a load+assert into a TU-local
+   `static inline` helper lifted the loaded pointer's web above a LICM'd
+   loop-invariant address walker, fixing the final r28/r27 pair. A statement-
+   level `(void) x;` between def and assert is required to keep the load
+   landing directly in the carrier (else GVN lowers temp+copy `mr`).
+
+Refined band map (vreg regions, one coloring round): block-scope user webs
+(colored from leftovers, excluded from the priority cluster) < function-named
+(reverse-decl, elastic) < copy-region renames (creation position) < 0x408b
+frontend/optimizer objects < obj0 temps (forward def-block order) < param
+homes (claim first). Confirmed by three captures (op1/op2/op3) with the
+replayer reproducing every color exactly.
+
+Negative results: decl-init rank never crosses the temp band (a sibling
+function's decl-init r31 was conflict-free luck — no callee-saved temps);
+GVN-eliminated re-defs coalesce into the SAME named number; parenthesized
+calls do not block MWCC inlining; `#pragma dont_inline` is a span toggle that
+also disables the wrapped body's internal inlining.
+
+## grHomeRun_8021CB20 solved — simplify law + permanent-degree lever (2026-08-07)
+
+`tools/replay/simplify_replay.py` now replays `Coloring_SimplifyGraph` and
+color selection exactly (K=29; validated 145/145 pop rows and colors on
+grhomerun and 93/93 on ftCh_Wait1_0_Anim). Key law: web nodes absent from
+`simplify_order` are coalesced-to-physical blockers; together with precolored
+nodes they are PERMANENT (never simplify, never decrement, block their color).
+A web whose permanent degree keeps its dynamic degree >= 29 survives into a
+later removal pass and pops earlier; the longest survivor claims r31.
+
+Lever: one staged load-backed call-arg local (`HSD_GObj* text_gobj =
+(HSD_GObj*) gp->u.unk.xD4;` passed as the argument) coalesces into the
+argument register and adds +1 permanent degree to every web live in its
+window, flipping the whole pop head without changing the instruction stream.
+Constant-valued staging folds away (no web); staging an argument that already
+naturally webs+coalesces (function-pointer lis/addi args) can instead break
+its coalescing and emit an extra `mr` — check per site. The hypothesis mode
+(`simplify_replay.py CAP IDX 32:+1`) answers "which web needs how much extra
+permanent degree" before hunting the source shape.
