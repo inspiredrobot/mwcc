@@ -270,6 +270,73 @@ destinations raises `mnCharSel_CursorThink` from 94.8861% to 94.9820%. The
 candidate still hoists `-2.2f`, so this is a verified semantic repair and a
 narrower starting point rather than a claim that the residual is solved.
 
+## TextDraw semantic-web and stack-frame validation
+
+Date: 2026-08-08
+
+- Melee source commit:
+  `(rev withheld)`;
+- `textdraw.c` SHA-256:
+  `465f740f1326cad57c6767873679d7ab48d350e5ed577c283e878eefac54334e`;
+- MWCC tooling tree committed as `(local rev)`;
+- compiler SHA-256:
+  `ccf4b465cec73b5aae9c5c5543dcf8cda8a62aba246f89e2e0b200d742f2e55c`;
+- Wibo SHA-256:
+  `8a8490a6172aa4f0f6ddcadb144ca96f51da6e90e6648ce9adaf4f6babb6e00b`;
+- container image ID:
+  `sha256:8e8ba9b4718eefbf68b585faff84504dabfd2c90293e25e3bc7b18ded0c475eb`;
+- output: function-index 7 snapshots in the dedicated
+  `/private/tmp/mwcc-textdraw-stack-0808.UgmJEH` capture mount.
+
+The GDB command file selected `mwcc-auto-capture /capture 7 ninji`. The exact
+sandbox and compile command was:
+
+```sh
+docker run --rm --platform linux/arm64 --pull never --network none \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --pids-limit 128 --memory 2g --cpus 2 \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=128m -e HOME=/tmp \
+  -v ~/etc/mwcc:/mwcc:ro \
+  -v /private/tmp/mwcc-textdraw-stack-0808.UgmJEH:/capture:rw \
+  -v ~/etc/melee:/melee:ro \
+  -v ~/etc/melee/build/wibo_old:/input/wibo_old:ro \
+  -v ~/etc/melee/build/compilers/GC/1.2.5n/mwcceppc.exe:/input/mwcceppc.exe:ro \
+  mwcc-debugger:arm64 /bin/sh -c \
+  'cd /melee && qemu-i386 -g 1234 /input/wibo_old \
+  /input/mwcceppc.exe -nowraplines -cwd source -Cpp_exceptions off \
+  -proc gekko -fp hardware -align powerpc -nosyspath -fp_contract on \
+  -O4,p -multibyte -enum int -nodefaults -inline auto \
+  -pragma "cats off" -pragma "warn_notinlined off" -RTTI off -str reuse \
+  -DBUILD_VERSION=0 -DVERSION_GALE01 -i src -i src/MSL -i src/Runtime \
+  -i extern/dolphin/include -i src/melee -i src/melee/ft/chara \
+  -i src/sysdolphin -c src/melee/if/textdraw.c \
+  -o /capture/textdraw.o & \
+  gdb-multiarch -q -x /capture/capture.gdb'
+```
+
+The new hooks recorded 15 addressed-object allocations at `0x004ac4a0` and
+11 checkpoints through frame finalization at `0x004ac240`. The four live
+four-byte color objects have local-band/final-SP offsets `+4/+0x0c`,
+`+0x0c/+0x14`, `+0x10/+0x18`, and `+0x18/+0x20`. Each allocation has size and
+alignment four. The finalizer adds an eight-byte linkage base, retains a
+`0x60`-byte local-object area, adds `0x20` bytes of GPR saves and eight bytes
+of FPR saves, and finishes at the observed `0x90`-byte frame.
+
+This explains the current `DevText_Draw` diff directly. Its only mismatches
+are the text-color `ADDI` and `STW`, both at candidate `sp+0x20` versus retail
+`sp+0x10`; the allocation trace identifies candidate local slot `+0x18` and
+the final eight-byte SP base. The four color objects intentionally remain one
+ambiguous semantic group because they have the same compiler name, type, and
+live `ADDI`/`STW` use signature. The report preserves that ambiguity while
+still exposing allocation order and exact frame-band ownership.
+
+The register-web aligner was separately checked on the saved `fn_8001EBF0`
+baseline/carrier captures. It maps `gpr:35 -> gpr:39` at score 0.84 and
+`gpr:39 -> gpr:38` at score 0.93, both high confidence, along with the
+surrounding `36 -> 35`, `37 -> 36`, and `38 -> 37` shifts. All 30 GPR webs
+align with no ambiguous, inserted, or deleted web, despite the aggregate
+origin comparison having reported no changes.
+
 ## Stock compiler-object snapshot smoke test
 
 Date: 2026-08-01
