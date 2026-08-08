@@ -752,3 +752,21 @@ naturally webs+coalesces (function-pointer lis/addi args) can instead break
 its coalescing and emit an extra `mr` — check per site. The hypothesis mode
 (`simplify_replay.py CAP IDX 32:+1`) answers "which web needs how much extra
 permanent degree" before hunting the source shape.
+
+## Case: melee vi0401 `un_8031D288_OnEnter` — SOLVED, one-field-carrier stratum promotion (2026-08-07)
+
+Full write-up and tools in `(case study withheld)`. Summary: 49-row pure
+GPR permutation. Exact replay validated (0 mismatches), DFS witness proved
+the target colors order-reachable on the unchanged graph, and a strata-
+constrained renumbering search decomposed the fix into three source
+levers: (1) loop-2 variable splits move second-region webs into decl
+slots; (2) two decl-order swaps; (3) `struct { int i; } idx;` — a
+one-field carrier promotes the loop counter's web into the
+aggregate-promotion stratum ABOVE the strength-reduction IVs, something
+no decl/scope/opacity/chain spelling can do (9! + variants all measured
+dead). The carrier stayed fully registered (no memory home, no frame
+delta) and as a bonus restored the const-zero u64-store fusion, deleting
+the original `li` INSERT without cast hacks. Key rule restated: pops take
+the MINIMUM-numbered claimed free register; fresh claims are a strict
+r31-descending prefix. Also: objdiff per-symbol scores miss emission-order
+errors — always run the section-byte/reloc comparator before closing a TU.
