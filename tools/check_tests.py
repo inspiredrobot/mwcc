@@ -36,6 +36,11 @@ def main() -> None:
             "src/backend/PCodeUtilities.c",
             "tests/test_pcode_utilities.c",
         ),
+        (
+            "stack_frame_eabi",
+            "src/backend/StackFrameEABI.c",
+            "tests/test_stack_frame_eabi.c",
+        ),
     ]
     with tempfile.TemporaryDirectory(prefix="mwcc-tests-") as temp_dir:
         for name, source, test in tests:
@@ -72,6 +77,12 @@ def main() -> None:
     )
     subprocess.run(
         [sys.executable, "tests/test_rank_register_origins.py"], check=True
+    )
+    subprocess.run(
+        [sys.executable, "tests/test_align_register_webs.py"], check=True
+    )
+    subprocess.run(
+        [sys.executable, "tests/test_stack_frame_trace.py"], check=True
     )
     subprocess.run([sys.executable, "tests/test_coff.py"], check=True)
     subprocess.run([sys.executable, "tests/test_host_probe_match.py"], check=True)

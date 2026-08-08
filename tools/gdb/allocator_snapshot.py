@@ -18,6 +18,7 @@ from allocator_snapshot import (
     SnapshotReader,
     virtual_register_boundary,
 )
+from stack_frame_trace import TRACE_FORMAT as STACK_FRAME_TRACE_FORMAT
 
 
 ALLOCATE_REGISTERS_ADDRESS = 0x004CDEF0
@@ -65,6 +66,42 @@ VIRTUAL_REGISTER_SITE_CATALOGS = {
     "ninji": "GC_1_2_5n",
 }
 VIRTUAL_REGISTER_COUNTER_RESET_ADDRESS = 0x004C23C0
+STACK_OBJECT_ALLOCATOR_ADDRESS = 0x004AC4A0
+STACK_OBJECT_ALIGNMENT_RETURN_ADDRESS = 0x004AC4AE
+STACK_OBJECT_ALLOCATOR_RETURN_ADDRESS = 0x004AC4D8
+STACK_FRAME_FINALIZE_ADDRESS = 0x004AC240
+STACK_FRAME_FINALIZE_RETURN_ADDRESS = 0x004AC496
+STACK_OBJECT_CURSOR_ADDRESS = 0x00587C80
+STACK_FRAME_CHECKPOINT_ADDRESSES = (
+    0x004AC2C3,
+    0x004AC300,
+    0x004AC324,
+    0x004AC33F,
+    0x004AC392,
+    0x004AC3D5,
+    0x004AC403,
+    0x004AC474,
+    0x004AC48B,
+)
+STACK_FRAME_STATE_FIELDS = {
+    "object_slot_cursor": (0x00587C80, "u32"),
+    "secondary_cursor_0058712c": (0x0058712C, "u32"),
+    "frame_alignment_00587e40": (0x00587E40, "u32"),
+    "frame_size_0058825c": (0x0058825C, "u32"),
+    "final_frame_size_005871b4": (0x005871B4, "u32"),
+    "linkage_size_005880cc": (0x005880CC, "u32"),
+    "vector_save_span": (0x005883EA, "u16"),
+    "fpr_save_span": (0x00588438, "u16"),
+    "gpr_save_span": (0x0058843A, "u16"),
+    "region_0058764c": (0x0058764C, "u32"),
+    "region_005880d8": (0x005880D8, "u32"),
+    "region_005876a8": (0x005876A8, "u32"),
+    "padding_00587188": (0x00587188, "u32"),
+    "region_00587634": (0x00587634, "u32"),
+    "padding_00587158": (0x00587158, "u32"),
+    "region_00587638": (0x00587638, "u32"),
+    "padding_00587fcc": (0x00587FCC, "u32"),
+}
 
 
 def load_virtual_register_sites(target):
@@ -120,6 +157,7 @@ def optional_compiler_object(reader, address):
         return None
     try:
         type_address = reader.u32(address + 0x0E)
+        opaque_value_0a = reader.u32(address + 0x0A)
         info_26 = reader.u32(address + 0x26)
         info_2e = reader.u32(address + 0x2E)
         result = {
@@ -127,8 +165,13 @@ def optional_compiler_object(reader, address):
             "header": reader.raw(address, 0x32).hex(),
             "object_tag_00": reader.u8(address),
             "kind_02": reader.u8(address + 0x02),
+            "opaque_value_0a": f"0x{opaque_value_0a:08x}",
+            "opaque_value_0a_data": optional_raw(
+                reader, opaque_value_0a, 0x40
+            ),
             "type_address": f"0x{type_address:08x}",
             "flags_12": reader.u32(address + 0x12),
+            "stack_offset_2a": reader.u32(address + 0x2A),
             "register_info_26": optional_register_info(reader, info_26),
             "register_info_2e": optional_register_info(reader, info_2e),
             "type": None,
@@ -144,6 +187,13 @@ def optional_compiler_object(reader, address):
         return result
     except gdb.MemoryError:
         return None
+
+
+def stack_frame_state(reader):
+    result = {}
+    for name, (address, value_type) in STACK_FRAME_STATE_FIELDS.items():
+        result[name] = getattr(reader, value_type)(address)
+    return result
 
 
 def optional_register_info(reader, address):
@@ -769,6 +819,121 @@ class CodeMotionFinishBreakpoint(gdb.Breakpoint):
         return False
 
 
+class StackObjectAllocatorBreakpoint(gdb.Breakpoint):
+    """Begin one exact StackFrameEABI_004ac4a0 allocation event."""
+
+    def __init__(self, session):
+        super().__init__(f"*0x{STACK_OBJECT_ALLOCATOR_ADDRESS:08x}", internal=True)
+        self.session = session
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        if self.session.pending_stack_object_allocation is not None:
+            raise gdb.GdbError("nested stack-object allocation")
+        reader = snapshot_reader(self.session)
+        stack_pointer = int(gdb.parse_and_eval("$esp"))
+        object_address = reader.u32(stack_pointer + 4)
+        object_before = optional_compiler_object(reader, object_address)
+        if object_before is None or object_before.get("type") is None:
+            raise gdb.GdbError("stack-object allocation has no readable type")
+        return_address = reader.u32(stack_pointer)
+        call_address = return_address - 5
+        if reader.u8(call_address) != 0xE8:
+            call_address = None
+        self.session.pending_stack_object_allocation = {
+            "allocator_address": f"0x{STACK_OBJECT_ALLOCATOR_ADDRESS:08x}",
+            "alignment_routine_address": "0x004aaa40",
+            "caller_return_address": f"0x{return_address:08x}",
+            "call_address": (
+                f"0x{call_address:08x}" if call_address is not None else None
+            ),
+            "object_address": f"0x{object_address:08x}",
+            "cursor_before": reader.u32(STACK_OBJECT_CURSOR_ADDRESS),
+            "size": object_before["type"]["size_02"],
+            "object_before": object_before,
+        }
+        return False
+
+
+class StackObjectAlignmentBreakpoint(gdb.Breakpoint):
+    """Capture 0x004aaa40's returned alignment before the slot write."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{STACK_OBJECT_ALIGNMENT_RETURN_ADDRESS:08x}", internal=True
+        )
+        self.session = session
+
+    def stop(self):
+        event = self.session.pending_stack_object_allocation
+        if not self.session.capture_current or event is None:
+            return False
+        event["alignment"] = int(gdb.parse_and_eval("$eax")) & 0xFFFF
+        return False
+
+
+class StackObjectAllocatorReturnBreakpoint(gdb.Breakpoint):
+    """Finish one object allocation after +0x2a and the cursor are updated."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{STACK_OBJECT_ALLOCATOR_RETURN_ADDRESS:08x}", internal=True
+        )
+        self.session = session
+
+    def stop(self):
+        event = self.session.pending_stack_object_allocation
+        if not self.session.capture_current or event is None:
+            return False
+        if "alignment" not in event:
+            raise gdb.GdbError("stack-object allocation missed alignment return")
+        reader = snapshot_reader(self.session)
+        object_address = int(event["object_address"], 0)
+        event["sequence"] = len(self.session.stack_object_allocations)
+        event["slot"] = reader.u32(object_address + 0x2A)
+        event["cursor_after"] = reader.u32(STACK_OBJECT_CURSOR_ADDRESS)
+        event["object_after"] = optional_compiler_object(reader, object_address)
+        self.session.stack_object_allocations.append(event)
+        self.session.pending_stack_object_allocation = None
+        return False
+
+
+class StackFrameCheckpointBreakpoint(gdb.Breakpoint):
+    """Record exact global state at one 0x004ac240 control-flow point."""
+
+    def __init__(self, session, address):
+        super().__init__(f"*0x{address:08x}", internal=True)
+        self.session = session
+        self.address = address
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
+        if self.address == STACK_FRAME_FINALIZE_ADDRESS:
+            stack_pointer = int(gdb.parse_and_eval("$esp"))
+            self.session.stack_frame_finalization = {
+                "routine_address": f"0x{STACK_FRAME_FINALIZE_ADDRESS:08x}",
+                "function_argument": f"0x{reader.u32(stack_pointer + 4):08x}",
+                "checkpoints": [],
+            }
+        finalization = self.session.stack_frame_finalization
+        if finalization is None:
+            raise gdb.GdbError("stack-frame checkpoint preceded routine entry")
+        finalization["checkpoints"].append(
+            {
+                "sequence": len(finalization["checkpoints"]),
+                "program_counter": f"0x{self.address:08x}",
+                "routine_offset": f"+0x{self.address - STACK_FRAME_FINALIZE_ADDRESS:x}",
+                "state": stack_frame_state(reader),
+            }
+        )
+        if self.address == STACK_FRAME_FINALIZE_RETURN_ADDRESS:
+            self.session.write_stack_frame_trace()
+        return False
+
+
 class CaptureSession:
     def __init__(self, output, target_index=None, target="stock"):
         self.output = output
@@ -794,6 +959,9 @@ class CaptureSession:
         }
         self.code_motion_events = []
         self.pending_code_motion_event = None
+        self.stack_object_allocations = []
+        self.pending_stack_object_allocation = None
+        self.stack_frame_finalization = None
         self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
         self.pcode_clone_breakpoint = PCodeCloneBreakpoint(self)
         self.pcode_clone_return_breakpoint = PCodeCloneReturnBreakpoint(self)
@@ -855,6 +1023,23 @@ class CaptureSession:
                 CODE_MOTION_RETURN_ADDRESS,
             )
         ]
+        self.stack_object_allocator_breakpoint = StackObjectAllocatorBreakpoint(
+            self
+        )
+        self.stack_object_alignment_breakpoint = StackObjectAlignmentBreakpoint(
+            self
+        )
+        self.stack_object_allocator_return_breakpoint = (
+            StackObjectAllocatorReturnBreakpoint(self)
+        )
+        self.stack_frame_checkpoint_breakpoints = [
+            StackFrameCheckpointBreakpoint(self, address)
+            for address in (
+                STACK_FRAME_FINALIZE_ADDRESS,
+                *STACK_FRAME_CHECKPOINT_ADDRESSES,
+                STACK_FRAME_FINALIZE_RETURN_ADDRESS,
+            )
+        ]
 
     def begin_function(self, function_pointer):
         self.function_index += 1
@@ -883,6 +1068,9 @@ class CaptureSession:
         }
         self.code_motion_events = []
         self.pending_code_motion_event = None
+        self.stack_object_allocations = []
+        self.pending_stack_object_allocation = None
+        self.stack_frame_finalization = None
         for sequence, event in enumerate(self.virtual_register_events):
             event["sequence"] = sequence
         self.pcode_allocation_breakpoint.enabled = False
@@ -994,6 +1182,30 @@ class CaptureSession:
             f"pcode-creations-{self.function_index:04d}-{phase}.json"
         )
         write_snapshot(trace_output, trace)
+
+    def write_stack_frame_trace(self):
+        if self.pending_stack_object_allocation is not None:
+            raise gdb.GdbError(
+                "unfinished stack-object allocation at frame finalization"
+            )
+        trace = {
+            "format": STACK_FRAME_TRACE_FORMAT,
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
+            "capture_index": self.function_index,
+            "function_pointer": f"0x{self.function_pointer:08x}",
+            "object_allocations": self.stack_object_allocations,
+            "frame_finalization": self.stack_frame_finalization,
+        }
+        output = self.output / (
+            f"stack-frame-{self.function_index:04d}.json"
+        )
+        write_snapshot(output, trace)
+        gdb.write(
+            f"Captured stack frame {self.function_index}: "
+            f"{len(self.stack_object_allocations)} object slots, "
+            f"{len(self.stack_frame_finalization['checkpoints'])} checkpoints\n"
+        )
 
     def coloring_path(self, function_index, reg_class, attempt, phase):
         return self.output / (

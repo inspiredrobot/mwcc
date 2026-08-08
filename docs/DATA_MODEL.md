@@ -450,6 +450,15 @@ minted since the prior stage.
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.
 
+The addressed-local allocator at `0x004ac4a0` promotes one more
+`CompilerObject` field. It calls the recursive type-alignment routine at
+`0x004aaa40`, rounds the local-object cursor at `0x00587c80` upward, stores the
+aligned cursor at `CompilerObject +0x2a`, and advances it by the type size at
+`CompilerType +0x02`. The field at object `+0x2a` is therefore the object's
+stack offset for this allocation path. Allocation order, cursor padding, type
+size, and computed alignment can all be captured at this leaf before
+`0x004ac240` folds the local-object area into the complete EABI frame.
+
 ## Provisional GC/1.x hypotheses
 
 An external GC/1.1 debugger suggests the following shapes, which are useful
@@ -462,7 +471,7 @@ search hypotheses but are not yet validated for GC/1.2.5:
 - an interference-graph node containing next/object pointers, cost, virtual
   and physical register numbers, flags, a neighbor count, then inline 16-bit
   neighbor indices;
-- object records containing type/name links and a stack offset.
+- object records containing additional type/name and inline-owner links.
 
 Do not encode those provisional offsets into source structs yet. Validate them
 by collecting offset use from the exact functions in `Coloring.c`,

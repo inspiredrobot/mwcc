@@ -434,9 +434,11 @@
       "source": "src/backend/StackFrameEABI.c",
       "functions": [
         { "address": "0x004a9fa0", "name": "StackFrameEABI_004a9fa0", "role": "frame-instruction helper", "evidence": "inferred" },
-        { "address": "0x004aaa40", "name": "StackFrameEABI_004aaa40", "role": "recursive frame-layout helper", "evidence": "inferred" },
+        { "address": "0x004aaa40", "name": "StackFrameEABI_GetTypeAlignment", "role": "recursively compute a compiler type's stack alignment", "evidence": "inferred" },
         { "address": "0x004aba30", "name": "StackFrameEABI_MergePrologueEpilogue", "role": "merge generated prologue and epilogue", "evidence": "inferred" },
-        { "address": "0x004abe90", "name": "StackFrameEABI_GeneratePrologueEpilogue", "role": "generate EABI prologue and epilogue", "evidence": "inferred" }
+        { "address": "0x004abe90", "name": "StackFrameEABI_GeneratePrologueEpilogue", "role": "generate EABI prologue and epilogue", "evidence": "inferred" },
+        { "address": "0x004ac240", "name": "StackFrameEABI_FinalizeLayout", "role": "assemble local, outgoing-argument, save, and padding bands into the final frame size", "evidence": "inferred" },
+        { "address": "0x004ac4a0", "name": "StackFrameEABI_AllocateObjectSlot", "role": "align and allocate one addressed compiler object in the local-object band", "evidence": "confirmed", "decompiled": true, "functional_status": "high-level equivalent", "match_percent": null, "match_note": "unmeasured: host toolchain pending" }
       ]
     },
     {

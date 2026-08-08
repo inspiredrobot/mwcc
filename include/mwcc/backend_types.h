@@ -51,7 +51,7 @@ typedef struct CompilerObject {
     unsigned int flags_12; /* 0x12 */
     unsigned char unknown_16[0x10];
     RegisterInfo* register_info_26; /* 0x26 */
-    unsigned char unknown_2a[4];
+    int stack_offset; /* 0x2a: assigned by StackFrameEABI_AllocateObjectSlot */
     RegisterInfo* register_info_2e; /* 0x2e */
 } CompilerObject;
 
@@ -212,6 +212,8 @@ typedef char PCodeFunctionSignature_result_0e
     [(offsetof(PCodeFunctionSignature, result_type) == 0x0e) ? 1 : -1];
 typedef char CompilerObject_info_26
     [(offsetof(CompilerObject, register_info_26) == 0x26) ? 1 : -1];
+typedef char CompilerObject_stack_offset_2a
+    [(offsetof(CompilerObject, stack_offset) == 0x2a) ? 1 : -1];
 typedef char
     CompilerObject_flags_12[(offsetof(CompilerObject, flags_12) == 0x12) ? 1
                                                                          : -1];

@@ -224,6 +224,20 @@ EPILOGUE, PROLOGUE.” Recover frame regions separately: linkage/save area,
 outgoing arguments, spills, compiler temporaries, locals, incoming arguments,
 alignment, and dynamic/large-frame special cases.
 
+The first local-object allocation leaf is recovered at `0x004ac4a0`.
+`StackFrameEABI_AllocateObjectSlot` asks the recursive type walker at
+`0x004aaa40` for alignment, rounds the cursor at `0x00587c80` upward, writes
+the resulting offset to `CompilerObject +0x2a`, and advances the cursor by
+`CompilerType +0x02` size. `0x004ac240` subsequently aligns that completed
+local-object band and the outgoing-argument band before assembling linkage,
+vector-save, GPR-save, FPR-save, and padding regions into the final frame size.
+The capture tooling records both decision points so allocation order is direct
+evidence rather than inferred from final PowerPC offsets.
+`tools/stack_frame_trace.py` joins those events to live PCode object uses and
+uses the finalized linkage/outgoing-area base to report the corresponding
+SP-relative slot. Cross-variant comparison aligns only unique semantic object
+signatures and leaves repeated identical locals explicitly ambiguous.
+
 ## Evidence discipline
 
 - **confirmed**: established directly by this exact executable;

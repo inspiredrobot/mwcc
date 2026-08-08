@@ -139,6 +139,45 @@ All deltas are candidate minus baseline. Start with the largest absolute
 that merely became dead or live. Only then inspect register IDs and final
 colors, since inserting one early web can renumber every later temporary.
 
+When aggregate counts stay equal but the physical coloring changes, align the
+semantic webs rather than comparing their numeric virtual-register IDs:
+
+```sh
+python3 tools/align_register_webs.py \
+  baseline/provenance.json candidate/provenance.json \
+  --register-class gpr --output web-alignment.json
+```
+
+The report combines PCode position/signatures, creation and clone lineage,
+allocator origin and object type, lifetime shape, and graph shape. It preserves
+alternative candidates and confidence for ambiguous mappings, then reports
+old/new color, simplify position, allocator stratum, and semantic edge changes
+for confident mappings.
+
+Fresh auto-captures also write `stack-frame-NNNN.json`. Join one to allocator
+provenance to see each addressed compiler object in allocation order, its type
+size/alignment, cursor padding, local-band offset, final SP-relative slot, and
+live PCode ownership evidence:
+
+```sh
+python3 tools/stack_frame_trace.py capture/stack-frame-0007.json \
+  --provenance capture/provenance.json
+```
+
+Compare controlled variants with both provenance files when available:
+
+```sh
+python3 tools/stack_frame_trace.py baseline/stack-frame-0007.json \
+  --provenance baseline/provenance.json \
+  --compare candidate/stack-frame-0007.json \
+  --compare-provenance candidate/provenance.json \
+  --output stack-delta.json
+```
+
+Only unique semantic signatures are aligned automatically. Repeated locals
+with identical type and PCode-use signatures are reported as an ambiguous
+group instead of being paired by allocation order.
+
 The CursorThink validation is the completeness test for this workflow: all 695
 live GPR webs and all 273 live FPR webs have exactly one birth origin. Its
 largest source is `Operands_ForceGPR`'s load path, while objectless `fpr:265`

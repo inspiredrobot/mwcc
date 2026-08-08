@@ -8,9 +8,11 @@ address,size,kind,name,source,status
 0x004a0fc0,,function,Operands_Normalize,Operands.c xref and shared operand normalization role,inferred
 0x004a2060,,function,PCodeUtilities_EmitAddress,address materialization with PCodeUtilities.c xref,inferred
 0x004a9fa0,,function,StackFrameEABI_004a9fa0,StackFrameEABI.c xref,inferred
-0x004aaa40,,function,StackFrameEABI_004aaa40,StackFrameEABI.c xref,inferred
+0x004aaa40,,function,StackFrameEABI_GetTypeAlignment,recursive type walk returns the alignment consumed by 0x004ac4a0,inferred
 0x004aba30,,function,StackFrameEABI_MergePrologueEpilogue,source xref and CodeGen trace boundary,inferred
 0x004abe90,,function,StackFrameEABI_GeneratePrologueEpilogue,source xref and CodeGen trace boundary,inferred
+0x004ac240,,function,StackFrameEABI_FinalizeLayout,assembles the exact frame size from local outgoing save and padding bands,inferred
+0x004ac4a0,,function,StackFrameEABI_AllocateObjectSlot,aligns the local-object cursor writes CompilerObject +0x2a and advances by type size,confirmed
 0x004beda0,,function,COptimizer_CountExpressionObjectUses,COptimizer.c expression walk to compiler-object register metadata,inferred
 0x004beef0,,function,COptimizer_RecordObjectUse,COptimizer.c shared compiler-object weight update,inferred
 0x004c1720,,function,Registers_GetInfo,Registers.c xref and allocation control flow,confirmed

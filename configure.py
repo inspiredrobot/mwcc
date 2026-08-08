@@ -46,6 +46,7 @@ def write_build_ninja(version: str, config_path: Path) -> None:
     format_inputs = " ".join(quote(source) for source in format_dependencies)
     test_dependencies = source_dependencies + sorted(Path("tests").glob("test_*"))
     test_dependencies += [
+        Path("tools/align_register_webs.py"),
         Path("tools/allocator_provenance.py"),
         Path("tools/allocator_snapshot.py"),
         Path("tools/check_tests.py"),
@@ -57,6 +58,7 @@ def write_build_ninja(version: str, config_path: Path) -> None:
         Path("tools/host_probe_match.py"),
         Path("tools/rank_register_origins.py"),
         Path("tools/run_host_candidate.py"),
+        Path("tools/stack_frame_trace.py"),
     ]
     test_inputs = " ".join(quote(source) for source in test_dependencies)
     subsystem_validation = ""
