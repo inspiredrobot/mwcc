@@ -176,6 +176,20 @@ initial color masks, availability counts, and saved-color claim helpers are
 also reconstructed for all three classes; GPR coloring begins with r0-r12 and
 claims additional colors downward from r31 through r14.
 
+Five register-counter helpers at `0x004c17c0` through `0x004c1980` are now
+reconstructed. Four open the coalescing window around object
+preallocation, checkpoint it before CodeGen-item lowering, extend or roll back
+it after each item, and close it after the loop. The debugger snapshot records
+the exact GPR, FPR, and vector windows, the complete coalescing-parent map, and
+virtual-register counter intervals at each PCode boundary. Provenance reports
+resolved coalescing groups and their member spill costs rather than guessing
+group identity from final physical colors.
+
+The fifth helper snapshots the last GPR, FPR, and vector registers allocated by
+the first object-preallocation walk. The GPR limit is used by a later optimizer
+to protect that entire initial object stratum; captures and register
+explanations now expose the same landmark for shadow-pass investigations.
+
 ### PCode descriptions
 
 The exact opcode descriptor table at `0x005654b0` is exported to

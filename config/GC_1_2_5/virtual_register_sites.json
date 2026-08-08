@@ -378,8 +378,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_0049fbc0",
+      "operation": "allocate the FPR loaded by the first LFD conversion step",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x0049fc37",
@@ -396,8 +399,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_0049fbc0",
+      "operation": "allocate the GPR defined by XORIS in conversion lowering",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x0049fcf0",
@@ -405,8 +411,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_0049fbc0",
+      "operation": "allocate the GPR defined by LIS in conversion lowering",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x0049fd32",
@@ -414,8 +423,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_0049fbc0",
+      "operation": "allocate the FPR loaded by the second LFD conversion step",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x0049fd66",
@@ -423,8 +435,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_0049fbc0",
+      "operation": "allocate the floating-point subtraction result",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x0049fdd9",
@@ -505,7 +520,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_ForceFPR",
-      "operation": "allocate destination for a direct LFS/LFD load"
+      "operation": "allocate destination for a direct LFS/LFD load",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a0617",
@@ -514,7 +532,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_ForceFPR",
-      "operation": "allocate destination for an indexed LFSX/LFDX load"
+      "operation": "allocate destination for an indexed LFSX/LFDX load",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a0706",
@@ -604,7 +625,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_ForceGPR",
-      "operation": "allocate destination while coercing an operand to a GPR"
+      "operation": "allocate destination while coercing an operand to a GPR",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a0c6c",
@@ -622,7 +646,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_ForceGPR",
-      "operation": "allocate destination while coercing an operand to a GPR"
+      "operation": "allocate destination while coercing an operand to a GPR",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a0cf7",
@@ -640,7 +667,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_ForceGPR",
-      "operation": "allocate destination while coercing an operand to a GPR"
+      "operation": "allocate destination while coercing an operand to a GPR",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a0e37",
@@ -648,8 +678,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "Operands_ForceGPR",
+      "operation": "allocate destination for an indexed load while coercing to a GPR",
+      "operation_category": "operand_coercion",
+      "evidence": "confirmed",
+      "evidence_source": "function boundary and target disassembly"
     },
     {
       "address": "0x004a0efa",
@@ -676,7 +709,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_Normalize",
-      "operation": "allocate a GPR while normalizing an operand"
+      "operation": "allocate a GPR while normalizing an operand",
+      "operation_category": "operand_normalization",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a10a3",
@@ -685,7 +721,10 @@
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
       "function": "Operands_Normalize",
-      "operation": "allocate a GPR while normalizing an operand"
+      "operation": "allocate a GPR while normalizing an operand",
+      "operation_category": "operand_normalization",
+      "evidence": "confirmed",
+      "evidence_source": "typed reconstruction and target disassembly"
     },
     {
       "address": "0x004a10d4",
@@ -2115,8 +2154,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_004b5710",
+      "operation": "allocate the result of scalar floating-point arithmetic",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x004b58c6",
@@ -2250,8 +2292,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_004b5860",
+      "operation": "allocate the first GPR used to materialize boolean constants",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target control flow and grhomerun provenance"
     },
     {
       "address": "0x004b660e",
@@ -2259,8 +2304,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_004b5860",
+      "operation": "allocate the second GPR used to materialize boolean constants",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target control flow and grhomerun provenance"
     },
     {
       "address": "0x004b6a88",
@@ -2295,8 +2343,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_004b5860",
+      "operation": "allocate the result of rotate-and-mask expression lowering",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target control flow and grhomerun provenance"
     },
     {
       "address": "0x004b7b8b",
@@ -2772,8 +2823,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "PCodeExpressionLowering",
+      "operation": "allocate the result of floating-point negation",
+      "operation_category": "expression_lowering",
+      "evidence": "inferred",
+      "evidence_source": "target disassembly and grhomerun provenance"
     },
     {
       "address": "0x004ba1d6",
@@ -3114,8 +3168,11 @@
       "counter_address": "0x0058846c",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_00518ab0",
+      "operation": "allocate an FPR call-result carrier copied from ABI f1",
+      "operation_category": "call_result",
+      "evidence": "confirmed",
+      "evidence_source": "target return-type branch and emitted FMR"
     },
     {
       "address": "0x00518fd7",
@@ -3123,8 +3180,11 @@
       "counter_address": "0x0058849a",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_00518ab0",
+      "operation": "allocate a vector call-result carrier copied from ABI vr2",
+      "operation_category": "call_result",
+      "evidence": "confirmed",
+      "evidence_source": "target return-type branch and emitted VMR"
     },
     {
       "address": "0x0051906c",
@@ -3132,8 +3192,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_00518ab0",
+      "operation": "allocate the first GPR of a wide call result copied from ABI r3",
+      "operation_category": "call_result",
+      "evidence": "confirmed",
+      "evidence_source": "target return-type branch and emitted MR"
     },
     {
       "address": "0x00519082",
@@ -3141,8 +3204,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_00518ab0",
+      "operation": "allocate the second GPR of a wide call result copied from ABI r4",
+      "operation_category": "call_result",
+      "evidence": "confirmed",
+      "evidence_source": "target return-type branch and emitted MR"
     },
     {
       "address": "0x005190df",
@@ -3150,8 +3216,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "FUN_00518ab0",
+      "operation": "allocate a GPR call-result carrier copied from ABI r3",
+      "operation_category": "call_result",
+      "evidence": "confirmed",
+      "evidence_source": "target return-type branch and emitted MR"
     },
     {
       "address": "0x0051a38f",
@@ -3438,8 +3507,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "LoopOptimization_00529480",
+      "operation": "allocate a GPR while rewriting a loop condition",
+      "operation_category": "optimizer_rewrite",
+      "evidence": "inferred",
+      "evidence_source": "LoopOptimization.c anchor and grhomerun provenance"
     },
     {
       "address": "0x00529cdf",
@@ -3492,8 +3564,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "LoopOptimization_0052a200",
+      "operation": "allocate a rotate-and-mask result during loop optimization",
+      "operation_category": "optimizer_rewrite",
+      "evidence": "inferred",
+      "evidence_source": "function adjacency and grhomerun provenance"
     },
     {
       "address": "0x0052a57a",
@@ -3501,8 +3576,11 @@
       "counter_address": "0x0058846e",
       "allocation_kind": "temporary",
       "capture_before_codegen": false,
-      "function": null,
-      "operation": null
+      "function": "LoopOptimization_0052a200",
+      "operation": "allocate a transient GPR during loop optimization",
+      "operation_category": "optimizer_rewrite",
+      "evidence": "inferred",
+      "evidence_source": "function adjacency and grhomerun provenance"
     },
     {
       "address": "0x0052d05f",

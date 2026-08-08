@@ -216,6 +216,36 @@ increasing virtual-register numbers or search the physical-use tables from
 register 31 downward. These shared mechanics are reconstructed in
 `src/backend/Registers.c` and covered by a host-side behavioral test.
 
+Four neighboring counter helpers establish the coalescing-window lifecycle.
+`Registers_BeginCoalesceWindow` at `0x004c1980` is called from the
+object-preallocation walk at `0x00437230`, between its two passes over the
+list at `0x00587fb8`. It copies each next-unused virtual-register counter to
+both the class's `First` and `Last` globals. `Registers_CheckpointCoalesceWindow`
+at `0x004c1900` is called by `CodeGen_Generator` at `0x00435617`, immediately
+before CodeGen-item dispatch, and copies the current counters to `Last` and to
+separate retry checkpoints. `Registers_UpdateCoalesceWindow` at `0x004c1850`
+can extend each `Last` after an item; in the non-virtual mode it also rolls a
+counter above 256 back to its checkpoint. Finally,
+`Registers_CloseCoalesceWindow` at `0x004c17c0` synchronizes each counter and
+`Last` to their maximum after the item loop.
+
+The adjacent `Registers_SnapshotInitialObjectRange` at `0x004c1950` runs after
+the first object-preallocation walk over the list at `0x005882ac`. It records
+each current counter minus one at GPR `0x0058845a`, FPR `0x0058845c`, and vector
+`0x0058842c`. The GPR boundary is consumed by the optimizer helper at
+`0x00520230`, which leaves virtual registers in the inclusive range
+`[32, initial_object_last]` untouched. Captures retain all three boundaries as
+an explicit initial-object stratum, providing a direct landmark for isolating
+the still-unknown shadow-object grant pass.
+
+`SpillCode_CoalesceCopies` tests both virtual roots against the inclusive
+`First`/`Last` values. Because those values snapshot the next-unused counter,
+the allocated registers admitted by a normal monotonic run are effectively
+the half-open range `[First, Last)`. This directly explains why earlier object
+strata cannot coalesce with each other while later object and lowering webs
+can. The exact globals are GPR `0x005882da/0x005882e2`, FPR
+`0x005882dc/0x005882e0`, and vector `0x00588464/0x0058846a`.
+
 The 15 state helpers at `0x004c14d0` through `0x004c1b20` complete the
 physical-register state used by color selection. Before a class is allocated,
 its 32-byte physical-use table and save span are copied into shared working
@@ -407,6 +437,15 @@ must both fall inside the class-specific coalescing range. A final walk rewrites
 every operand of the selected class to its canonical root. This directly
 explains the canonical-PCode invariant required by `Coloring_CommitAssignments`.
 Tests cover copy removal, root selection, edge transfer, and operand rewriting.
+
+Coloring snapshots preserve the complete `gCoalescedRegisters` parent map
+from `0x0058308c`, plus the active class's coalescing window. The provenance
+export resolves every chain to a canonical root and reports each non-singleton
+group with its members and their spill costs. This makes group identity and
+cost attribution direct capture facts instead of inferences from equal final
+colors. Staged PCode and allocator snapshots also carry counter boundaries,
+the initial-object limit, and the half-open GPR, FPR, and vector number ranges
+minted since the prior stage.
 
 The minimal validated layouts live in `include/mwcc/backend_types.h`; padding
 remains explicit until more fields are understood.

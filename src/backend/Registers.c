@@ -18,6 +18,19 @@ extern short gUsedVirtualRegistersVR;
 extern short gUsedVirtualRegistersGPR;
 extern short gUsedVirtualRegistersFPR;
 
+extern short gGPRCoalesceFirst;     /* 0x005882da */
+extern short gFPRCoalesceFirst;     /* 0x005882dc */
+extern short gFPRCoalesceLast;      /* 0x005882e0 */
+extern short gGPRCoalesceLast;      /* 0x005882e2 */
+extern short gVRCoalesceFirst;      /* 0x00588464 */
+extern short gVRCoalesceLast;       /* 0x0058846a */
+extern short gFPRCounterCheckpoint; /* 0x00588472 */
+extern short gGPRCounterCheckpoint; /* 0x00588474 */
+extern short gVRCounterCheckpoint;  /* 0x00588432 */
+extern short gInitialObjectGPRLast; /* 0x0058845a */
+extern short gInitialObjectFPRLast; /* 0x0058845c */
+extern short gInitialObjectVRLast;  /* 0x0058842c */
+
 extern unsigned char gUsedPhysicalGPR[32]; /* 0x00581310 */
 extern unsigned char gUsedPhysicalFPR[32]; /* 0x00581330 */
 extern unsigned char gUsedPhysicalVR[32];  /* 0x00581350 */
@@ -111,6 +124,81 @@ RegisterInfo* Registers_GetInfo(CompilerObject* object)
         Registers_Assert("Registers.c", 0x2f6);
         return 0;
     }
+}
+
+/* 0x004c17c0; control-flow equivalent; binary match unmeasured. */
+void Registers_CloseCoalesceWindow(void)
+{
+    if (gUsedVirtualRegistersGPR < gGPRCoalesceLast) {
+        gUsedVirtualRegistersGPR = gGPRCoalesceLast;
+    } else {
+        gGPRCoalesceLast = gUsedVirtualRegistersGPR;
+    }
+    if (gUsedVirtualRegistersFPR < gFPRCoalesceLast) {
+        gUsedVirtualRegistersFPR = gFPRCoalesceLast;
+    } else {
+        gFPRCoalesceLast = gUsedVirtualRegistersFPR;
+    }
+    if (gUsedVirtualRegistersVR < gVRCoalesceLast) {
+        gUsedVirtualRegistersVR = gVRCoalesceLast;
+    } else {
+        gVRCoalesceLast = gUsedVirtualRegistersVR;
+    }
+}
+
+/* 0x004c1850; control-flow equivalent; binary match unmeasured. */
+void Registers_UpdateCoalesceWindow(void)
+{
+    if (!gUseVirtualRegisterNumbers_00587f00) {
+        if (gGPRCoalesceLast < gUsedVirtualRegistersGPR) {
+            gGPRCoalesceLast = gUsedVirtualRegistersGPR;
+        }
+        if (gFPRCoalesceLast < gUsedVirtualRegistersFPR) {
+            gFPRCoalesceLast = gUsedVirtualRegistersFPR;
+        }
+        if (gVRCoalesceLast < gUsedVirtualRegistersVR) {
+            gVRCoalesceLast = gUsedVirtualRegistersVR;
+        }
+        if (gUsedVirtualRegistersGPR > 0x100) {
+            gUsedVirtualRegistersGPR = gGPRCounterCheckpoint;
+        }
+        if (gUsedVirtualRegistersFPR > 0x100) {
+            gUsedVirtualRegistersFPR = gFPRCounterCheckpoint;
+        }
+        if (gUsedVirtualRegistersVR > 0x100) {
+            gUsedVirtualRegistersVR = gVRCounterCheckpoint;
+        }
+    }
+}
+
+/* 0x004c1900; control-flow equivalent; binary match unmeasured. */
+void Registers_CheckpointCoalesceWindow(void)
+{
+    gGPRCoalesceLast = gUsedVirtualRegistersGPR;
+    gGPRCounterCheckpoint = gGPRCoalesceLast;
+    gFPRCoalesceLast = gUsedVirtualRegistersFPR;
+    gFPRCounterCheckpoint = gFPRCoalesceLast;
+    gVRCoalesceLast = gUsedVirtualRegistersVR;
+    gVRCounterCheckpoint = gVRCoalesceLast;
+}
+
+/* 0x004c1950; control-flow equivalent; binary match unmeasured. */
+void Registers_SnapshotInitialObjectRange(void)
+{
+    gInitialObjectGPRLast = gUsedVirtualRegistersGPR - 1;
+    gInitialObjectFPRLast = gUsedVirtualRegistersFPR - 1;
+    gInitialObjectVRLast = gUsedVirtualRegistersVR - 1;
+}
+
+/* 0x004c1980; control-flow equivalent; binary match unmeasured. */
+void Registers_BeginCoalesceWindow(void)
+{
+    gGPRCoalesceLast = gUsedVirtualRegistersGPR;
+    gGPRCoalesceFirst = gGPRCoalesceLast;
+    gFPRCoalesceLast = gUsedVirtualRegistersFPR;
+    gFPRCoalesceFirst = gFPRCoalesceLast;
+    gVRCoalesceLast = gUsedVirtualRegistersVR;
+    gVRCoalesceFirst = gVRCoalesceLast;
 }
 
 static void Registers_RecordPhysicalUse(unsigned char* used, short reg,

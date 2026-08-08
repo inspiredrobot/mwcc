@@ -10,6 +10,19 @@ short gUsedVirtualRegistersVR;
 short gUsedVirtualRegistersGPR;
 short gUsedVirtualRegistersFPR;
 
+short gGPRCoalesceFirst;
+short gFPRCoalesceFirst;
+short gFPRCoalesceLast;
+short gGPRCoalesceLast;
+short gVRCoalesceFirst;
+short gVRCoalesceLast;
+short gFPRCounterCheckpoint;
+short gGPRCounterCheckpoint;
+short gVRCounterCheckpoint;
+short gInitialObjectGPRLast;
+short gInitialObjectFPRLast;
+short gInitialObjectVRLast;
+
 unsigned char gUsedPhysicalGPR[32];
 unsigned char gUsedPhysicalFPR[32];
 unsigned char gUsedPhysicalVR[32];
@@ -59,6 +72,18 @@ static void ResetState(void)
     gUsedVirtualRegistersVR = 0;
     gUsedVirtualRegistersGPR = 0;
     gUsedVirtualRegistersFPR = 0;
+    gGPRCoalesceFirst = 0;
+    gFPRCoalesceFirst = 0;
+    gFPRCoalesceLast = 0;
+    gGPRCoalesceLast = 0;
+    gVRCoalesceFirst = 0;
+    gVRCoalesceLast = 0;
+    gFPRCounterCheckpoint = 0;
+    gGPRCounterCheckpoint = 0;
+    gVRCounterCheckpoint = 0;
+    gInitialObjectGPRLast = 0;
+    gInitialObjectFPRLast = 0;
+    gInitialObjectVRLast = 0;
     memset(gUsedPhysicalGPR, 0, sizeof(gUsedPhysicalGPR));
     memset(gUsedPhysicalFPR, 0, sizeof(gUsedPhysicalFPR));
     memset(gUsedPhysicalVR, 0, sizeof(gUsedPhysicalVR));
@@ -185,11 +210,59 @@ static void TestColoringState(void)
     Check(Coloring_ClaimVRColor() == 31, "claim highest saved VR");
 }
 
+static void TestCoalesceWindow(void)
+{
+    ResetState();
+    gUsedVirtualRegistersGPR = 40;
+    gUsedVirtualRegistersFPR = 50;
+    gUsedVirtualRegistersVR = 60;
+    Registers_BeginCoalesceWindow();
+    Check(gGPRCoalesceFirst == 40 && gGPRCoalesceLast == 40,
+          "begin GPR coalesce window");
+    Check(gFPRCoalesceFirst == 50 && gFPRCoalesceLast == 50,
+          "begin FPR coalesce window");
+    Check(gVRCoalesceFirst == 60 && gVRCoalesceLast == 60,
+          "begin VR coalesce window");
+
+    Registers_SnapshotInitialObjectRange();
+    Check(gInitialObjectGPRLast == 39, "snapshot initial GPR object range");
+    Check(gInitialObjectFPRLast == 49, "snapshot initial FPR object range");
+    Check(gInitialObjectVRLast == 59, "snapshot initial VR object range");
+
+    gUsedVirtualRegistersGPR = 44;
+    gUsedVirtualRegistersFPR = 55;
+    gUsedVirtualRegistersVR = 66;
+    Registers_CheckpointCoalesceWindow();
+    Check(gGPRCoalesceLast == 44 && gGPRCounterCheckpoint == 44,
+          "checkpoint GPR coalesce window");
+    Check(gFPRCoalesceLast == 55 && gFPRCounterCheckpoint == 55,
+          "checkpoint FPR coalesce window");
+    Check(gVRCoalesceLast == 66 && gVRCounterCheckpoint == 66,
+          "checkpoint VR coalesce window");
+
+    gUsedVirtualRegistersGPR = 42;
+    gUsedVirtualRegistersFPR = 57;
+    Registers_CloseCoalesceWindow();
+    Check(gUsedVirtualRegistersGPR == 44, "close restores GPR high watermark");
+    Check(gFPRCoalesceLast == 57, "close extends FPR high watermark");
+
+    gUsedVirtualRegistersGPR = 257;
+    gUsedVirtualRegistersFPR = 58;
+    gUsedVirtualRegistersVR = 67;
+    gUseVirtualRegisterNumbers_00587f00 = 0;
+    Registers_UpdateCoalesceWindow();
+    Check(gGPRCoalesceLast == 257 && gUsedVirtualRegistersGPR == 44,
+          "update records and rolls back large GPR counter");
+    Check(gFPRCoalesceLast == 58 && gVRCoalesceLast == 67,
+          "update extends class high watermarks");
+}
+
 int main(void)
 {
     TestExplicitBindings();
     TestAutomaticAllocation();
     TestColoringState();
+    TestCoalesceWindow();
     puts("register model tests passed");
     return 0;
 }

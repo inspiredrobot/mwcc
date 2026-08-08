@@ -5,6 +5,12 @@
 
 RegisterInfo* Registers_GetInfo(CompilerObject* object);
 
+void Registers_CloseCoalesceWindow(void);
+void Registers_UpdateCoalesceWindow(void);
+void Registers_CheckpointCoalesceWindow(void);
+void Registers_SnapshotInitialObjectRange(void);
+void Registers_BeginCoalesceWindow(void);
+
 void Coloring_ResetVRColors(void);
 void Coloring_ResetFPRColors(void);
 void Coloring_ResetGPRColors(void);

@@ -40,6 +40,13 @@ def summarize_origins(provenance: dict) -> dict:
                 "allocator_address": key[2],
                 "allocator_function": event.get("allocator_function"),
                 "allocator_operation": event.get("allocator_operation"),
+                "allocator_operation_category": event.get(
+                    "allocator_operation_category"
+                ),
+                "allocator_evidence": event.get("allocator_evidence"),
+                "allocator_evidence_source": event.get(
+                    "allocator_evidence_source"
+                ),
                 "allocated_count": 0,
                 "live_registers": [],
                 "definition_mnemonics": Counter(),
@@ -128,6 +135,10 @@ def compare_summaries(left: dict, right: dict) -> dict:
                 "allocator_address": key[2],
                 "allocator_function": representative.get("allocator_function"),
                 "allocator_operation": representative.get("allocator_operation"),
+                "allocator_operation_category": representative.get(
+                    "allocator_operation_category"
+                ),
+                "allocator_evidence": representative.get("allocator_evidence"),
                 "allocated_left": left_allocated,
                 "allocated_right": right_allocated,
                 "allocated_delta": right_allocated - left_allocated,

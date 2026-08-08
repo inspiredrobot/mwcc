@@ -217,6 +217,18 @@ explicit register-counter reset at `0x004c23c0` and the next CodeGen boundary.
 Future negative conclusions must check capture-window ownership as well as
 breakpoint coverage.
 
+The grhomerun follow-up expanded the generated site catalog from seven to 26
+described allocation sites. The new entries cover conversion and scalar-FP
+lowering, indexed-load forcing, Boolean constants, rotate-mask and FNEG
+lowering, ABI return-value carriers, and two loop-optimization sites. Every
+description carries an explicit confirmed/inferred evidence field and an
+address-backed source note. The object-backed allocator wrappers are labeled
+at export time as well, so existing captures gain those names without being
+rerun. A fresh capture additionally records the full coalescing-parent map and
+per-stage virtual-register counter intervals.
+It also retains the initial object-stratum limit written immediately after the
+first object-preallocation pass, a static landmark used by a later optimizer.
+
 QEMU user-mode's GDB stub rejected even one hardware data watchpoint. A generic
 "too many hardware breakpoints/watchpoints" diagnostic was returned both for
 three counters and for a GPR-only trial. Counter watchpoints are therefore not

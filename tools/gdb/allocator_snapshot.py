@@ -10,7 +10,14 @@ REPOSITORY_DIR = TOOLS_DIR.parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from allocator_snapshot import TARGET_NINJI_SHA256, TARGET_SHA256, SnapshotReader
+from allocator_snapshot import (
+    FIRST_VIRTUAL_REGISTER,
+    OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS,
+    TARGET_NINJI_SHA256,
+    TARGET_SHA256,
+    SnapshotReader,
+    virtual_register_boundary,
+)
 
 
 ALLOCATE_REGISTERS_ADDRESS = 0x004CDEF0
@@ -44,7 +51,6 @@ VIRTUAL_REGISTER_ALLOCATORS = {
     0x004C2120: ("gpr", "pair"),
     0x004C2280: ("gpr", "single"),
 }
-
 PCODE_WRAPPERS = {
     PCODE_EMIT_ADDRESS: "emit",
     PCODE_CREATE_ADDRESS: "create",
@@ -293,6 +299,7 @@ class AllocateBreakpoint(gdb.Breakpoint):
             function_pointer, int(gdb.parse_and_eval("$pc"))
         )
         snapshot["capture_index"] = self.session.function_index
+        self.session.record_virtual_register_boundary("allocator", snapshot)
         output = self.session.output / (
             f"allocator-{self.session.function_index:04d}.json"
         )
@@ -484,11 +491,17 @@ class VirtualRegisterAllocatorBreakpoint(gdb.Breakpoint):
             call_address = None
         object_address = reader.u32(stack_pointer + 4)
         reg_class, allocation_kind = VIRTUAL_REGISTER_ALLOCATORS[self.address]
+        detail = OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS[self.address]
         event = {
             "epoch": self.session.creation_epoch,
             "allocator_address": f"0x{self.address:08x}",
             "register_class": reg_class,
             "allocation_kind": allocation_kind,
+            "allocator_function": detail["function"],
+            "allocator_operation": detail["operation"],
+            "allocator_operation_category": detail["operation_category"],
+            "allocator_evidence": detail["evidence"],
+            "allocator_evidence_source": detail["evidence_source"],
             "caller_return_address": f"0x{return_address:08x}",
             "call_address": (
                 f"0x{call_address:08x}" if call_address is not None else None
@@ -524,6 +537,11 @@ class DirectVirtualRegisterBreakpoint(gdb.Breakpoint):
             "allocation_kind": "temporary",
             "allocator_function": self.site.get("function"),
             "allocator_operation": self.site.get("operation"),
+            "allocator_operation_category": self.site.get(
+                "operation_category"
+            ),
+            "allocator_evidence": self.site.get("evidence"),
+            "allocator_evidence_source": self.site.get("evidence_source"),
             "caller_return_address": None,
             "call_address": None,
             "object_address": "0x00000000",
@@ -769,6 +787,11 @@ class CaptureSession:
         self.pending_clones = []
         self.virtual_register_events = []
         self.pending_frontend_virtual_register_events = []
+        self.virtual_register_boundaries = []
+        self.previous_virtual_register_counts = {
+            register_class: FIRST_VIRTUAL_REGISTER
+            for register_class in REGISTER_CLASS_NAMES.values()
+        }
         self.code_motion_events = []
         self.pending_code_motion_event = None
         self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
@@ -853,6 +876,11 @@ class CaptureSession:
             else []
         )
         self.pending_frontend_virtual_register_events = []
+        self.virtual_register_boundaries = []
+        self.previous_virtual_register_counts = {
+            register_class: FIRST_VIRTUAL_REGISTER
+            for register_class in REGISTER_CLASS_NAMES.values()
+        }
         self.code_motion_events = []
         self.pending_code_motion_event = None
         for sequence, event in enumerate(self.virtual_register_events):
@@ -867,11 +895,25 @@ class CaptureSession:
         self.code_motion_events.append(self.pending_code_motion_event)
         self.pending_code_motion_event = None
 
+    def record_virtual_register_boundary(self, phase, snapshot):
+        boundary = virtual_register_boundary(
+            phase,
+            snapshot["virtual_register_counts"],
+            self.previous_virtual_register_counts,
+        )
+        boundary["initial_object_register_last"] = snapshot[
+            "initial_object_register_last"
+        ]
+        snapshot["virtual_register_boundary"] = boundary
+        self.virtual_register_boundaries.append(boundary)
+        self.previous_virtual_register_counts = dict(boundary["counts"])
+
     def write_pcode_stage(self, phase, program_counter):
         reader = snapshot_reader(self)
         snapshot = reader.snapshot(self.function_pointer, program_counter)
         snapshot["capture_index"] = self.function_index
         snapshot["phase"] = phase
+        self.record_virtual_register_boundary(phase, snapshot)
         output = self.output / f"pcode-{self.function_index:04d}-{phase}.json"
         write_snapshot(output, snapshot)
 
@@ -942,6 +984,7 @@ class CaptureSession:
             "events": self.creation_events,
             "clone_events": self.clone_events,
             "virtual_register_events": self.virtual_register_events,
+            "virtual_register_boundaries": self.virtual_register_boundaries,
             "unwrapped_instruction_allocations": unwrapped_allocations,
             "optimizer_allocation_count": len(self.optimizer_allocations),
             "pending_event_count": len(self.pending_creations),

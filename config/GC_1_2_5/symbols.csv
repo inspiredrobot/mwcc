@@ -14,6 +14,11 @@ address,size,kind,name,source,status
 0x004beda0,,function,COptimizer_CountExpressionObjectUses,COptimizer.c expression walk to compiler-object register metadata,inferred
 0x004beef0,,function,COptimizer_RecordObjectUse,COptimizer.c shared compiler-object weight update,inferred
 0x004c1720,,function,Registers_GetInfo,Registers.c xref and allocation control flow,confirmed
+0x004c17c0,,function,Registers_CloseCoalesceWindow,counter and coalescing-bound synchronization,confirmed
+0x004c1850,,function,Registers_UpdateCoalesceWindow,counter high-water and rollover control flow,confirmed
+0x004c1900,,function,Registers_CheckpointCoalesceWindow,counter-to-bound and checkpoint assignments,confirmed
+0x004c1950,,function,Registers_SnapshotInitialObjectRange,first object-preallocation pass counter boundary,confirmed
+0x004c1980,,function,Registers_BeginCoalesceWindow,counter-to-first-and-last assignments,confirmed
 0x004c1b40,,function,Registers_BindVR,physical VR use tracking and object binding,inferred
 0x004c1c50,,function,Registers_BindFPR,physical FPR use tracking and object binding,inferred
 0x004c1d60,,function,Registers_BindGPRPair,paired GPR object binding,inferred

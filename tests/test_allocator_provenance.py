@@ -67,6 +67,8 @@ def allocator_snapshot():
 
 
 def coloring_snapshot(phase, color):
+    parents = list(range(34))
+    parents[33] = 32
     return {
         "format": "mwcc-coloring-snapshot-v1",
         "compiler": "GC/1.2.5",
@@ -76,6 +78,10 @@ def coloring_snapshot(phase, color):
         "capture_index": 7,
         "attempt": 1,
         "phase": phase,
+        "coalesced_registers_address": "0x00590000",
+        "coalesced_registers": parents,
+        "coalescing_groups": [{"root": 32, "members": [32, 33]}],
+        "coalesce_range": {"first": 32, "last": 39},
         "simplify_order": [32, 33] if phase == "before" else [],
         "nodes": [
             {
@@ -201,6 +207,22 @@ def main():
                 "secondary_register": None,
             },
         ],
+        "virtual_register_boundaries": [
+            {
+                "phase": "initial",
+                "counts": {"gpr": 34, "fpr": 33, "vr": 32},
+                "allocated_since_previous": {
+                    "gpr": {"first": 32, "last_exclusive": 34, "count": 2},
+                    "fpr": {"first": 32, "last_exclusive": 33, "count": 1},
+                    "vr": {"first": 32, "last_exclusive": 32, "count": 0},
+                },
+                "initial_object_register_last": {
+                    "gpr": 33,
+                    "fpr": 31,
+                    "vr": 31,
+                },
+            }
+        ],
     }
     trace["events"][0]["instruction"]["operands"][0]["compiler_object"] = {
         "address": "0x00004000",
@@ -235,6 +257,10 @@ def main():
     ]
     assert facts["simplify_order"][1]["register"] == "gpr:33"
     assert facts["coalesces"][0]["parent"] == "gpr:32"
+    assert facts["coalesces"][0]["source"] == "gCoalescedRegisters"
+    assert facts["coalescing_groups"][0]["members"] == ["gpr:32", "gpr:33"]
+    assert facts["coalescing_groups"][0]["root_spill_cost"] == 6
+    assert facts["coalescing_windows"][0]["first"] == 32
     assert facts["object_bindings"][0]["object"] == "0x00004000"
     assert facts["pcode_creations"][0]["call_address"] == "0x00401000"
     assert facts["pcode_creations"][0]["codegen_item"] == "cg0"
@@ -258,6 +284,12 @@ def main():
         {"register": "gpr:32", "creation": "vrc0", "role": "primary"},
         {"register": "fpr:32", "creation": "vrc1", "role": "primary"},
     ]
+    assert facts["virtual_register_creations"][0]["allocator_function"] == (
+        "Registers_AllocateGPR"
+    )
+    assert facts["virtual_register_creations"][0][
+        "allocator_operation_category"
+    ] == "object_allocation"
     explanation = explain_register(facts, "gpr:32")
     assert explanation["sites"][0]["mnemonic"] == "MR"
     assert explanation["sites"][0]["lowering_call_address"] == "0x00401000"
@@ -265,6 +297,19 @@ def main():
         "call_address"
     ] == "0x00402000"
     assert explanation["simplify_positions"][0]["position"] == 0
+    assert explanation["coalescing_groups"][0]["root"] == "gpr:32"
+    assert explanation["coalescing_windows"][0]["last"] == 39
+    assert explanation["virtual_register_counter_intervals"] == [
+        {
+            "phase": "initial",
+            "first": 32,
+            "last_exclusive": 34,
+            "count": 2,
+        }
+    ]
+    assert explanation["initial_object_strata"] == [
+        {"first": 32, "last_exclusive": 34, "source_phase": "initial"}
+    ]
     fpr_explanation = explain_register(facts, "fpr:32")
     assert fpr_explanation["virtual_register_origins"][0]["event"][
         "allocator_address"

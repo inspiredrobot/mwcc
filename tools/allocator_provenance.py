@@ -7,6 +7,7 @@ import struct
 from pathlib import Path
 
 from allocator_snapshot import (
+    OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS,
     TARGET_NINJI_SHA256,
     TARGET_SHA256,
     validate_coloring_snapshot,
@@ -210,6 +211,8 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
     edges = []
     simplify_order = []
     coalesces = []
+    coalescing_groups = []
+    coalescing_windows = []
     object_bindings = []
 
     for snapshot_index, snapshot in enumerate(snapshots):
@@ -220,6 +223,69 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
         node_by_register = {
             node["virtual_register"]: node for node in snapshot["nodes"]
         }
+        parents = snapshot.get("coalesced_registers")
+
+        if parents is not None:
+            def root_of(register):
+                while parents[register] != register:
+                    register = parents[register]
+                return register
+
+            for register, parent in enumerate(parents):
+                if register == parent:
+                    continue
+                coalesces.append(
+                    {
+                        "phase": phase,
+                        "attempt": attempt,
+                        "register": register_id(reg_class, register),
+                        "parent": register_id(reg_class, parent),
+                        "root": register_id(reg_class, root_of(register)),
+                        "source": "gCoalescedRegisters",
+                    }
+                )
+            for group in snapshot.get("coalescing_groups", []):
+                member_costs = []
+                for member in group["members"]:
+                    node = node_by_register.get(member)
+                    member_costs.append(
+                        {
+                            "register": register_id(reg_class, member),
+                            "spill_cost": (
+                                node.get("spill_cost") if node is not None else None
+                            ),
+                        }
+                    )
+                root = group["root"]
+                root_node = node_by_register.get(root)
+                coalescing_groups.append(
+                    {
+                        "phase": phase,
+                        "attempt": attempt,
+                        "root": register_id(reg_class, root),
+                        "members": [
+                            register_id(reg_class, member)
+                            for member in group["members"]
+                        ],
+                        "root_spill_cost": (
+                            root_node.get("spill_cost")
+                            if root_node is not None
+                            else None
+                        ),
+                        "member_spill_costs": member_costs,
+                    }
+                )
+        coalesce_range = snapshot.get("coalesce_range")
+        if coalesce_range is not None:
+            coalescing_windows.append(
+                {
+                    "phase": phase,
+                    "attempt": attempt,
+                    "register_class": reg_class,
+                    "first": coalesce_range["first"],
+                    "last": coalesce_range["last"],
+                }
+            )
 
         for node in snapshot["nodes"]:
             register = node["virtual_register"]
@@ -248,7 +314,7 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
                 ],
             }
             nodes.append(node_record)
-            if flags & 0x04:
+            if parents is None and flags & 0x04:
                 coalesces.append(
                     {
                         "phase": phase,
@@ -298,6 +364,8 @@ def flatten_coloring(allocator: dict, snapshots: list[dict]) -> dict:
         "interference_edges": edges,
         "simplify_order": simplify_order,
         "coalesces": coalesces,
+        "coalescing_groups": coalescing_groups,
+        "coalescing_windows": coalescing_windows,
         "object_bindings": object_bindings,
     }
 
@@ -319,6 +387,7 @@ def flatten_creation_trace(
             "derived_from": [],
             "virtual_register_creations": [],
             "register_created_by": [],
+            "virtual_register_boundaries": [],
             "creation_coverage": None,
         }
     if trace.get("format") != "mwcc-pcode-creation-trace-v1":
@@ -487,6 +556,10 @@ def flatten_creation_trace(
     for event in trace.get("virtual_register_events", []):
         event_id = f"vrc{event['sequence']}"
         site = virtual_register_sites.get(event["allocator_address"], {})
+        if not site:
+            site = OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS.get(
+                int(event["allocator_address"], 0), {}
+            )
         object_after = event.get("object_after")
         register_info = None
         if object_after is not None:
@@ -527,6 +600,17 @@ def flatten_creation_trace(
                 "allocator_operation": (
                     event.get("allocator_operation") or site.get("operation")
                 ),
+                "allocator_operation_category": (
+                    event.get("allocator_operation_category")
+                    or site.get("operation_category")
+                ),
+                "allocator_evidence": (
+                    event.get("allocator_evidence") or site.get("evidence")
+                ),
+                "allocator_evidence_source": (
+                    event.get("allocator_evidence_source")
+                    or site.get("evidence_source")
+                ),
                 "call_address": event["call_address"],
                 "caller_return_address": event["caller_return_address"],
                 "codegen_item_address": event.get("codegen_item_address"),
@@ -561,6 +645,9 @@ def flatten_creation_trace(
         "derived_from": derived_from,
         "virtual_register_creations": virtual_register_creations,
         "register_created_by": register_created_by,
+        "virtual_register_boundaries": trace.get(
+            "virtual_register_boundaries", []
+        ),
         "creation_coverage": {
             "live_instruction_count": len(instructions),
             "linked_live_instruction_count": len(created_by) + len(derived_from),

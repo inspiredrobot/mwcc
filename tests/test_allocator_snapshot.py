@@ -8,12 +8,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 from allocator_snapshot import (
+    COALESCED_REGISTERS_ADDRESS,
+    COALESCE_RANGE_ADDRESSES,
+    INITIAL_OBJECT_REGISTER_LAST_ADDRESSES,
     INTERFERENCE_GRAPH_ADDRESS,
     PCODE_BLOCKS_ADDRESS,
     PCODE_OPCODE_DESCRIPTORS_ADDRESS,
     TARGET_NINJI_SHA256,
     SnapshotReader,
+    coalescing_groups,
     decode_operand_format,
+    virtual_register_boundary,
 )
 
 
@@ -32,6 +37,18 @@ class SparseMemory:
 
 
 def main():
+    assert virtual_register_boundary(
+        "optimized",
+        {"gpr": 40, "fpr": 35, "vr": 32},
+        {"gpr": 38, "fpr": 34, "vr": 32},
+    )["allocated_since_previous"] == {
+        "gpr": {"first": 38, "last_exclusive": 40, "count": 2},
+        "fpr": {"first": 34, "last_exclusive": 35, "count": 1},
+        "vr": {"first": 32, "last_exclusive": 32, "count": 0},
+    }
+    assert coalescing_groups([0, 1, 2, 2]) == [
+        {"root": 2, "members": [2, 3]}
+    ]
     assert decode_operand_format("=r,b,m,p") == {
         "dynamic_operand_count": False,
         "operands": [
@@ -97,6 +114,15 @@ def main():
     memory.write(0x0058846E, struct.pack("<h", 40))
     memory.write(0x0058846C, struct.pack("<h", 35))
     memory.write(0x0058849A, struct.pack("<h", 32))
+    memory.write(
+        INITIAL_OBJECT_REGISTER_LAST_ADDRESSES["gpr"], struct.pack("<h", 33)
+    )
+    memory.write(
+        INITIAL_OBJECT_REGISTER_LAST_ADDRESSES["fpr"], struct.pack("<h", 31)
+    )
+    memory.write(
+        INITIAL_OBJECT_REGISTER_LAST_ADDRESSES["vr"], struct.pack("<h", 31)
+    )
 
     block = bytearray(0x30)
     struct.pack_into("<I", block, 0x10, link_address)
@@ -136,6 +162,11 @@ def main():
 
     snapshot = SnapshotReader(memory.read).snapshot(0xDEADBEEF, 0x004CDEF0)
     assert snapshot["virtual_register_counts"] == {"gpr": 40, "fpr": 35, "vr": 32}
+    assert snapshot["initial_object_register_last"] == {
+        "gpr": 33,
+        "fpr": 31,
+        "vr": 31,
+    }
     assert snapshot["function_pointer"] == "0xdeadbeef"
     assert len(snapshot["blocks"]) == 1
     captured_block = snapshot["blocks"][0]
@@ -186,7 +217,17 @@ def main():
 
     graph_address = 0x2000
     node_addresses = [0x2100, 0x2140]
+    coalesced_address = 0x2300
     memory.write(INTERFERENCE_GRAPH_ADDRESS, struct.pack("<I", graph_address))
+    memory.write(
+        COALESCED_REGISTERS_ADDRESS, struct.pack("<I", coalesced_address)
+    )
+    parents = list(range(34))
+    parents[33] = 32
+    memory.write(coalesced_address, struct.pack("<34h", *parents))
+    first_address, last_address = COALESCE_RANGE_ADDRESSES[0]
+    memory.write(first_address, struct.pack("<h", 32))
+    memory.write(last_address, struct.pack("<h", 39))
     memory.write(graph_address + 32 * 4, struct.pack("<I", node_addresses[0]))
     memory.write(graph_address + 33 * 4, struct.pack("<I", node_addresses[1]))
     memory.write(0x0058846E, struct.pack("<h", 34))
@@ -207,6 +248,12 @@ def main():
         0, node_addresses[0], 0x004CE2D0
     )
     assert coloring["register_count"] == 34
+    assert coloring["coalesced_registers_address"] == "0x00002300"
+    assert coloring["coalesced_registers"][33] == 32
+    assert coloring["coalescing_groups"] == [
+        {"root": 32, "members": [32, 33]}
+    ]
+    assert coloring["coalesce_range"] == {"first": 32, "last": 39}
     assert coloring["simplify_order"] == [32, 33]
     assert coloring["nodes"][0]["neighbors"] == [33]
     assert coloring["nodes"][1]["neighbors"] == [32]

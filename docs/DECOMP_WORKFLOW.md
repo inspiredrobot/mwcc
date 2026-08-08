@@ -104,6 +104,16 @@ compiler temporary and gives the exact allocator/lowering site. Definition and
 use records then connect that birth to PCode creation, optimizer clone ancestry,
 interference, simplify order, and final color.
 
+New captures also expose `virtual_register_counter_intervals`, which assign
+each half-open GPR, FPR, and vector number range to the PCode stage that minted
+it. Coloring records add the active `coalescing_windows` and the complete
+`coalescing_groups`, including direct parent, resolved root, members, and spill
+costs. `explain_register.py` includes the matching interval, window, and group
+for the requested web. Site-catalog labels apply retroactively to old raw
+captures, but parent maps and stage-boundary counters require a fresh capture.
+The explanation's `initial_object_strata` field additionally identifies webs
+inside the counter range closed by the first object-preallocation walk.
+
 Rank a whole function when the responsible web is not known:
 
 ```sh
@@ -112,8 +122,9 @@ python3 tools/rank_register_origins.py capture/provenance.json --limit 20
 
 Each group reports total allocations, live and dead allocations, the first and
 last live virtual-register IDs, and the PCode mnemonics that define the live
-webs. A high live count identifies a lowering routine worth decompiling; a high
-dead count identifies work removed before allocation.
+webs. It also reports the operation category and its evidence source when the
+site catalog has one. A high live count identifies a lowering routine worth
+decompiling; a high dead count identifies work removed before allocation.
 
 For a controlled source experiment, capture both variants and compare them:
 

@@ -140,6 +140,56 @@ def explain_register(provenance: dict, register_id: str) -> dict:
         for item in provenance.get("object_bindings", [])
         if item["register"] == register_id
     ]
+    coalesces = [
+        item
+        for item in provenance.get("coalesces", [])
+        if register_id in (
+            item.get("register"),
+            item.get("parent"),
+            item.get("root"),
+        )
+    ]
+    coalescing_groups = [
+        item
+        for item in provenance.get("coalescing_groups", [])
+        if register_id in item.get("members", [])
+    ]
+    coalescing_windows = [
+        item
+        for item in provenance.get("coalescing_windows", [])
+        if item.get("register_class") == register["class"]
+        and item.get("first") <= register["register"] <= item.get("last")
+    ]
+    counter_intervals = []
+    initial_object_strata = []
+    for boundary in provenance.get("virtual_register_boundaries", []):
+        initial_object_last = boundary.get(
+            "initial_object_register_last", {}
+        ).get(register["class"])
+        if (
+            initial_object_last is not None
+            and 32 <= register["register"] <= initial_object_last
+            and not initial_object_strata
+        ):
+            initial_object_strata.append(
+                {
+                    "first": 32,
+                    "last_exclusive": initial_object_last + 1,
+                    "source_phase": boundary["phase"],
+                }
+            )
+        interval = boundary.get("allocated_since_previous", {}).get(
+            register["class"]
+        )
+        if interval is None:
+            continue
+        if interval["first"] <= register["register"] < interval["last_exclusive"]:
+            counter_intervals.append(
+                {
+                    "phase": boundary["phase"],
+                    **interval,
+                }
+            )
 
     return {
         "format": "mwcc-register-explanation-v1",
@@ -150,6 +200,11 @@ def explain_register(provenance: dict, register_id: str) -> dict:
         "graph_states": graph_states,
         "simplify_positions": simplify_positions,
         "object_bindings": object_bindings,
+        "coalesces": coalesces,
+        "coalescing_groups": coalescing_groups,
+        "coalescing_windows": coalescing_windows,
+        "virtual_register_counter_intervals": counter_intervals,
+        "initial_object_strata": initial_object_strata,
         "virtual_register_origins": [
             {
                 **link,
