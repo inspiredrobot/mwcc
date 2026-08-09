@@ -286,6 +286,50 @@ surviving creations and 20 optimizer clones.
   valuable graph probes without being viable final code, and carrier
   scalarization must be measured per site.
 
+### `Ground_801C466C`: sequential semantic carriers and independent stack homes
+
+- Source: `src/melee/gr/ground.c`; exact Melee commit `(rev withheld)` in PR #(withheld),
+  linked as a fully matching translation unit by `(rev withheld)`.
+- Symptom: the baseline already had the retail 206-instruction schedule, but
+  five semantic register webs differed. The closest pre-final source reached
+  99.8000% with only seven operands in the scan loop using r29 instead of
+  retail r28. An apparently equivalent source could also be register-exact
+  while retaining a `0x38` frame and placing an addressed `Vec3` eight bytes
+  below retail.
+- Inline-boundary result: flattening the stage callback scan into the caller
+  moved the callback cursor from r29 to retail r26 without changing the PCode
+  graph. The helper boundary had put the value in a distinct inline-local
+  provenance stratum; caller-local lowering supplied the retail birth/rank.
+- Sequential-carrier result: retail reuses r28 for two non-overlapping values
+  with unrelated C types: first the selected `LightList**`, later the
+  `HSD_AObjSetFlags` callback address. A union with `lights` and `callback`
+  members gives both values one source owner. Assigning the callback member
+  after copying the selected list to its traversal cursor both reproduces the
+  r28 reuse and prevents selected-list-to-cursor coalescing. This restores the
+  two required copy boundaries as well as the late callback operands.
+- Loop-coloring result: independent scalar `i` and `count` locals let two
+  non-overlapping webs reuse retail r28 across `mtctr`. Combining them in an
+  eight-byte struct preserved the instruction graph and stack footprint but
+  ranked their aggregate carrier at r29. This is a concrete warning that a
+  convenient aggregate can impose frontend ownership even when scalar
+  replacement removes all field accesses from final code.
+- Stack result: scalarizing `i` and `count` made every register exact but
+  removed eight bytes of local homes, shrinking the frame from `0x40` to
+  `0x38` and moving `sp10` from `sp+0x10` to `sp+0x8`. Two otherwise-dead
+  four-byte declarations, `var_r3` and `temp_r28`, independently own that
+  missing band. Retaining them restores the retail frame and every stack
+  displacement without altering the live register webs. MWCC lays these homes
+  and the addressed `Vec3` out in reverse local order.
+- General lesson: register ownership and stack ownership are orthogonal source
+  constraints. Solve them separately. First find a scalar/source-carrier shape
+  that reproduces semantic web creation, coalescing, and coloring; then account
+  for every reserved local home, including dead declarations. Replacing dead
+  homes with a live aggregate can preserve total frame size while silently
+  changing allocator provenance and therefore cannot be treated as equivalent.
+- Verification: `Ground_801C466C`, `Ground_801C20E0`, and
+  `Ground_801C4FAC` all score 100.0000%; the rebuilt Ground object reports 100%
+  for every allocatable section, and the linked Melee checksum passes.
+
 ### `COpt_00521bb0` host-compiler control
 
 - Source: `src/backend/CodeMotion.c` in this MWCC reconstruction.
