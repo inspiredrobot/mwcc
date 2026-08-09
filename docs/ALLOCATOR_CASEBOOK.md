@@ -251,6 +251,41 @@ surviving creations and 20 optimizer clones.
 
 ## Initial Melee cases
 
+### `Ground_801C20E0`: stack homes and provenance-only web ordering
+
+- Source: `src/melee/gr/ground.c`; exact Melee commit `(rev withheld)`.
+- Full case and replay artifacts: `(case study withheld)`.
+- Symptom: the baseline had the correct 163-instruction shape but a `0x30`
+  frame instead of `0x28`, followed by a volatile-register rotation after the
+  frame was corrected.
+- Stack result: the baseline had two required non-leaf parameter homes plus
+  removable `found` and `desc` homes. Four and three homes both aligned to
+  `0x30`; only removing both locals exposed `0x28`. Inlining the boolean return
+  removed `found`, while a raw descriptor dereference avoided the inline
+  accessor/CSE path that recreated `desc`.
+- Coloring result: K=29 replay proved the retail allocation was reachable with
+  the same interference graph. Binding `flags` inside its bit test changed its
+  frontend provenance/birth rank while keeping the address `addi` in place.
+  Splitting one stage-data value across `dat` and `array_dat` inline parameters,
+  passed as a caller local and the equivalent direct expression, moved the
+  merged web between `desc` and `arr`. CSE removed the duplicate machine value,
+  but distinct source origins changed creation/coalescing order. The final
+  volatile clique is byte offset `r5`, `desc` `r6`, `dat` `r7`, `arr` `r8`, and
+  `flags` `r9`.
+- General stack lesson: aligned frame size is not a home counter. Capture the
+  home list and identify owners directly; a one-home improvement can be real
+  while remaining invisible in the prologue.
+- General allocator lesson: semantically equal expressions are not necessarily
+  allocator-identical. Inline ownership, compiler-object provenance, and
+  virtual-register birth order can change coloring even when CSE restores the
+  same instruction graph. Use replay first to prove rank-only reachability,
+  then compare creation/provenance captures to select a source lever.
+- Diagnostic warning: flattening the helper correctly moved two webs into the
+  caller-local stratum, but the one-field counter carrier needed for the retail
+  CTR schedule acquired a home and regrew the frame. Source experiments can be
+  valuable graph probes without being viable final code, and carrier
+  scalarization must be measured per site.
+
 ### `COpt_00521bb0` host-compiler control
 
 - Source: `src/backend/CodeMotion.c` in this MWCC reconstruction.
