@@ -238,6 +238,30 @@ each current counter minus one at GPR `0x0058845a`, FPR `0x0058845c`, and vector
 an explicit initial-object stratum, providing a direct landmark for isolating
 the still-unknown shadow-object grant pass.
 
+The CodeGen local-object home-reservation loop at `0x00436ce7` closes the
+`RegisterInfo +0x23/+0x24` story. It walks the same local-object list at
+`0x00587fb8` (node `+0x00` next, `+0x04` object) and, for each object, fetches
+`Registers_GetInfo` (`0x004c1720`) and reads the physical-register field at
+`RegisterInfo +0x24`. When that field is `0` — or the record is absent — it
+calls `StackFrameEABI_AllocateObjectSlot` (`0x004ac4a0`) at `0x00436d0f` to
+reserve a stack home; a nonzero value skips the object. Parameters use the
+sibling reservation site at `0x00437b54`. Because the candidacy recorder at
+`0x004beef0` only marks `+0x23` and assigns a virtual register for objects that
+survive as a kind-`0x38` `CExpression` reference, a declared local whose value
+is fully copy-propagated out of the PCode is never marked: its `+0x24` stays
+`0` and it receives a vestigial stack home even though the emitted code keeps
+every live value in registers. This is a non-leaf-only reservation — a leaf
+function with no calls homes nothing — so the reserved band is invisible except
+as extra frame size. `Ground_801C20E0` (GALE01) is the reference case: its
+declared `desc`/`found` locals fold to no PCode reference and each reserve a
+4-byte home, widening the frame by 8 bytes over the retail object, while the
+sibling locals `out`/`clean`/`walker`/`matched`/`flags` all carry a virtual
+register (`+0x23 = 1`) and are not homed.
+
+`LocalHomeListBreakpoint` in `tools/gdb/allocator_snapshot.py` captures this
+list at loop entry as `home-list-NNNN.json`; `tools/home_list_trace.py` decodes
+each local's name, type, `RegisterInfo +0x24`, and homed/committed status.
+
 `SpillCode_CoalesceCopies` tests both virtual roots against the inclusive
 `First`/`Last` values. Because those values snapshot the next-unused counter,
 the allocated registers admitted by a normal monotonic run are effectively

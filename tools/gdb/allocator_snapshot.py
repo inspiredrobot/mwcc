@@ -72,6 +72,8 @@ STACK_OBJECT_ALLOCATOR_RETURN_ADDRESS = 0x004AC4D8
 STACK_FRAME_FINALIZE_ADDRESS = 0x004AC240
 STACK_FRAME_FINALIZE_RETURN_ADDRESS = 0x004AC496
 STACK_OBJECT_CURSOR_ADDRESS = 0x00587C80
+LOCAL_HOME_LIST_HEAD = 0x00587FB8
+LOCAL_HOMING_LOOP_ADDRESS = 0x00436CDD
 STACK_FRAME_CHECKPOINT_ADDRESSES = (
     0x004AC2C3,
     0x004AC300,
@@ -378,6 +380,52 @@ class CodeGenBreakpoint(gdb.Breakpoint):
         stack_pointer = int(gdb.parse_and_eval("$esp"))
         function_pointer = reader.u32(stack_pointer + 8)
         self.session.begin_function(function_pointer)
+        return False
+
+
+class LocalHomeListBreakpoint(gdb.Breakpoint):
+    """Walk the local-object list at 0x587fb8 when the codegen home-reservation
+    loop starts, recording every local's committed-register state. A local is
+    homed (gets a reserved stack spill slot) iff its register-info
+    physical_register (offset 0x24) is 0; a committed register (!= 0) skips the
+    home. Comparing homed vs committed locals reveals the source property that
+    controls the reserved frame band (e.g. Ground_801C20E0 desc/found)."""
+
+    def __init__(self, session):
+        super().__init__(
+            f"*0x{LOCAL_HOMING_LOOP_ADDRESS:08x}",
+            internal=True,
+        )
+        self.session = session
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
+        entries = []
+        try:
+            node = reader.u32(LOCAL_HOME_LIST_HEAD)
+        except gdb.MemoryError:
+            node = 0
+        seen = set()
+        while node and node not in seen:
+            seen.add(node)
+            try:
+                object_address = reader.u32(node + 4)
+                next_node = reader.u32(node)
+            except gdb.MemoryError:
+                break
+            entries.append(
+                {
+                    "node": f"0x{node:08x}",
+                    "object_address": f"0x{object_address:08x}",
+                    "object": optional_compiler_object(reader, object_address),
+                }
+            )
+            node = next_node
+        if entries:
+            self.session.local_home_list = entries
+            self.session.write_home_list_trace()
         return False
 
 
@@ -960,6 +1008,7 @@ class CaptureSession:
         self.code_motion_events = []
         self.pending_code_motion_event = None
         self.stack_object_allocations = []
+        self.local_home_list = []
         self.pending_stack_object_allocation = None
         self.stack_frame_finalization = None
         self.pcode_allocation_breakpoint = PCodeAllocationReturnBreakpoint(self)
@@ -1040,6 +1089,7 @@ class CaptureSession:
                 STACK_FRAME_FINALIZE_RETURN_ADDRESS,
             )
         ]
+        self.local_home_list_breakpoint = LocalHomeListBreakpoint(self)
 
     def begin_function(self, function_pointer):
         self.function_index += 1
@@ -1205,6 +1255,22 @@ class CaptureSession:
             f"Captured stack frame {self.function_index}: "
             f"{len(self.stack_object_allocations)} object slots, "
             f"{len(self.stack_frame_finalization['checkpoints'])} checkpoints\n"
+        )
+
+    def write_home_list_trace(self):
+        trace = {
+            "format": "mwcc-local-home-list-v1",
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
+            "capture_index": self.function_index,
+            "function_pointer": f"0x{self.function_pointer:08x}",
+            "entries": self.local_home_list,
+        }
+        output = self.output / f"home-list-{self.function_index:04d}.json"
+        write_snapshot(output, trace)
+        gdb.write(
+            f"Captured home list {self.function_index}: "
+            f"{len(self.local_home_list)} locals\n"
         )
 
     def coloring_path(self, function_index, reg_class, attempt, phase):
