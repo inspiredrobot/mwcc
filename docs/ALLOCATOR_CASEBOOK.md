@@ -58,7 +58,10 @@ object.
 
 For large translation units, `mwcc-auto-capture DIRECTORY FUNCTION_INDEX`
 keeps the stage, creation, allocator, and all-class coloring output for only one
-emitted function. A final `ninji` argument selects the verified Melee
+emitted function. `FUNCTION_INDEX` may instead be an exact symbol name. The
+debugger follows the same cached CMangler-record path as target routine
+`0x004c2560`, records the resolved identity in every artifact, and filters at
+the CodeGen boundary. A final `ninji` argument selects the verified Melee
 GC/1.2.5n identity; the default is stock GC/1.2.5. The address set used here is
 confirmed unchanged between those two binaries, but their hashes remain
 distinct in every capture.
@@ -880,3 +883,9 @@ Conclusion: no source-level declaration order or expression placement realizes
 the target for this exact algorithm; a fewer-object-web implementation producing
 the identical instruction stream would be required. The tool converts this from
 a manual multi-day sweep into a single reversible query.
+
+The first case script used randomized rank search. The integrated tool now
+shares `tools/coloring_model.py`, exactly enumerates bounded declaration spaces,
+and distinguishes proof from search failure. A sampled witness remains
+constructive, but a sampled miss is reported as `not_found`; only a complete
+enumeration may report this constrained source-rank model `unreachable`.

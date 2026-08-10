@@ -75,6 +75,16 @@ directory contains four PCode stages, the allocator input, coloring graphs,
 and a creation trace for each stage. Join the allocator input to the
 allocator-phase trace, not an earlier partial trace:
 
+```text
+mwcc-auto-capture /capture grInishie1_801FB3F0 ninji
+```
+
+An exact symbol selector avoids guessing the emitted-function index. The
+capture reads the cached name record used by target routine `0x004c2560` and
+records `function_identity` in every generated artifact. Numeric indices
+remain supported. Kind-5 function objects have no non-invasive cached record
+and must still be selected by index.
+
 ```sh
 python3 tools/allocator_provenance.py \
   capture/allocator-0015.json \
@@ -153,6 +163,41 @@ allocator origin and object type, lifetime shape, and graph shape. It preserves
 alternative candidates and confidence for ambiguous mappings, then reports
 old/new color, simplify position, allocator stratum, and semantic edge changes
 for confident mappings.
+
+If aligned target instructions establish the desired colors, invert the
+captured selection model before trying source edits:
+
+```sh
+python3 tools/inverse_coloring.py capture/coloring-0007-gpr-01-before.json \
+  --after capture/coloring-0007-gpr-01-after.json \
+  --provenance capture/provenance.json \
+  --target 32=31 --target 56=29 --degree-search 6
+```
+
+First require a complete baseline replay. An order-only hit proves that the
+target colors are reachable on the fixed graph and reports required precedence
+reversals. A synthetic degree hit reports both a pressure lower bound and the
+minimum anonymous live-range overlap cover. It still does not model those
+new webs' own simplify lifetime, color, or source origin. Record that gap in
+`docs/requests/` rather than treating anonymous overlap windows as a source
+prediction.
+
+If the fixed graph is correct and only source birth rank is in question, use
+the constrained source-rank query:
+
+```sh
+python3 tools/source_rank_solver.py capture 7 \
+  --target 35:31,34:30,46:27 --output source-rank.json
+```
+
+The implemented source family permits one object-band permutation, removal of
+graph-isolated object slots with no PCode occurrences, and the resulting shift
+of the fixed-order compiler-temporary band. V32 is fixed automatically; use
+`--fixed-object` for every additional parameter, shadow, inline, aggregate, or
+otherwise non-permutable object known from provenance. Exact bounded searches
+can prove this configured family reachable or unreachable. Larger searches are
+sampled deterministically and report a miss as `not_found`; only a witness is
+conclusive in that mode.
 
 Fresh auto-captures also write `stack-frame-NNNN.json`. Join one to allocator
 provenance to see each addressed compiler object in allocation order, its type

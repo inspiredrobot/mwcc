@@ -73,14 +73,47 @@ python3 tools/compare_pcode_stages.py pcode-initial.json pcode-optimized.json \
   --creations pcode-creations-optimized.json
 ```
 
+When target assembly already reveals the desired physical colors for aligned
+candidate webs, run the constrained inverse coloring query:
+
+```sh
+python3 tools/inverse_coloring.py coloring-before.json \
+  --after coloring-after.json --provenance provenance.json \
+  --target 32=31 --target 56=29 --degree-search 6
+```
+
+The fixed-order search reports minimum select-order changes and precedence
+reversals shared by every solution. The optional degree search reports a
+minimum synthetic permanent-pressure vector, a lower bound on the number of
+additional live ranges, and a canonical set of required overlap windows. Both
+results are explicitly hypotheses: they do not prove that a source edit can
+realize the order or interference changes.
+
+When the graph is already correct and the remaining question is whether
+source-object birth rank can realize the target colors, run:
+
+```sh
+python3 tools/source_rank_solver.py CAPTURE_DIR FUNCTION_INDEX \
+  --target 35:31,34:30,46:27 --output source-rank.json
+```
+
+The solver exactly enumerates declaration orders when the space is bounded.
+Larger searches are deterministic but sampled; a found witness proves
+reachability in the modeled source-shape family, while a sampled miss is
+reported as `not_found`, never as an impossibility proof. The first object web
+v32 is fixed automatically; repeat `--fixed-object vN` for known parameter,
+shadow, inline, or other non-declaration strata.
+
 Optimizer clone tracing is included in the same capture. Provenance exports
 connect surviving clones to their parent instructions with `derived_from`; the
 register explanation reports that ancestry and the optimizer clone callsite.
 
 Inside the offline debugger, `mwcc-auto-capture DIRECTORY 15 ninji` limits an
-expensive trace to emitted function 15 and labels it with the verified Melee
-GC/1.2.5n identity. Omit the index to capture every function; omit `ninji` for
-the stock GC/1.2.5 target.
+expensive trace to emitted function 15. The selector may instead be an exact
+symbol, for example `mwcc-auto-capture DIRECTORY it_80289BE8 ninji`. Every
+auto-capture artifact records the function identity decoded from the verified
+target's CMangler record. Omit the selector to capture every function; omit
+`ninji` for the stock GC/1.2.5 target.
 
 The checked-in direct-allocation catalogs are derived from the verified PE and
 validated by `ninja check`. Regenerate one only from its matching local binary:
@@ -93,6 +126,8 @@ python3 tools/virtual_register_sites.py \
 
 See [docs/DECOMP_WORKFLOW.md](docs/DECOMP_WORKFLOW.md) for the complete
 capture-to-comparison workflow and interpretation rules.
+The consolidated request backlog and implementation boundaries are in
+[docs/TOOLING_STATUS.md](docs/TOOLING_STATUS.md).
 
 Import or update the executable in the local Ghidra project with:
 

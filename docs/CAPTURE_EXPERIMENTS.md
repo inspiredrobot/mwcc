@@ -166,6 +166,13 @@ continue
 quit
 ```
 
+Current captures may replace the numeric selector with the exact emitted
+symbol, for example `mwcc-auto-capture /capture mnCharSel_CursorThink ninji`.
+The debugger reproduces the cached-name lookup performed by exact target
+routine `0x004c2560` without calling the untrusted compiler, and writes the
+resolved `function_identity` into every artifact. Numeric selection remains
+available for the uncached kind-5 CMangler case.
+
 The exact sandbox invocation was:
 
 ```sh
@@ -336,6 +343,69 @@ baseline/carrier captures. It maps `gpr:35 -> gpr:39` at score 0.84 and
 surrounding `36 -> 35`, `37 -> 36`, and `38 -> 37` shifts. All 30 GPR webs
 align with no ambiguous, inserted, or deleted web, despite the aggregate
 origin comparison having reported no changes.
+
+## Symbol-selected grinishie1 capture
+
+Date: 2026-08-10
+
+- Melee commit: `(rev withheld)`;
+- source SHA-256:
+  `d7bddbe19d857747bc4bdafeb9be449dea18749dbaac52fffad6d06aca514e6c`;
+- compiler SHA-256:
+  `ccf4b465cec73b5aae9c5c5543dcf8cda8a62aba246f89e2e0b200d742f2e55c`;
+- Wibo SHA-256:
+  `8a8490a6172aa4f0f6ddcadb144ca96f51da6e90e6648ce9adaf4f6babb6e00b`;
+- debugger image:
+  `sha256:8e8ba9b4718eefbf68b585faff84504dabfd2c90293e25e3bc7b18ded0c475eb`;
+- capture command:
+  `mwcc-auto-capture /capture grInishie1_801FB3F0 ninji`;
+- capture-script SHA-256 at runtime:
+  `637d23f720cde770b6409374e7ac5350926d299ec5f8f1f6656cc55962829aa2`;
+- GDB command-file SHA-256:
+  `72815a7e067c865b28d18a216e0b7b4421d0aebfd21ccb894889b5ce00deaf25`;
+- output object SHA-256:
+  `9207eb2597c40b083b24d892b3dd220ae5c2866564ffbdd141ce14c3419a8c71`.
+
+The container used `--pull never`, no network, a read-only root and input
+mounts, a dedicated writable capture mount, dropped all capabilities, enabled
+`no-new-privileges`, and limited PIDs, memory, and CPUs. `/tmp` was a 128 MiB
+`noexec,nosuid,nodev` tmpfs. Wibo's temporary directory was the only runtime
+environment override.
+
+The exact sandbox command was:
+
+```sh
+docker run --rm --pull never --platform linux/arm64 --network none \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --pids-limit 128 --memory 2g --cpus 2 \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=128m \
+  -e WIBO_TMP_DIR=/tmp \
+  -v ~/etc/mwcc:/mwcc:ro \
+  -v ~/etc/melee:/melee:ro \
+  -v ~/etc/melee/build/wibo_old:/input/wibo_old:ro \
+  -v ~/etc/melee/build/compilers/GC/1.2.5n/mwcceppc.exe:/input/mwcceppc.exe:ro \
+  -v /private/tmp/mwcc-grinishie-name.uHkNHx:/capture:rw \
+  -w /melee mwcc-debugger:arm64 /bin/sh -c \
+  'qemu-i386 -g 1234 /input/wibo_old /input/mwcceppc.exe \
+    -nowraplines -cwd source -Cpp_exceptions off -proc gekko -fp hardware \
+    -align powerpc -nosyspath -fp_contract on -O4,p -multibyte -enum int \
+    -nodefaults -inline auto -pragma "cats off" \
+    -pragma "warn_notinlined off" -RTTI off -str reuse \
+    -DBUILD_VERSION=0 -DVERSION_GALE01 -i src -i src/MSL -i src/Runtime \
+    -i extern/dolphin/include -i src/melee -i src/melee/ft/chara \
+    -i src/sysdolphin -c src/melee/gr/grinishie1.c \
+    -o /capture/grinishie1.o & \
+   gdb-multiarch -batch -x /capture/capture.gdb; wait $!'
+```
+
+The debugger logged every observed function identity until it decoded
+`grInishie1_801FB3F0` from a kind-3 cached CMangler record at emitted index 27.
+It retained only that function and wrote all 17 expected stage, creation,
+allocator, coloring, home-list, code-motion, and stack-frame JSON artifacts.
+`allocator-0027.json` records canonical function object `0x40c2ec38`, name
+record `0x40c2ebc8`, the exact requested symbol, and status `cached`. This is
+the first live validation of symbol-selected capture; kinds without a cached
+record remain explicitly unresolved and can still be selected numerically.
 
 ## Stock compiler-object snapshot smoke test
 

@@ -84,3 +84,21 @@ The first prototype should therefore keep the fact schema independent of the
 engine. A solver succeeds only if it predicts focused source changes on held-out
 Melee functions and explains rejected candidates using recovered compiler
 rules. Replaying assembly from unconstrained guesses is not sufficient.
+
+Two constrained reversible queries now establish the initial engine boundary.
+`tools/inverse_coloring.py` inverts physical colors over a fixed captured graph
+and reports both required select-order reversals and anonymous pressure-window
+lower bounds. `tools/source_rank_solver.py` searches one configurable
+object-order band, isolated unused object-slot removal, and the fixed-order
+compiler-temporary band. V32 is fixed by default and additional
+provenance-known strata can be pinned explicitly. Both tools use
+`tools/coloring_model.py`; exact searches and sampled searches carry different
+conclusion metadata so a bounded miss cannot become a false unreachability
+claim.
+
+The next shared fact layer must replace anonymous pressure windows and coarse
+object/temporary classes with source-owned live ranges. It needs scope depth,
+shadow-object grants, inline ownership, aggregate promotion, scalar expansion,
+coalescing-window eligibility, and first/last PCode use. That layer should feed
+both the concrete-edge inverse query and source-edit delta prediction rather
+than creating another case-specific replay.
