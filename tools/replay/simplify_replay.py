@@ -8,9 +8,10 @@ ftCh_Wait1_0_Anim.
 
 Model (from src/backend/Coloring.c):
 - Nodes in simplify_order are the active (simplifiable) webs. Web nodes NOT in
-  simplify_order are coalesced-to-physical blockers (flags=4); together with
-  precolored nodes (<32) they are PERMANENT: they never simplify, never
-  decrement, and block their color during selection.
+  simplify_order are coalesced blockers (flags=4); together with precolored
+  nodes (<32) they are PERMANENT: they never simplify or decrement. During
+  selection, a coalesced blocker resolves through its parent chain and blocks
+  the canonical root's color once that root has been colored.
 - degree init = len(ALL neighbors) (permanent + active).
 - Repeated ascending-vreg scans remove nodes with dynamic degree < K=29,
   decrementing ACTIVE neighbors immediately (in-scan); removed nodes push a
@@ -34,9 +35,14 @@ its window).
 """
 import json
 import sys
+from pathlib import Path
 
-K = 29
-VOLATILES = [0] + list(range(3, 13))
+
+TOOLS_DIR = Path(__file__).resolve().parents[1]
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from coloring_model import replay_simplify
 
 
 def load(cap, idx):
@@ -50,63 +56,11 @@ def load(cap, idx):
 
 def replay(before, extra_perm=None):
     """Return (pop_order, colors). extra_perm: {vreg: extra permanent degree}."""
-    extra_perm = extra_perm or {}
-    order = before["simplify_order"]
-    active = set(order)
-    nodes = {n["virtual_register"]: n for n in before["nodes"]}
-
-    deg, neigh = {}, {}
-    for v in order:
-        nb = nodes[v]["neighbors"]
-        deg[v] = len(nb) + extra_perm.get(v, 0)
-        neigh[v] = [x for x in nb if x in active]
-
-    removed, stack = set(), []
-    while True:
-        changed = True
-        while changed:
-            changed = False
-            for v in sorted(deg):
-                if v in removed:
-                    continue
-                if deg[v] < K:
-                    removed.add(v)
-                    stack.append(v)
-                    for w in neigh[v]:
-                        if w not in removed:
-                            deg[w] -= 1
-                    changed = True
-        remaining = [v for v in deg if v not in removed]
-        if not remaining:
-            break
-        cand = min(
-            remaining,
-            key=lambda v: (nodes[v].get("spill_cost", 0) / deg[v]) if deg[v] else 1e9,
-        )
-        removed.add(cand)
-        stack.append(cand)
-        for w in neigh[cand]:
-            if w not in removed:
-                deg[w] -= 1
-    pop = list(reversed(stack))
-
-    color = {p: p for p in range(32)}
-    for n in before["nodes"]:
-        v = n["virtual_register"]
-        if v >= 32 and v not in active:
-            color[v] = n["physical_register"]
-    mask = set(VOLATILES)
-    next_claim = 31
-    for v in pop:
-        blocked = {color[nb] % 32 for nb in nodes[v]["neighbors"] if nb in color}
-        avail = sorted(c for c in mask if c not in blocked)
-        if not avail:
-            while next_claim in mask:
-                next_claim -= 1
-            mask.add(next_claim)
-            avail = sorted(c for c in mask if c not in blocked)
-        color[v] = avail[0] if avail else -1
-    return pop, color
+    result = replay_simplify(
+        before,
+        extra_permanent_degree=extra_perm,
+    )
+    return result["simplify_order"], result["colors"]
 
 
 def main():

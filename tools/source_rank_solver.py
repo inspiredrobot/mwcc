@@ -1,267 +1,470 @@
 #!/usr/bin/env python3
-"""Reversible source-shape solver (SOLVER_ROADMAP "reversible query prototype").
+"""Search source-realizable virtual-register birth-rank changes.
 
-Given a captured coloring graph and a TARGET physical coloring, this tool:
-  1. classifies every virtual register by its source origin
-     (OBJECT = named-local frontend object, TEMP = compiler temporary,
-      COALESCED = folded into a parent);
-  2. flags DEAD OBJECT slots -- object-backed vregs that receive no callee/color
-     (physical r0) because their runtime value actually lives in a later TEMP
-     web (e.g. a `u32* p = call();` local whose value is the call-result temp).
-     Each dead object slot still consumes an object-register number and thus
-     pushes every compiler TEMP (global-address base, hoisted constants,
-     call-result carriers) to a higher virtual-register birth rank;
-  3. models base_temp_rank = (highest object vreg) + 1, i.e. reducing the object
-     count lowers the first-temp rank;
-  4. replays the K=29 simplify/color model over the source-achievable
-     renumbering space -- declaration order permutes OBJECT ranks; eliminating a
-     dead object slot (inlining its named local) shifts the whole object block
-     down by one and lowers every TEMP rank -- and reports whether the TARGET
-     becomes reachable and the minimal object-count reduction that unlocks it.
+The model captures a deliberately narrow family of source edits:
 
-This makes the "which source construct must change" question answerable from a
-single capture instead of a manual structural sweep.
+* one configured object band is permuted as declaration order changes;
+* removing a graph-isolated, PCode-unused object slot lowers the remaining
+  object band and every compiler-temporary rank above it;
+* compiler temporaries retain their relative creation order.
 
-Usage:
-  source_rank_solver.py CAPTURE_DIR IDX --target vreg:reg,vreg:reg,...
-  source_rank_solver.py CAPTURE_DIR IDX --target-file target.json
+V32 is fixed automatically, and callers can pin additional parameter, shadow,
+inline, aggregate, or otherwise non-permutable object webs.
+
+An exact search proves reachability or unreachability inside that model.  When
+the object permutation space exceeds the configured bound, deterministic
+sampling can still produce a valid witness, but failure is reported only as
+``not_found`` rather than ``unreachable``.
 """
-import json, sys, argparse, random, itertools
 
-K = 29
-VOLATILES = [0] + list(range(3, 13))
+from __future__ import annotations
+
+import argparse
+import itertools
+import json
+import math
+import random
+from pathlib import Path
+
+from allocator_snapshot import validate_coloring_snapshot
+from coloring_model import replay_simplify, validate_colors
 
 
-def load(cap, idx):
-    b = json.load(open(f"{cap}/coloring-{idx}-gpr-01-before.json"))
-    a = json.load(open(f"{cap}/coloring-{idx}-gpr-01-after.json"))
-    p = json.load(open(f"{cap}/pcode-{idx}-scheduled.json"))
-    return b, a, p
+FORMAT = "mwcc-source-rank-search-v1"
+COALESCED_FLAG = 4
+MODEL_WARNING = (
+    "The model covers one object-order band and removal of isolated object "
+    "slots with no captured PCode occurrences. Parameter, shadow, inline, "
+    "aggregate, and scalar-expansion strata require additional fixed-object "
+    "constraints or future provenance."
+)
 
 
-def classify(before, after, pcode):
-    nb = {n["virtual_register"]: n for n in before["nodes"]}
-    A = {n["virtual_register"]: n for n in after["nodes"]}
-    defmn = {}
-    for blk in pcode["blocks"]:
-        for x in blk.get("instructions", []):
-            ops = x.get("operands", [])
-            if ops and ops[0]["kind"] == 0:
-                d = ops[0]["reg"]
-                if d >= 32 and d not in defmn:
-                    defmn[d] = x["opcode_descriptor"]["mnemonic"]
-    info = {}
-    for v in sorted(nb):
-        if v < 32:
+def load(capture: Path, index: str) -> tuple[dict, dict, dict]:
+    capture_index = int(index, 0) if isinstance(index, str) else int(index)
+    prefix = f"{capture_index:04d}"
+    paths = (
+        capture / f"coloring-{prefix}-gpr-01-before.json",
+        capture / f"coloring-{prefix}-gpr-01-after.json",
+        capture / f"pcode-{prefix}-scheduled.json",
+    )
+    values = []
+    for path in paths:
+        with path.open(encoding="utf-8") as stream:
+            values.append(json.load(stream))
+    validate_coloring_snapshot(values[0])
+    validate_coloring_snapshot(values[1])
+    return tuple(values)
+
+
+def pcode_occurrences(pcode: dict) -> tuple[dict[int, int], dict[int, str]]:
+    counts = {}
+    first_definition = {}
+    for block in pcode.get("blocks", []):
+        for instruction in block.get("instructions", []):
+            mnemonic = instruction.get("opcode_descriptor", {}).get(
+                "mnemonic", "?"
+            )
+            for operand in instruction.get("operands", []):
+                if operand.get("kind") != 0:
+                    continue
+                register = operand.get("reg", -1)
+                if register < 32:
+                    continue
+                counts[register] = counts.get(register, 0) + 1
+                if operand.get("flags", 0) & 2:
+                    first_definition.setdefault(register, mnemonic)
+    return counts, first_definition
+
+
+def classify(before: dict, after: dict, pcode: dict) -> dict[int, dict]:
+    after_nodes = {
+        node["virtual_register"]: node for node in after["nodes"]
+    }
+    occurrences, first_definition = pcode_occurrences(pcode)
+    result = {}
+    for node in sorted(before["nodes"], key=lambda item: item["virtual_register"]):
+        register = node["virtual_register"]
+        if register < 32:
             continue
-        n = nb[v]
-        obj = n.get("object", "0x00000000")
-        fl = n.get("flags", 0)
-        col = A.get(v, {}).get("physical_register", -1)
-        if fl & 4:
-            kind = "COALESCED"
-        elif obj != "0x00000000":
-            kind = "OBJECT"
+        object_address = node.get("object", "0x00000000")
+        has_object = object_address not in (
+            None,
+            0,
+            "0x0",
+            "0x00000000",
+        )
+        flags = node.get("flags", 0)
+        if flags & COALESCED_FLAG:
+            kind = "coalesced"
+        elif has_object:
+            kind = "object"
         else:
-            kind = "TEMP"
-        info[v] = dict(kind=kind, object=obj, defmn=defmn.get(v, "?"),
-                       color=col, flags=fl)
-    # dead object slot = OBJECT colored r0 with a value carried by a later TEMP
-    for v, i in info.items():
-        i["dead_object"] = (i["kind"] == "OBJECT" and i["color"] == 0)
-    return info
+            kind = "temporary"
+        count = occurrences.get(register, 0)
+        result[register] = {
+            "kind": kind,
+            "object": object_address,
+            "first_definition": first_definition.get(register),
+            "occurrence_count": count,
+            "color": after_nodes.get(register, {}).get(
+                "physical_register", -1
+            ),
+            "flags": flags,
+            "unused_object_slot": (
+                kind == "object"
+                and count == 0
+                and not node.get("neighbors")
+            ),
+        }
+    return result
 
 
-def build_model(before, after):
-    nb = {n["virtual_register"]: n for n in before["nodes"]}
-    A = {n["virtual_register"]: n for n in after["nodes"]}
-    order = before["simplify_order"]
-    active = set(order)
-    NB = {v: set(nb[v]["neighbors"]) for v in nb}
-
-    def canon(v):
-        seen = set()
-        while v >= 32 and v not in seen and (A.get(v, {}).get("flags", 0) & 4):
-            seen.add(v)
-            v = A[v].get("physical_register", -1)
-        return v
-
-    def replay(key):
-        deg = {v: len(nb[v]["neighbors"]) for v in order}
-        neigh = {v: [x for x in nb[v]["neighbors"] if x in active] for v in order}
-        removed, stack = set(), []
-        while True:
-            ch = True
-            while ch:
-                ch = False
-                for v in sorted(deg, key=lambda w: key.get(w, w)):
-                    if v in removed:
-                        continue
-                    if deg[v] < K:
-                        removed.add(v); stack.append(v)
-                        for w in neigh[v]:
-                            if w not in removed:
-                                deg[w] -= 1
-                        ch = True
-            rem = [v for v in deg if v not in removed]
-            if not rem:
-                break
-            c = min(rem, key=lambda w: key.get(w, w))
-            removed.add(c); stack.append(c)
-            for w in neigh[c]:
-                if w not in removed:
-                    deg[w] -= 1
-        color = {p: p for p in range(32)}
-        mask = set(VOLATILES); nxt = 31
-        for v in reversed(stack):
-            blocked = {color[canon(x)] % 32 for x in NB[v] if canon(x) in color}
-            av = sorted(c for c in mask if c not in blocked)
-            if not av:
-                while nxt in mask:
-                    nxt -= 1
-                mask.add(nxt); av = sorted(c for c in mask if c not in blocked)
-            color[v] = av[0] if av else -1
-        return color
-
-    return order, replay
+def score_colors(colors: dict[int, int], targets: dict[int, int]) -> int:
+    return sum(
+        colors.get(register) == color
+        for register, color in targets.items()
+    )
 
 
-def solve(cap, idx, target):
-    before, after, pcode = load(cap, idx)
-    info = classify(before, after, pcode)
-    order, replay = build_model(before, after)
-
-    objects = sorted(v for v in info if info[v]["kind"] == "OBJECT")
-    temps = sorted(v for v in info if info[v]["kind"] == "TEMP")
-    dead = sorted(v for v in info if info[v]["dead_object"])
-    top_obj = max(objects) if objects else 31
-    base_temp = min(temps) if temps else None
-
-    print(f"objects={len(objects)} (vregs {objects[0]}..{top_obj}), "
-          f"first-temp(base)=vr{base_temp}, dead-object-slots={dead}")
-
-    def score(key):
-        c = replay(key)
-        return sum(1 for v in target if c.get(v) == target[v])
-
-    def named_key(declperm, removed_dead):
-        """Model: OBJECT vregs assigned top-down by declaration position, with
-        `removed_dead` dead-object slots eliminated (whole object block shifts
-        down by len(removed_dead), lowering every TEMP rank by the same)."""
-        shift = len(removed_dead)
-        key = {}
-        live_objs = [v for v in objects if v not in removed_dead]
-        # declperm is an ordering of live_objs -> assign descending vregs
-        hi = top_obj - shift
-        for i, v in enumerate(declperm):
-            key[v] = hi - i
-        for t in temps:
-            key[t] = t - shift  # temps shift down with the object block
-        return key
-
-    n = len(target)
-    # 0) current source score
-    print(f"target size={n}. baseline(identity) score={score({})}/{n}")
-
-    # 1) decl-order search at each dead-slot-elimination level
-    for r in range(0, len(dead) + 1):
-        best = -1
-        combos = list(itertools.combinations(dead, r))
-        for rem in combos:
-            live_objs = [v for v in objects if v not in rem]
-            random.seed(0)
-            for _ in range(4000):
-                perm = live_objs[:]
-                random.shuffle(perm)
-                s = score(named_key(perm, set(rem)))
-                if s > best:
-                    best = s
-                if best == n:
-                    break
-            if best == n:
-                new_base = (top_obj - r) + 1
-                print(f"  REACHABLE eliminating {r} dead slot(s) {rem} "
-                      f"-> base rank {new_base}: {best}/{n}")
-                return dict(reachable=True, remove=list(rem), base_rank=new_base)
-        print(f"  eliminate {r} dead slot(s): best decl-order score {best}/{n} "
-              f"(base rank {(top_obj - r) + 1})")
-    return dict(reachable=False)
+def rank_assignment(
+    objects: list[int],
+    temporaries: list[int],
+    permutation: tuple[int, ...] | list[int],
+    removed: frozenset[int],
+) -> dict[int, int]:
+    live_objects = [register for register in objects if register not in removed]
+    if set(permutation) != set(live_objects):
+        raise ValueError("object permutation does not match retained objects")
+    shift = len(removed)
+    highest_object_rank = max(objects, default=31) - shift
+    ranks = {
+        register: highest_object_rank - index
+        for index, register in enumerate(permutation)
+    }
+    ranks.update({register: register - shift for register in temporaries})
+    return ranks
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("cap")
-    ap.add_argument("idx")
-    ap.add_argument("--target", help="vreg:reg,vreg:reg,...")
-    ap.add_argument("--target-file")
-    a = ap.parse_args()
-    if a.target_file:
-        target = {int(k): v for k, v in json.load(open(a.target_file)).items()}
+def _candidate_permutations(
+    values: list[int],
+    *,
+    exact_limit: int,
+    samples: int,
+    rng: random.Random,
+):
+    count = math.factorial(len(values))
+    if count <= exact_limit:
+        yield from itertools.permutations(values)
+        return
+
+    seen = set()
+    baseline = tuple(values)
+    seen.add(baseline)
+    yield baseline
+    for _ in range(max(samples - 1, 0)):
+        candidate = list(values)
+        rng.shuffle(candidate)
+        permutation = tuple(candidate)
+        if permutation in seen:
+            continue
+        seen.add(permutation)
+        yield permutation
+
+
+def search_snapshots(
+    before: dict,
+    after: dict,
+    pcode: dict,
+    targets: dict[int, int],
+    *,
+    max_permutations: int = 1_000_000,
+    samples: int = 10_000,
+    seed: int = 0,
+    fixed_objects: frozenset[int] = frozenset(),
+) -> dict:
+    information = classify(before, after, pcode)
+    objects = sorted(
+        register for register, item in information.items()
+        if item["kind"] == "object"
+    )
+    automatically_fixed = {32} & set(objects)
+    fixed_objects = frozenset(fixed_objects | automatically_fixed)
+    unknown_fixed = fixed_objects - set(objects)
+    if unknown_fixed:
+        values = ", ".join(f"v{register}" for register in sorted(unknown_fixed))
+        raise ValueError(f"fixed registers are not object webs: {values}")
+    permutable_objects = [
+        register for register in objects if register not in fixed_objects
+    ]
+    temporaries = sorted(
+        register for register, item in information.items()
+        if item["kind"] == "temporary"
+    )
+    removable = sorted(
+        register for register, item in information.items()
+        if item["unused_object_slot"] and register not in fixed_objects
+    )
+    missing = sorted(set(targets) - set(information))
+    if missing:
+        values = ", ".join(f"v{register}" for register in missing)
+        raise ValueError(f"target registers absent from snapshot: {values}")
+
+    baseline = replay_simplify(before)
+    validation = validate_colors(before, after, baseline["colors"])
+    rng = random.Random(seed)
+    tested = 0
+    best_score = score_colors(baseline["colors"], targets)
+    best = {
+        "removed_object_slots": [],
+        "object_order": permutable_objects,
+        "ranks": {},
+        "colors": {
+            register: baseline["colors"].get(register)
+            for register in targets
+        },
+    }
+    exhaustive = True
+
+    for remove_count in range(len(removable) + 1):
+        for removed_values in itertools.combinations(removable, remove_count):
+            removed = frozenset(removed_values)
+            live_objects = [
+                register for register in permutable_objects
+                if register not in removed
+            ]
+            permutation_count = math.factorial(len(live_objects))
+            exact = permutation_count <= max_permutations
+            exhaustive &= exact
+            for permutation in _candidate_permutations(
+                live_objects,
+                exact_limit=max_permutations,
+                samples=samples,
+                rng=rng,
+            ):
+                tested += 1
+                ranks = rank_assignment(
+                    permutable_objects, temporaries, permutation, removed
+                )
+                replay = replay_simplify(before, ranks=ranks)
+                score = score_colors(replay["colors"], targets)
+                if score > best_score:
+                    best_score = score
+                    best = {
+                        "removed_object_slots": list(removed_values),
+                        "object_order": list(permutation),
+                        "ranks": ranks,
+                        "colors": {
+                            register: replay["colors"].get(register)
+                            for register in targets
+                        },
+                    }
+                if score == len(targets):
+                    return {
+                        "format": FORMAT,
+                        "status": "reachable",
+                        "conclusion_proven": True,
+                        "search_complete": False,
+                        "search_exact": exhaustive,
+                        "permutations_tested": tested,
+                        "targets": targets,
+                        "baseline_replay_validation": validation,
+                        "classification": information,
+                        "object_registers": objects,
+                        "fixed_object_registers": sorted(fixed_objects),
+                        "permutable_object_registers": permutable_objects,
+                        "temporary_registers": temporaries,
+                        "removable_object_slots": removable,
+                        "best_score": score,
+                        "witness": {
+                            "removed_object_slots": list(removed_values),
+                            "object_order": list(permutation),
+                            "ranks": ranks,
+                            "colors": {
+                                register: replay["colors"].get(register)
+                                for register in targets
+                            },
+                        },
+                        "warning": MODEL_WARNING,
+                    }
+
+    return {
+        "format": FORMAT,
+        "status": "unreachable" if exhaustive else "not_found",
+        "conclusion_proven": exhaustive,
+        "search_complete": exhaustive,
+        "search_exact": exhaustive,
+        "permutations_tested": tested,
+        "targets": targets,
+        "baseline_replay_validation": validation,
+        "classification": information,
+        "object_registers": objects,
+        "fixed_object_registers": sorted(fixed_objects),
+        "permutable_object_registers": permutable_objects,
+        "temporary_registers": temporaries,
+        "removable_object_slots": removable,
+        "best_score": best_score,
+        "witness": best,
+        "warning": MODEL_WARNING,
+    }
+
+
+def solve(
+    capture: str | Path,
+    index: str,
+    target: dict[int, int],
+    **kwargs,
+) -> dict:
+    before, after, pcode = load(Path(capture), index)
+    return search_snapshots(before, after, pcode, target, **kwargs)
+
+
+def creation_order_reachable(
+    capture,
+    index,
+    target,
+    restarts=80,
+    iters=2500,
+    seed=0,
+):
+    """Compatibility heuristic for the original relaxed-rank experiment.
+
+    A ``True`` result is a witness.  A ``False`` result is not a proof because
+    continuous rank placement is sampled rather than exhaustively enumerated.
+    """
+    before, _, _ = load(Path(capture), index)
+    nodes = {
+        item["virtual_register"]: item for item in before["nodes"]
+    }
+    objects = [
+        register for register in before["simplify_order"]
+        if nodes[register].get("object", "0x00000000") != "0x00000000"
+        and not nodes[register].get("flags", 0) & COALESCED_FLAG
+    ]
+    temporaries = sorted(
+        register for register in before["simplify_order"]
+        if nodes[register].get("object", "0x00000000") == "0x00000000"
+        and not nodes[register].get("flags", 0) & COALESCED_FLAG
+    )
+    rng = random.Random(seed)
+    best = -1
+    for _ in range(restarts):
+        ranks = {register: rng.uniform(0, 60) for register in objects}
+        temporary_offset = rng.uniform(0, 80)
+        temporary_gap = rng.uniform(1, 15)
+        for position, register in enumerate(temporaries):
+            ranks[register] = temporary_offset + position * temporary_gap
+        replay = replay_simplify(before, ranks=ranks)
+        current = score_colors(replay["colors"], target)
+        for _ in range(iters):
+            old_ranks = dict(ranks)
+            if objects and rng.random() < 0.5:
+                register = rng.choice(objects)
+                ranks[register] = rng.uniform(0, 60)
+            else:
+                temporary_offset = rng.uniform(0, 90)
+                temporary_gap = rng.uniform(0.5, 15)
+                for position, register in enumerate(temporaries):
+                    ranks[register] = (
+                        temporary_offset + position * temporary_gap
+                    )
+            replay = replay_simplify(before, ranks=ranks)
+            candidate = score_colors(replay["colors"], target)
+            if candidate >= current:
+                current = candidate
+            else:
+                ranks = old_ranks
+            if current == len(target):
+                return len(target), True
+        best = max(best, current)
+    return best, False
+
+
+def parse_targets(value: str) -> dict[int, int]:
+    result = {}
+    for pair in value.split(","):
+        register, color = pair.split(":", 1)
+        result[int(register.removeprefix("v"), 0)] = int(
+            color.removeprefix("r"), 0
+        )
+    return result
+
+
+def print_report(report: dict) -> None:
+    validation = report["baseline_replay_validation"]
+    print(
+        f"baseline replay: {validation['matched']}/"
+        f"{validation['checked']} captured assignments"
+    )
+    print(
+        f"objects={len(report['object_registers'])}, "
+        f"fixed={len(report['fixed_object_registers'])}, "
+        f"temporaries={len(report['temporary_registers'])}, "
+        "unused object slots="
+        + ",".join(f"v{item}" for item in report["removable_object_slots"])
+    )
+    print(
+        f"status={report['status']}; best={report['best_score']}/"
+        f"{len(report['targets'])}; tested={report['permutations_tested']}; "
+        f"proven={report['conclusion_proven']}; "
+        f"complete={report['search_complete']}"
+    )
+    witness = report["witness"]
+    if witness:
+        print(
+            "removed slots: "
+            + ", ".join(
+                f"v{item}" for item in witness["removed_object_slots"]
+            )
+        )
+        print(
+            "object order: "
+            + ", ".join(f"v{item}" for item in witness["object_order"])
+        )
+    print(f"warning: {report['warning']}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("capture", type=Path)
+    parser.add_argument("index")
+    target_group = parser.add_mutually_exclusive_group(required=True)
+    target_group.add_argument("--target", type=parse_targets)
+    target_group.add_argument("--target-file", type=Path)
+    parser.add_argument("--max-permutations", type=int, default=1_000_000)
+    parser.add_argument("--samples", type=int, default=10_000)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--fixed-object",
+        action="append",
+        type=lambda value: int(value.removeprefix("v"), 0),
+        default=[],
+        help="object web whose birth rank must remain fixed (repeatable)",
+    )
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+
+    if args.target_file:
+        with args.target_file.open(encoding="utf-8") as stream:
+            targets = {int(key): value for key, value in json.load(stream).items()}
     else:
-        target = {}
-        for pair in a.target.split(","):
-            k, v = pair.split(":")
-            target[int(k)] = int(v)
-    solve(a.cap, a.idx, target)
+        targets = args.target
+    report = solve(
+        args.capture,
+        args.index,
+        targets,
+        max_permutations=args.max_permutations,
+        samples=args.samples,
+        seed=args.seed,
+        fixed_objects=frozenset(args.fixed_object),
+    )
+    if args.output:
+        args.output.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    print_report(report)
 
 
 if __name__ == "__main__":
     main()
-
-
-def creation_order_reachable(cap, idx, target, restarts=80, iters=2500, seed=0):
-    """Answer: is TARGET reachable if compiler TEMPS keep their code-creation
-    order (ascending vreg) but the temp block may sit at any offset/gap relative
-    to the OBJECT block (objects freely permuted by declaration order)?
-
-    Returns (best_score, reachable_bool). If reachable, the remaining question
-    is only whether the source's FIXED temp gaps + object-web count can realize
-    the needed offset -- i.e. whether the algorithm produces few enough object
-    webs. If unreachable even here, the target needs the base temp interleaved
-    BELOW object ranks, which MWCC's object-before-temp numbering forbids from
-    any declaration order (the base would have to become a named object, adding
-    a materialization copy)."""
-    before, after, pcode = load(cap, idx)
-    order, replay = build_model(before, after)
-    nb = {n["virtual_register"]: n for n in before["nodes"]}
-    OBJ = [v for v in order if nb[v].get("object", "0x0") != "0x00000000"
-           and not (nb[v].get("flags", 0) & 4)]
-    TEMPS = sorted(v for v in order if nb[v].get("object", "0x0") == "0x00000000"
-                   and not (nb[v].get("flags", 0) & 4))
-
-    def score(key):
-        c = replay(key)
-        return sum(1 for v in target if c.get(v) == target[v])
-
-    random.seed(seed)
-    best = -1
-    for st in range(restarts):
-        key = {v: random.uniform(0, 60) for v in OBJ}
-        toff = random.uniform(0, 80); tgap = random.uniform(1, 15)
-        for i, t in enumerate(TEMPS):
-            key[t] = toff + i * tgap
-        s = score(key)
-        for _ in range(iters):
-            if random.random() < 0.5:
-                v = random.choice(OBJ); old = key[v]
-                key[v] = random.uniform(0, 60); s2 = score(key)
-                if s2 >= s:
-                    s = s2
-                else:
-                    key[v] = old
-            else:
-                old = (toff, tgap)
-                toff = random.uniform(0, 90); tgap = random.uniform(0.5, 15)
-                for i, t in enumerate(TEMPS):
-                    key[t] = toff + i * tgap
-                s2 = score(key)
-                if s2 >= s:
-                    s = s2
-                else:
-                    toff, tgap = old
-                    for i, t in enumerate(TEMPS):
-                        key[t] = toff + i * tgap
-            if s == len(target):
-                return len(target), True
-        best = max(best, s)
-    return best, False
