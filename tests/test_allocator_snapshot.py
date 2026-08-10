@@ -18,6 +18,7 @@ from allocator_snapshot import (
     SnapshotReader,
     coalescing_groups,
     decode_operand_format,
+    function_identity,
     virtual_register_boundary,
 )
 
@@ -37,6 +38,28 @@ class SparseMemory:
 
 
 def main():
+    identity_memory = SparseMemory()
+    alias_address = 0x0800
+    function_address = 0x0900
+    name_record = 0x0A00
+    identity_memory.write(alias_address + 0x02, bytes((6,)))
+    identity_memory.write(
+        alias_address + 0x26, struct.pack("<I", function_address)
+    )
+    identity_memory.write(function_address + 0x02, bytes((1,)))
+    identity_memory.write(function_address + 0x0A, struct.pack("<I", name_record))
+    identity_memory.write(name_record + 0x0A, b"grInishie1_801FB3F0\0")
+    identity_reader = SnapshotReader(identity_memory.read)
+    assert function_identity(identity_reader, alias_address) == {
+        "function_object": "0x00000800",
+        "canonical_object": "0x00000900",
+        "alias_objects": ["0x00000800"],
+        "kind": 1,
+        "name_record": "0x00000a00",
+        "name": "grInishie1_801FB3F0",
+        "status": "cached",
+    }
+
     assert virtual_register_boundary(
         "optimized",
         {"gpr": 40, "fpr": 35, "vr": 32},

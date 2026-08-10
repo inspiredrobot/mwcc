@@ -532,6 +532,65 @@ def validate_coloring_snapshot(snapshot: dict) -> None:
             raise SnapshotError("coalescing groups do not match parent map")
 
 
+def function_identity(reader, function_pointer: int) -> dict:
+    """Decode the cached CMangler name used by target routine 0x004c2560.
+
+    The target follows kind-6 aliases through ``+0x26``.  Kinds 1, 2, and 8
+    carry a name record at ``+0x0a``; kinds 0, 3, and 4 cache a generated
+    record at ``+0x32`` or ``+0x2e``.  Kind 5 generates a fresh record on each
+    call, so a non-invasive capture cannot name it without executing target
+    code.  A name record stores the emitted symbol string at ``+0x0a``.
+    """
+    original = function_pointer
+    seen = set()
+    aliases = []
+    while function_pointer not in seen:
+        seen.add(function_pointer)
+        kind = reader.u8(function_pointer + 0x02)
+        if kind != 6:
+            break
+        aliases.append(f"0x{function_pointer:08x}")
+        function_pointer = reader.u32(function_pointer + 0x26)
+        if function_pointer == 0:
+            return {
+                "function_object": f"0x{original:08x}",
+                "canonical_object": None,
+                "alias_objects": aliases,
+                "kind": 6,
+                "name_record": None,
+                "name": None,
+                "status": "null_alias",
+            }
+    else:
+        return {
+            "function_object": f"0x{original:08x}",
+            "canonical_object": f"0x{function_pointer:08x}",
+            "alias_objects": aliases,
+            "kind": 6,
+            "name_record": None,
+            "name": None,
+            "status": "alias_cycle",
+        }
+
+    name_fields = {0: 0x32, 1: 0x0A, 2: 0x0A, 3: 0x2E, 4: 0x2E, 8: 0x0A}
+    name_field = name_fields.get(kind)
+    if name_field is None:
+        status = "uncached_generated_name" if kind == 5 else "unsupported_kind"
+        name_record = 0
+    else:
+        name_record = reader.u32(function_pointer + name_field)
+        status = "cached" if name_record else "cache_empty"
+    return {
+        "function_object": f"0x{original:08x}",
+        "canonical_object": f"0x{function_pointer:08x}",
+        "alias_objects": aliases,
+        "kind": kind,
+        "name_record": f"0x{name_record:08x}" if name_record else None,
+        "name": reader.c_string(name_record + 0x0A) if name_record else None,
+        "status": status,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate an allocator snapshot")
     parser.add_argument("snapshot", type=Path)

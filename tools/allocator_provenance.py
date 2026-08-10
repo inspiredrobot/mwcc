@@ -678,6 +678,7 @@ def build_provenance(
         "target_sha256": allocator["target_sha256"],
         "capture_index": allocator.get("capture_index"),
         "function_pointer": allocator.get("function_pointer"),
+        "function_identity": allocator.get("function_identity"),
         "virtual_register_counts": allocator["virtual_register_counts"],
         **pcode,
         **flatten_creation_trace(

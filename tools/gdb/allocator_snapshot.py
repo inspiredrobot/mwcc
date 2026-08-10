@@ -15,7 +15,9 @@ from allocator_snapshot import (
     OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS,
     TARGET_NINJI_SHA256,
     TARGET_SHA256,
+    SnapshotError,
     SnapshotReader,
+    function_identity,
     virtual_register_boundary,
 )
 from stack_frame_trace import TRACE_FORMAT as STACK_FRAME_TRACE_FORMAT
@@ -154,6 +156,21 @@ def optional_raw(reader, address, size):
         return None
 
 
+def optional_function_identity(reader, function_pointer):
+    try:
+        return function_identity(reader, function_pointer)
+    except (gdb.MemoryError, SnapshotError, ValueError):
+        return {
+            "function_object": f"0x{function_pointer:08x}",
+            "canonical_object": None,
+            "alias_objects": [],
+            "kind": None,
+            "name_record": None,
+            "name": None,
+            "status": "unreadable",
+        }
+
+
 def optional_compiler_object(reader, address):
     if address == 0:
         return None
@@ -267,6 +284,7 @@ class ColoringReturnBreakpoint(gdb.Breakpoint):
         )
         self.session = session
         self.function_index = session.function_index
+        self.function_identity = session.function_identity
         self.attempt = attempt
         self.reg_class = reg_class
 
@@ -280,6 +298,7 @@ class ColoringReturnBreakpoint(gdb.Breakpoint):
             int(gdb.parse_and_eval("$pc")),
         )
         snapshot["capture_index"] = self.function_index
+        snapshot["function_identity"] = self.function_identity
         snapshot["attempt"] = self.attempt
         snapshot["phase"] = "after"
         output = self.session.coloring_path(
@@ -314,7 +333,7 @@ class ColoringBreakpoint(gdb.Breakpoint):
         snapshot = reader.coloring_snapshot(
             reg_class, simplify_stack, int(gdb.parse_and_eval("$pc"))
         )
-        snapshot["capture_index"] = self.session.function_index
+        self.session.annotate(snapshot)
         snapshot["attempt"] = attempt
         snapshot["phase"] = "before"
         output = self.session.coloring_path(
@@ -350,7 +369,7 @@ class AllocateBreakpoint(gdb.Breakpoint):
         snapshot = reader.snapshot(
             function_pointer, int(gdb.parse_and_eval("$pc"))
         )
-        snapshot["capture_index"] = self.session.function_index
+        self.session.annotate(snapshot)
         self.session.record_virtual_register_boundary("allocator", snapshot)
         output = self.session.output / (
             f"allocator-{self.session.function_index:04d}.json"
@@ -983,12 +1002,20 @@ class StackFrameCheckpointBreakpoint(gdb.Breakpoint):
 
 
 class CaptureSession:
-    def __init__(self, output, target_index=None, target="stock"):
+    def __init__(
+        self,
+        output,
+        target_index=None,
+        target_name=None,
+        target="stock",
+    ):
         self.output = output
         self.target_index = target_index
+        self.target_name = target_name
         self.compiler, self.target_sha256 = CAPTURE_TARGETS[target]
         self.function_index = 0
         self.function_pointer = 0
+        self.function_identity = None
         self.coloring_attempts = {}
         self.active = False
         self.capture_current = False
@@ -1094,11 +1121,21 @@ class CaptureSession:
     def begin_function(self, function_pointer):
         self.function_index += 1
         self.function_pointer = function_pointer
+        self.function_identity = optional_function_identity(
+            snapshot_reader(self), function_pointer
+        )
         self.coloring_attempts = {}
         self.active = True
         self.capture_current = (
-            self.target_index is None or self.function_index == self.target_index
+            (self.target_index is None or self.function_index == self.target_index)
+            and (
+                self.target_name is None
+                or self.function_identity.get("name") == self.target_name
+            )
         )
+        if self.target_name is not None:
+            observed = self.function_identity.get("name") or "<unresolved>"
+            gdb.write(f"Observed function {self.function_index}: {observed}\n")
         self.creation_epoch = "initial_lowering"
         self.creation_events = []
         self.pending_creations = []
@@ -1127,6 +1164,11 @@ class CaptureSession:
         self.pcode_clone_breakpoint.enabled = False
         self.pcode_clone_return_breakpoint.enabled = False
 
+    def annotate(self, snapshot):
+        snapshot["capture_index"] = self.function_index
+        snapshot["function_identity"] = self.function_identity
+        return snapshot
+
     def finish_code_motion_event(self):
         if self.pending_code_motion_event is None:
             return
@@ -1149,7 +1191,7 @@ class CaptureSession:
     def write_pcode_stage(self, phase, program_counter):
         reader = snapshot_reader(self)
         snapshot = reader.snapshot(self.function_pointer, program_counter)
-        snapshot["capture_index"] = self.function_index
+        self.annotate(snapshot)
         snapshot["phase"] = phase
         self.record_virtual_register_boundary(phase, snapshot)
         output = self.output / f"pcode-{self.function_index:04d}-{phase}.json"
@@ -1164,6 +1206,7 @@ class CaptureSession:
                 "target_sha256": self.target_sha256,
                 "capture_index": self.function_index,
                 "function_pointer": f"0x{self.function_pointer:08x}",
+                "function_identity": self.function_identity,
                 "events": self.code_motion_events,
             }
             write_snapshot(
@@ -1218,6 +1261,7 @@ class CaptureSession:
             "target_sha256": self.target_sha256,
             "capture_index": self.function_index,
             "function_pointer": f"0x{self.function_pointer:08x}",
+            "function_identity": self.function_identity,
             "through_phase": phase,
             "events": self.creation_events,
             "clone_events": self.clone_events,
@@ -1244,6 +1288,7 @@ class CaptureSession:
             "target_sha256": self.target_sha256,
             "capture_index": self.function_index,
             "function_pointer": f"0x{self.function_pointer:08x}",
+            "function_identity": self.function_identity,
             "object_allocations": self.stack_object_allocations,
             "frame_finalization": self.stack_frame_finalization,
         }
@@ -1264,6 +1309,7 @@ class CaptureSession:
             "target_sha256": self.target_sha256,
             "capture_index": self.function_index,
             "function_pointer": f"0x{self.function_pointer:08x}",
+            "function_identity": self.function_identity,
             "entries": self.local_home_list,
         }
         output = self.output / f"home-list-{self.function_index:04d}.json"
@@ -1281,7 +1327,7 @@ class CaptureSession:
 
 
 class MwccAutoCapture(gdb.Command):
-    """Capture MWCC passes: mwcc-auto-capture DIR [INDEX] [stock|ninji]"""
+    """Capture passes: mwcc-auto-capture DIR [INDEX|NAME] [stock|ninji]"""
 
     def __init__(self):
         super().__init__("mwcc-auto-capture", gdb.COMMAND_DATA)
@@ -1292,23 +1338,35 @@ class MwccAutoCapture(gdb.Command):
         arguments = gdb.string_to_argv(argument)
         if len(arguments) not in (1, 2, 3):
             raise gdb.GdbError(
-                "usage: mwcc-auto-capture DIRECTORY [FUNCTION_INDEX] "
+                "usage: mwcc-auto-capture DIRECTORY [FUNCTION_INDEX|NAME] "
                 "[stock|ninji]"
             )
         output = Path(arguments[0])
-        target_index = int(arguments[1], 0) if len(arguments) == 2 else None
-        if len(arguments) == 3:
-            target_index = int(arguments[1], 0)
+        target_index = None
+        target_name = None
+        if len(arguments) >= 2:
+            try:
+                target_index = int(arguments[1], 0)
+            except ValueError:
+                target_name = arguments[1]
         target = arguments[2] if len(arguments) == 3 else "stock"
         if target not in CAPTURE_TARGETS:
             raise gdb.GdbError("target must be stock or ninji")
         if target_index is not None and target_index <= 0:
             raise gdb.GdbError("FUNCTION_INDEX must be positive")
         output.mkdir(parents=True, exist_ok=True)
-        self.session = CaptureSession(output, target_index, target)
-        selection = (
-            f"function {target_index}" if target_index is not None else "all functions"
+        self.session = CaptureSession(
+            output,
+            target_index=target_index,
+            target_name=target_name,
+            target=target,
         )
+        if target_index is not None:
+            selection = f"function {target_index}"
+        elif target_name is not None:
+            selection = f"function {target_name}"
+        else:
+            selection = "all functions"
         gdb.write(
             f"Capturing {target} MWCC passes for {selection} in {output}\n"
         )

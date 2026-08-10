@@ -28,6 +28,10 @@ def allocator_snapshot():
         "compiler": "GC/1.2.5",
         "target_sha256": TARGET_SHA256,
         "function_pointer": "0x00002000",
+        "function_identity": {
+            "name": "test_function",
+            "status": "cached",
+        },
         "virtual_register_counts": {"gpr": 34, "fpr": 33, "vr": 32},
         "capture_index": 7,
         "blocks": [
@@ -236,6 +240,10 @@ def main():
         trace,
     )
     assert facts["format"] == "mwcc-allocator-provenance-v1"
+    assert facts["function_identity"] == {
+        "name": "test_function",
+        "status": "cached",
+    }
     assert facts["instructions"][0]["mnemonic"] == "MR"
     assert facts["operands"][0]["id"] == "b1:i0:o0"
     assert facts["registers"][0]["definitions"] == ["b1:i0:o0"]
