@@ -88,6 +88,9 @@ def main() -> None:
         [sys.executable, "tests/test_source_rank_solver.py"], check=True
     )
     subprocess.run(
+        [sys.executable, "tests/test_param_rerank_reach.py"], check=True
+    )
+    subprocess.run(
         [sys.executable, "tests/test_stack_frame_trace.py"], check=True
     )
     subprocess.run([sys.executable, "tests/test_coff.py"], check=True)
