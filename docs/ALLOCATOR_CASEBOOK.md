@@ -849,3 +849,34 @@ the original `li` INSERT without cast hacks. Key rule restated: pops take
 the MINIMUM-numbered claimed free register; fresh claims are a strict
 r31-descending prefix. Also: objdiff per-symbol scores miss emission-order
 errors — always run the section-byte/reloc comparator before closing a TU.
+
+## gm_801BFCFC (Melee GALE01): source-birth-rank vs compiler-temp ordering
+
+`tools/source_rank_solver.py` (reversible source-shape query) was built for this
+callee-saved permutation. Findings, all from one capture:
+
+- The 20-row diff is a pure register permutation; the K=29 replay proves the
+  target coloring is reachable by *some* virtual-register renumbering (pure
+  birth-rank, no graph change).
+- Classifying webs by source origin: 12 frontend OBJECTS (named locals) occupy
+  vregs 33..45; the first compiler TEMP (the `&gm_8049E558` base) is vr46. Two
+  OBJECT slots (37,44) are DEAD — they are the frontend objects of
+  `u32* temp_r29`/`temp_r29_2`, whose runtime values live in later call-result
+  temps (57,75). The held-pointer declaration is *required* to reproduce the
+  target's `bl D970; mr rX,r3; bl lbTime; stw r3,0(rX)` order, so those dead
+  slots cannot be inlined away without changing the instruction stream.
+- `creation_order_reachable()`: the target IS reachable when the compiler-temp
+  block (base < const1 < call-results, fixed by code order) may sit at any
+  offset/gap relative to the object block. But the source can only shift the
+  block down by whole eliminated objects (fixed internal gaps), and this
+  algorithm's 4 loops × (walker+counter) + persistent vars produce a hard floor
+  of 12 object webs (variable reuse across loops makes reset webs, so sharing is
+  object-count-neutral). Base is pinned at 46; the target needs it ~4 lower.
+- Coalescing the base into a loop-walker (share the loop1/loop3 array-A walker)
+  makes the base a low OBJECT but the result is creation-order-UNreachable — the
+  original (base as a separate temp) is strictly closer to matchable.
+
+Conclusion: no source-level declaration order or expression placement realizes
+the target for this exact algorithm; a fewer-object-web implementation producing
+the identical instruction stream would be required. The tool converts this from
+a manual multi-day sweep into a single reversible query.
