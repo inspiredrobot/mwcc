@@ -93,6 +93,9 @@ def main() -> None:
     subprocess.run(
         [sys.executable, "tests/test_stack_frame_trace.py"], check=True
     )
+    subprocess.run(
+        [sys.executable, "tests/test_vreg_numbering.py"], check=True
+    )
     subprocess.run([sys.executable, "tests/test_coff.py"], check=True)
     subprocess.run([sys.executable, "tests/test_host_probe_match.py"], check=True)
     subprocess.run([sys.executable, "tests/test_run_host_candidate.py"], check=True)
