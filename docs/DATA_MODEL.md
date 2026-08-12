@@ -216,11 +216,49 @@ increasing virtual-register numbers or search the physical-use tables from
 register 31 downward. These shared mechanics are reconstructed in
 `src/backend/Registers.c` and covered by a host-side behavioral test.
 
+The object-preallocation walk at `0x00437230` is reconstructed as
+`CodeGen_PreallocateObjectRegisters` in `src/backend/CodeGen.c`. It is the
+routine that assigns virtual-register *numbers*: each
+`Registers_Allocate{GPR,FPR,VR,GPRPair}` call consumes the next value of a
+single monotonic per-class counter (GPR `gUsedVirtualRegistersGPR` at
+`0x0058846e`), so a web's number is exactly its position in the walk. The walk
+visits five object lists in a fixed order, interposing the range snapshot and
+the coalesce-window open between them:
+
+1. list `0x005882ac` — the initial-object stratum;
+2. `Registers_SnapshotInitialObjectRange` (`0x004c1950`);
+3. list `0x0058806c` — post-initial objects;
+4. list `0x00587fb8` — the local-object list, first pass;
+5. `Registers_BeginCoalesceWindow` (`0x004c1980`);
+6. list `0x00587fb8` — the local-object list, second pass;
+7. list `0x005876a0` — trailing objects.
+
+Each per-object body (`0x00437241` for the first walk, `0x00437308` onward for
+the rest) skips objects that are not register candidates (`RegisterInfo +0x23`
+zero), are excluded (`+0x22` nonzero), are the second half of a value pair
+(`flags & 2`), or already carry a physical register from an earlier walk
+(`+0x24` nonzero), then dispatches on the compiler type kind to
+`Registers_AllocateGPR`/`AllocateGPRPair`/`AllocateFPR`, with a trailing
+`AllocateVR` (`0x004c1f60`) for vector kind-4 objects on walks 3–6.
+
 Four neighboring counter helpers establish the coalescing-window lifecycle.
-`Registers_BeginCoalesceWindow` at `0x004c1980` is called from the
-object-preallocation walk at `0x00437230`, between its two passes over the
-list at `0x00587fb8`. It copies each next-unused virtual-register counter to
-both the class's `First` and `Last` globals. `Registers_CheckpointCoalesceWindow`
+`Registers_BeginCoalesceWindow` at `0x004c1980` is called from that walk,
+between its two passes over the list at `0x00587fb8`. It copies each
+next-unused virtual-register counter to both the class's `First` and `Last`
+globals, so `gGPRCoalesceFirst` is exactly the number of the first object the
+second `0x00587fb8` pass allocates. This partly resolves the previously
+"still-unknown shadow-object grant pass": the shadow / recompute stratum is
+granted by walks 3–7, ahead of the temporaries created during lowering, and
+the coalesce boundary marks where that stratum begins. In the GALE01
+`efAsync_Dispatch` capture the boundary is `70`, and the six
+`GET_JOBJ(effect->gobj)` common-subexpression recompute loads occupy vregs
+`70..75` in a distinct object arena (`0x4167xxxx`), while the canonical
+main-lowering load of the same expression sits at `266+` in the bulk arena.
+Because a simplify sweep pops in descending vreg order, that numbering — not
+any interference edge — is why `Coloring_SelectColors` gives the recompute
+loads `r24` and the canonical load `r25`. `tools/vreg_numbering.py` classifies
+a capture's webs into these strata and reports the boundary recompute batch
+directly. `Registers_CheckpointCoalesceWindow`
 at `0x004c1900` is called by `CodeGen_Generator` at `0x00435617`, immediately
 before CodeGen-item dispatch, and copies the current counters to `Last` and to
 separate retry checkpoints. `Registers_UpdateCoalesceWindow` at `0x004c1850`

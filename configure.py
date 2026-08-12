@@ -63,6 +63,7 @@ def write_build_ninja(version: str, config_path: Path) -> None:
         Path("tools/run_host_candidate.py"),
         Path("tools/source_rank_solver.py"),
         Path("tools/stack_frame_trace.py"),
+        Path("tools/vreg_numbering.py"),
     ]
     test_inputs = " ".join(quote(source) for source in test_dependencies)
     subsystem_validation = ""
