@@ -29,6 +29,13 @@ gap is not rediscovered under several function names.
 - A source-rank witness is constructive inside the configured stratum model. An
   exhaustive miss proves only that model unreachable. A bounded sampled miss
   is `not_found` and must not be described as terminal.
+- An exhaustive `unreachable` must also never be described as terminal for the
+  FUNCTION: it binds one reconstruction's expression structure. Source
+  restructuring (the solver's printed `realization_levers`) changes the capture
+  and re-opens the search. Melee mplib (upstream PR #(withheld)) falsified a
+  "terminal via clean source" conclusion built on such a verdict — the rank
+  prediction was correct and the realization step was the failure (casebook:
+  "mplib accessor twins").
 - Function-name capture is a static read of the same cached name record used by
   GC/1.2.5 routine `0x004c2560`; it does not call code in the untrusted target.
 

@@ -993,3 +993,68 @@ grcastle proves THREE stream-neutral levers exist:
   stale object). Any sweep infrastructure must delete the output object,
   invoke ninja with a repo-relative path, and fail loudly when the object is
   missing afterward.
+
+## Case: melee mplib accessor twins — "terminal via clean source" FALSIFIED by upstream source (PR #(withheld), 2026-08-13)
+
+The eight `mp{Floor,Ceiling,LeftWall,RightWall}Get*` twins shared one volatile
+swap: base (groundCollLine materialization, v42) colored r6 and the loop probe
+(new_id, v41) r7, target r7/r6. `replay_simplify(ranks={41:42.5})` reproduced
+the exact target (probe born just after base; window [42.5,45]), and
+`source_rank_solver` proved the target unreachable with only the declared
+locals permutable, reachable once v42 moved. We then argued no clean C could
+move it: the rank-pushable web (line_offset) was the one that had to stay
+high, the web that had to move (loop-hot new_id) "cannot be homed", and base's
+materialization rank was "frontend-pinned". Verdict: terminal via clean source.
+
+Upstream (strabitz) matched all eight, plus every other mplib residual. The
+model's rank analysis was RIGHT; the realization claim was WRONG. Working
+shape, ablated function-by-function in the real TU (mpLeftWallGetTop):
+
+| variant | score |
+|---|---|
+| merged shape as-is | 100% |
+| carrier `struct{int id;} w` -> plain `int` | 98.31% (exactly the old plateau) |
+| remove `(void) line_id;` dead use | 98.76% |
+| do-while instead of goto blocks (carrier kept) | 98.76% |
+| swap offset/base-cast statement order | 100% (immaterial, CSE) |
+
+Decisive lever: **a one-field carrier ON the loop-hot probe**, which we had
+tested and dismissed as a byte-identical no-op. The difference: our test
+reassigned the same variable twice (`new_id = line->next_id1;
+new_id = check(line, new_id);`); the working shape writes the carrier member
+once per iteration from a distinct block-local temp (`next = line->next_id1;
+w.id = check(line, next);`), so a member use survives scalarization and the
+carrier re-ranks the web — landing precisely in the predicted [42.5,45]
+window. Supporting levers: dead `(void) line_id;` on the backedge and the
+goto-block loop (branch polarity/layout decoupled from the loop construct,
+giving `bne exit; b loop` plus the cast tail that kills `clrrwi`).
+
+The sibling residuals fell to the same lever family:
+
+- `mpLib_800581DC` / `mpLib_80058614_Floor`: `(void) arr[i = x];` dead indexed
+  uses birth and place base-materialization webs (including ordering
+  groundCollVtx before a linebase local); `*(p = &global.field) = v;` embedded
+  pointer defs create reusable alias webs at store sites; chained
+  `jp = (joint_r7 = base);` splits walker from anchor.
+- `mpLib_DrawCrosses`: delete ALL user walkers and index the globals directly;
+  MWCC synthesizes IVs with retail ranks. We had swept walker variants and
+  never tested the zero-walker form (the fn_801695BC lesson, unapplied).
+- `mpLineGetNext/Prev`: `int ret = result;` copy separates the extsh web from
+  the returned s16.
+
+### Meta-lessons
+
+- `source_rank_solver`'s fixed-object classification (global-materialization
+  temps, loop-hot scalars, parameter homes) describes the CURRENT
+  reconstruction, not C. "Unreachable, proven" ends the search over one
+  structural family; restructuring re-opens it. The tool now attaches
+  `realization_levers` to failed searches and TOOLING_STATUS carries the
+  interpretation rule.
+- Never conclude "carrier is a no-op" without varying the member WRITE shape;
+  scalarization survival depends on it.
+- Lever effects are non-monotonic in combination (98.31 / 98.76 / 100 for
+  0/2/3 levers): partial recipes score like noise, so stage coupled levers
+  atomically before judging.
+- Model follow-up: predict scalarization survival for one-field carriers from
+  the member's def/use shape, so carrier viability is decidable from the
+  capture instead of by compile-sweep.
