@@ -738,6 +738,12 @@ Coloring = descending-vreg select for non-jammed nodes (jam threshold degree
    by any C-level reordering. This is the vi1201v1 "inline-boundary" class and is
    terminal for stream-neutral source unless the exact pressure-raising inline
    restructuring is found.
+   **SUPERSEDED (2026-08-13): this class is NOT terminal.** See the
+   grCastle_801CF868 case below: moving the variable across the inline
+   boundary (a wrapper-scope local pops after the entire temp pool) and
+   naming the walker as a last-declared local both renumber the web without
+   touching the stream. Decode object names and clusters before ruling
+   anything terminal.
 
 ### Why the melee close-residuals are stuck
 mnDataDel: walker (TEMP vr81) vs gobj (copy vr41) -> case 3, jamming needed,
@@ -889,3 +895,166 @@ shares `tools/coloring_model.py`, exactly enumerates bounded declaration spaces,
 and distinguishes proof from search failure. A sampled witness remains
 constructive, but a sampled miss is reported as `not_found`; only a complete
 enumeration may report this constrained source-rank model `unreachable`.
+
+## Case: grCastle_801CF868 (melee grcastle) — the "case 3 terminal" verdict OVERTURNED; vreg-cluster model (2026-08-13)
+
+Matched 100% and TU linked (DOL byte-identical) after two prior sessions had
+declared the residual "terminal from C". Two things unlocked it: decoding
+OBJECT NAMES from the provenance, and recognizing that vreg numbers are set by
+a CLUSTER structure that the inline boundary and declaration order both steer.
+
+### Object-name decoding (do this FIRST for any coloring residual)
+
+`provenance.json` → `virtual_register_creations[*].object_before
+.opaque_value_0a_data` embeds the object's name: hex-decode and take the first
+printable run after byte 10 (`re.search(rb'[ -~]{2,}', raw[10:])`). Named
+locals show their C names (`gobj`, `gp`); frontend/optimizer temps show
+`@999`, `@998`, ... with @-names DESCENDING in creation order, so the
+vreg↔@-name map is monotone: **vreg order = object creation order**. Gaps in
+the @-sequence are created-then-deleted temps. Generate provenance from any
+capture with `tools/allocator_provenance.py CAP/allocator-NNNN.json --coloring
+CAP/coloring-NNNN-gpr-01-before.json --creations
+CAP/pcode-creations-NNNN-initial.json --output CAP/provenance.json`, or print
+the table directly with `tools/vreg_map.py CAP NNNN`.
+
+### The cluster model (refines the 2026-08-06 numbering-region law)
+
+For a wrapper function whose body is one auto-inlined call (and by extension
+any function with inline expansions):
+
+- **Cluster 0 (vr32..)**: the OUTERMOST function's params and its own named
+  locals, in declaration order. Inline-body locals never land here.
+- **@-pool, cluster 1**: multi-use LOAD CSE temps for the whole post-expansion
+  function, created in REVERSE source order (the last multi-use load is @999).
+  A load with a single consumer instead lowers directly into its named web.
+- **@-pool, cluster 2**: value temps — call-result copies, ternary merges,
+  loop preheader IV copies — also reverse source order.
+- **@-pool, cluster 3**: the inline expansion's params + named locals in
+  DECLARATION order.
+- **vr60+**: lowering scratches in instruction order.
+
+Select order (validated 77-109/109 across four grcastle captures) = jam-core
+survivors first, then DESCENDING vreg; claim = highest unused callee-saved;
+share = lowest set bit of claimed & ~neighbor-colors. Consequence: a web that
+pops after two dead claimers inherits the LOWER of their registers.
+
+Frontend value-merge (named var absorbed into its load-CSE temp, group root =
+MIN vreg) happens only WITHIN the pool. A cluster-0 named var cannot merge
+with a pool temp: flattening the inline broke `base`'s merge and emitted a
+real `mr` (extra instruction). Single-def named vars copy-prop away across the
+boundary fine; multi-def ones cannot.
+
+### The reachable fixes for "case 3" (temp/SR-IV outranks a named web)
+
+The 2026-08-06 diagnostic called this class terminal ("only fix is jamming").
+grcastle proves THREE stream-neutral levers exist:
+
+1. **Move the variable across the inline boundary.** A wrapper-scope named
+   local (cluster 0) pops after the ENTIRE pool, so it colors last and shares
+   the lowest freed callee-saved register. grcastle's weight pointer `s32* wp`
+   declared in the wrapper (definition kept textually inside the branch, in a
+   split phase structure) colored r29; every inline-scope spelling colored
+   r30. Constraint: the defining `addi` must be written where the target
+   emits it, which may force splitting one inline into two void phase inlines
+   (returning-bool phase inlines do NOT thread — the flag materializes as
+   li/cmpwi).
+2. **Name the walker.** An explicit walking pointer declared LAST
+   (`for (p = wp, slot = 0; slot < 3; slot++, p++) rand -= *p;`) replaces the
+   frontend's cluster-2 preheader copy with a cluster-3 named web, moving its
+   pop position from "after everything" to its declaration slot. This fixed
+   the whole volatile trio (p=r3, rand=r4, slot=r5) in one move.
+3. **Declaration order within the cluster** (the old case-1 lever) then
+   fine-tunes pop order among the remaining locals.
+
+### Ancillary laws confirmed byte-level
+
+- An s32 argument to an inline bills a 4-byte caller-side home placed BETWEEN
+  the caller-scope and inline-scope aggregate bands. Removing the argument
+  (compute inside the inline) removes the slot. Pointer args did not bill.
+- Straight-line accesses through a pointer param holding a KNOWN stack
+  address fold to r1+disp (byte-identical to direct member access); in-LOOP
+  accesses through the same pointer keep the register walker. This extends
+  the cast-pointer fold rule to inline params and lets a phase inline read
+  the caller's stack aggregate with zero cost.
+- .rodata order: anonymous function-local aggregate initializers emit at
+  their function's position; file-scope `static const` defs emit at their
+  definition position. The original TU defined its statics BETWEEN functions
+  (an early function's `Vec3 {1,0,0}` literal pools first); moving all nine
+  static defs below that function fixed the DOL.
+
+### Meta-lessons
+
+- A replay that says "target graph unreachable" while treating vreg numbers
+  as fixed is answering the wrong question: the numbering itself is
+  source-controlled through the clusters. Decode names and classify clusters
+  BEFORE ruling anything terminal.
+- Both prior "terminal" proofs were also contaminated by a harness bug
+  (absolute-path ninja silently not rebuilding, so ~70 "variants" re-scored a
+  stale object). Any sweep infrastructure must delete the output object,
+  invoke ninja with a repo-relative path, and fail loudly when the object is
+  missing afterward.
+
+## Case: melee mplib accessor twins — "terminal via clean source" FALSIFIED by upstream source (PR #(withheld), 2026-08-13)
+
+The eight `mp{Floor,Ceiling,LeftWall,RightWall}Get*` twins shared one volatile
+swap: base (groundCollLine materialization, v42) colored r6 and the loop probe
+(new_id, v41) r7, target r7/r6. `replay_simplify(ranks={41:42.5})` reproduced
+the exact target (probe born just after base; window [42.5,45]), and
+`source_rank_solver` proved the target unreachable with only the declared
+locals permutable, reachable once v42 moved. We then argued no clean C could
+move it: the rank-pushable web (line_offset) was the one that had to stay
+high, the web that had to move (loop-hot new_id) "cannot be homed", and base's
+materialization rank was "frontend-pinned". Verdict: terminal via clean source.
+
+Upstream (strabitz) matched all eight, plus every other mplib residual. The
+model's rank analysis was RIGHT; the realization claim was WRONG. Working
+shape, ablated function-by-function in the real TU (mpLeftWallGetTop):
+
+| variant | score |
+|---|---|
+| merged shape as-is | 100% |
+| carrier `struct{int id;} w` -> plain `int` | 98.31% (exactly the old plateau) |
+| remove `(void) line_id;` dead use | 98.76% |
+| do-while instead of goto blocks (carrier kept) | 98.76% |
+| swap offset/base-cast statement order | 100% (immaterial, CSE) |
+
+Decisive lever: **a one-field carrier ON the loop-hot probe**, which we had
+tested and dismissed as a byte-identical no-op. The difference: our test
+reassigned the same variable twice (`new_id = line->next_id1;
+new_id = check(line, new_id);`); the working shape writes the carrier member
+once per iteration from a distinct block-local temp (`next = line->next_id1;
+w.id = check(line, next);`), so a member use survives scalarization and the
+carrier re-ranks the web — landing precisely in the predicted [42.5,45]
+window. Supporting levers: dead `(void) line_id;` on the backedge and the
+goto-block loop (branch polarity/layout decoupled from the loop construct,
+giving `bne exit; b loop` plus the cast tail that kills `clrrwi`).
+
+The sibling residuals fell to the same lever family:
+
+- `mpLib_800581DC` / `mpLib_80058614_Floor`: `(void) arr[i = x];` dead indexed
+  uses birth and place base-materialization webs (including ordering
+  groundCollVtx before a linebase local); `*(p = &global.field) = v;` embedded
+  pointer defs create reusable alias webs at store sites; chained
+  `jp = (joint_r7 = base);` splits walker from anchor.
+- `mpLib_DrawCrosses`: delete ALL user walkers and index the globals directly;
+  MWCC synthesizes IVs with retail ranks. We had swept walker variants and
+  never tested the zero-walker form (the fn_801695BC lesson, unapplied).
+- `mpLineGetNext/Prev`: `int ret = result;` copy separates the extsh web from
+  the returned s16.
+
+### Meta-lessons
+
+- `source_rank_solver`'s fixed-object classification (global-materialization
+  temps, loop-hot scalars, parameter homes) describes the CURRENT
+  reconstruction, not C. "Unreachable, proven" ends the search over one
+  structural family; restructuring re-opens it. The tool now attaches
+  `realization_levers` to failed searches and TOOLING_STATUS carries the
+  interpretation rule.
+- Never conclude "carrier is a no-op" without varying the member WRITE shape;
+  scalarization survival depends on it.
+- Lever effects are non-monotonic in combination (98.31 / 98.76 / 100 for
+  0/2/3 levers): partial recipes score like noise, so stage coupled levers
+  atomically before judging.
+- Model follow-up: predict scalarization survival for one-field carriers from
+  the member's def/use shape, so carrier viability is decidable from the
+  capture instead of by compile-sweep.

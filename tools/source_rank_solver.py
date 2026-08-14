@@ -15,6 +15,18 @@ An exact search proves reachability or unreachability inside that model.  When
 the object permutation space exceeds the configured bound, deterministic
 sampling can still produce a valid witness, but failure is reported only as
 ``not_found`` rather than ``unreachable``.
+
+An ``unreachable`` verdict is bounded by the swept structural family: it proves
+no declaration-order permutation of the CURRENT reconstruction reaches the
+target, not that no C source does.  Source restructuring changes the capture
+itself — web birth order, strata membership, even which webs exist.  The melee
+mplib accessor twins (upstream PR #(withheld), 2026-08-13) falsified such a verdict:
+the solver was right that the loop-hot probe web had to be born just after the
+base-materialization web, and wrong that no construct realizes it (a one-field
+carrier whose member is written once per iteration from a distinct block-local
+temp survives scalarization and re-ranks the probe).  When this tool reports
+``unreachable``, treat the result as "restructure the family and re-capture",
+using the realization levers it prints.
 """
 
 from __future__ import annotations
@@ -36,7 +48,36 @@ MODEL_WARNING = (
     "The model covers one object-order band and removal of isolated object "
     "slots with no captured PCode occurrences. Parameter, shadow, inline, "
     "aggregate, and scalar-expansion strata require additional fixed-object "
-    "constraints or future provenance."
+    "constraints or future provenance. An unreachable verdict binds only the "
+    "current reconstruction's expression structure, not C: restructuring "
+    "levers (see realization_levers) change the capture and re-open the search."
+)
+
+# Source constructs that move webs the fixed-object classification treats as
+# rank-pinned. Each changes the captured graph/strata, so an unreachable
+# verdict must be re-established after trying the relevant ones.
+# Validated on melee mplib (PR #(withheld) postmortem; ablated 2026-08-13).
+REALIZATION_LEVERS = (
+    "one-field carrier struct{T v;} on a LOOP-HOT scalar re-ranks it late "
+    "without homing it, IF the member is written once per iteration from a "
+    "distinct block-local temp (a twice-reassigned member scalarizes away; "
+    "mplib twins: this alone was 100% vs 98.31%)",
+    "(void) arr[i = x]; dead indexed use births and places a "
+    "global-base-materialization web at a chosen point and makes the def "
+    "opaque (mpLib_800581DC x3, mpLib_80058614_Floor)",
+    "*(p = &global.field) = v; embedded pointer def creates a reusable alias "
+    "web at the store site with the store's rank (Floor extremum pointers)",
+    "dead (void) param; use on a branch extends the parameter home's "
+    "liveness/rank (each mplib twin backedge; removing it cost 1.24pp)",
+    "goto/label blocks with explicit ifs decouple branch polarity and layout "
+    "from the loop construct (gives 'bne exit; b loop' shapes)",
+    "delete ALL user walkers and index globals directly when target IVs look "
+    "compiler-created; MWCC synthesizes IVs with retail ranks "
+    "(mpLib_DrawCrosses, fn_801695BC)",
+    "int ret = s16_value; copy before return splits the extsh web from the "
+    "returned value (mpLineGetNext/Prev)",
+    "chained assignment a = (b = x) for const-prop opacity; "
+    "declaration-with-initializer to outrank parameter homes",
 )
 
 
@@ -306,6 +347,7 @@ def search_snapshots(
         "best_score": best_score,
         "witness": best,
         "warning": MODEL_WARNING,
+        "realization_levers": list(REALIZATION_LEVERS),
     }
 
 
@@ -409,6 +451,14 @@ def print_report(report: dict) -> None:
         f"proven={report['conclusion_proven']}; "
         f"complete={report['search_complete']}"
     )
+    if report["status"] in ("unreachable", "not_found"):
+        print(
+            "NOTE: this verdict binds only the current reconstruction's "
+            "structural family (mplib postmortem, PR #(withheld)). Source levers "
+            "that re-rank 'fixed' webs and re-open the search:"
+        )
+        for lever in report.get("realization_levers", REALIZATION_LEVERS):
+            print(f"  - {lever}")
     witness = report["witness"]
     if witness:
         print(
