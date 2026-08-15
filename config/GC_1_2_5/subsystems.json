@@ -446,8 +446,23 @@
       "source_anchor": "Scheduler.c",
       "source": "src/backend/Scheduler.c",
       "functions": [
-        { "address": "0x004ccae0", "name": "Scheduler_Schedule", "role": "instruction scheduler called between before/after trace markers", "evidence": "inferred" },
-        { "address": "0x004ccf10", "name": "Scheduler_004ccf10", "role": "construct scheduling dependencies from PCode operands", "evidence": "inferred" }
+        { "address": "0x004ccae0", "name": "Scheduler_Schedule", "role": "driver: select machine model from CPU byte 0x584224 (gekko=8 has no case and falls to the default model 0x574d70), then schedule each block with more than two instructions", "evidence": "confirmed" },
+        { "address": "0x004ccbf0", "name": "Scheduler_ScheduleBlock", "role": "per-block list scheduler: build nodes walking instructions backward, assign ALAP deadlines from the running max height 0x581b84, then issue cycle-by-cycle up to the model width", "evidence": "confirmed" },
+        { "address": "0x004ccdc0", "name": "Scheduler_PickInstruction", "role": "select next instruction: textual scan with strict-win tie-break chain urgency, successors-at-pred-count-1, height, descriptor byte 9, earlier-textual", "evidence": "confirmed" },
+        { "address": "0x004ccf10", "name": "Scheduler_BuildDependencies", "role": "construct scheduling dependencies from PCode operands, wildcard memory pass for flag-0x40 instructions, barrier and terminator edges", "evidence": "confirmed" },
+        { "address": "0x004cd2f0", "name": "Scheduler_AddWildcardMemoryDeps", "role": "conservative store/load dependence edges for instructions with flag 0x40 (object-less pointer accesses); inserts an object-0 wildcard list entry", "evidence": "confirmed" },
+        { "address": "0x004cd4a0", "name": "Scheduler_AddObjectMemoryDeps", "role": "object-keyed load/store dependence edges with pointer-equality object matching and an alias oracle for object-0 entries", "evidence": "confirmed" },
+        { "address": "0x004cd650", "name": "Scheduler_AddVolatileMemoryDeps", "role": "memory dependence edges for volatile accesses (flag 0x20000 path)", "evidence": "inferred" },
+        { "address": "0x004cd7c0", "name": "Scheduler_AddRegisterDeps", "role": "per-register later-use and later-def lists; RAW edges carry producer latency, WAR and WAW are latency 0 for GPR, FPR, VR when the model word +4 is set", "evidence": "confirmed" },
+        { "address": "0x004cd910", "name": "Scheduler_AddEdge", "role": "append a dependence edge, bump the target predecessor count, and back-propagate height as max(from.height, edge latency + to.height)", "evidence": "confirmed" },
+        { "address": "0x004cd9d0", "name": "Scheduler_ResetBlockState", "role": "allocate and zero the per-block register dependence tables sized by virtual-register counts when 0x587648 is set, else 32", "evidence": "confirmed" },
+        { "address": "0x004cca50", "name": "Scheduler_DependenceTestStub", "role": "operand-overlap test used by some machine-model can-issue paths; both the match and exhaust paths return 0, so it is dead in the shipped build", "evidence": "confirmed" },
+        { "address": "0x0052e0b0", "name": "SchedulerModelDefault_Latency", "role": "default machine model latency: record byte 1 at 0x574d90 + opcode * 6, plus 2 for flag 0x80, plus operand count minus 2 for LMW and STMW", "evidence": "confirmed" },
+        { "address": "0x0052dfa0", "name": "SchedulerModelDefault_CanIssue", "role": "default model issue test: ring slots remaining, unit-for-class free, and no store behind a store in LSU stage two", "evidence": "confirmed" },
+        { "address": "0x0052df20", "name": "SchedulerModelDefault_OnIssue", "role": "default model issue hook: occupy unit[record byte 0], push onto the five-entry in-order completion ring", "evidence": "confirmed" },
+        { "address": "0x0052dbe0", "name": "SchedulerModelDefault_Advance", "role": "default model cycle advance: decrement countdowns, retire up to two ring entries in order, complete units, then LSU u2 to u3 and FPU u4 to u5 to u6 stage moves", "evidence": "confirmed" },
+        { "address": "0x0052e000", "name": "SchedulerModelDefault_Reset", "role": "default model per-block reset: clear units and the completion ring, slots to five", "evidence": "confirmed" },
+        { "address": "0x0052dbc0", "name": "SchedulerModelDefault_Serializes", "role": "default model barrier predicate: record byte 5 at 0x574d95 + opcode * 6; set for branches", "evidence": "confirmed" }
       ]
     }
   ],

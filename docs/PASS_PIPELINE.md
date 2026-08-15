@@ -102,7 +102,8 @@ After the level-specific optimizer, `CodeGen_Generator` runs the shared stages
 whose exact diagnostic boundaries are:
 
 1. initial PCode
-2. optional instruction scheduling
+2. optional instruction scheduling (exact algorithm and machine model in
+   `SCHEDULER.md`; validated simulator in `(case study withheld)`)
 3. forward peephole optimization
 4. register coloring at `0x004cdef0`, including spill retries
 5. EABI prologue/epilogue generation at `0x004abe90`
