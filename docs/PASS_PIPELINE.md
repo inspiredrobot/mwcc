@@ -112,6 +112,37 @@ resize to a bit count), `0x00462a80` (clear), `0x00462aa0` (copy), and
 `0x00462a20` (the containment predicate) — are named from their call shapes and
 remain **inferred**.
 
+### The unroll worker and its rejection rules
+
+`0x0045cea0` is 10,124 bytes and belongs to **`IroLoop.c`**, confirmed by the
+filename it passes to the assertion helper. It carries five diagnostic strings,
+which name the decisions directly:
+
+- `No predecessor outside the loop`
+- `while(n--) loop`
+- `loop not unrolled because induction used in loop`
+- `loop not unrolled because loop has multiple exits`
+- `Could not find loop with and induction with MOD and DIV operation`
+
+The control flow around them recovers three loop-descriptor flag bits and the
+shape of the decision. A descriptor word is tested for `0x10000`; when clear,
+control transfers to the main unroll path at `0x0045eb60`. When set, the pass
+prints `while(n--) loop` and takes a specialized path that then rejects on a
+second descriptor word:
+
+| Flag | Meaning | Effect |
+| --- | --- | --- |
+| `0x10000` | `while(n--)`-shaped loop | selects the specialized path |
+| `0x0800` | induction variable used inside the loop | rejects the unroll |
+| `0x1000` | loop has multiple exits | rejects the unroll |
+
+After both rejections it walks an induction-variable list (next pointer at
+`+0x18`), looking for an entry whose flag word has bits `0x1` and `0x2` set —
+the MOD/DIV induction the last message names — and gives up when none is found.
+
+The bulk of the worker, including the main unroll path at `0x0045eb60`, is not
+yet reconstructed.
+
 ## Backend
 
 `CodeGen_Generator` is at `0x004351c0`. Its backend optimizer call is

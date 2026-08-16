@@ -1058,3 +1058,31 @@ The sibling residuals fell to the same lever family:
 - Model follow-up: predict scalarization survival for one-field carriers from
   the member's def/use shape, so carrier viability is decidable from the
   capture instead of by compile-sweep.
+
+## ftKirby AirLw collision twins: an address chain lost after allocation
+
+Melee `ftKb_SpecialAirLw_Coll` / `ftKb_SpecialAirLwStart_Coll` (branch
+`(branch withheld)`). The retail objects build two address walkers over the
+same fighter base — a Vec3-stride chain (`addi rX,base,12` then `+12`, `+12`)
+and a float-stride chain (`addi rY,base,4` then `+4`, `+4`) — six instructions
+in total. Two different source shapes were captured and compared:
+
+- open-coded loop body: emits five of the six, folding the float chain's init
+  and first increment into a single `addi rY,base,8`;
+- the same body inside a `static inline`: emits three, folding both chains.
+
+The allocator-input PCode is the same for both, and matches retail: each
+capture contains seven `ADDI` instructions in the walker region, forming two
+complete three-instruction chains (`b21:i3/i6/i39` and `b21:i4/i33/i46` in the
+open-coded capture, `b21:i4/i7/i64` and `b21:i3/i34/i62` in the inline one).
+The frontend and the backend optimizer therefore produce retail's structure in
+both cases, and the divergence happens strictly after register allocation.
+
+This is the only observed case that the capture set cannot explain, because
+nothing is snapshotted between the allocator input and the emitted object. The
+inline variant is otherwise the closer of the two: it reproduces retail's base
+register (`r3`) and the vreg rank relation the coloring model requires, and it
+reduces the function's diff from 37 rows to 13.
+
+Recording it here as the motivating case for the post-register-allocation
+capability in `docs/TOOLING_STATUS.md`.
