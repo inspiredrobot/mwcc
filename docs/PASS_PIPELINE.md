@@ -68,8 +68,49 @@ teardown at `0x0044bb40`.
 `IRO_FindLoops` and the unnamed pass at `0x00461360` are both bracketed by the
 `Before/After IRO_FindLoops` traces, with the flag byte at `0x0057f6b5` set
 between them. `0x00461360` is therefore loop-structure work running immediately
-after loop discovery, and is the first place to look for the induction-variable
-and loop-transform decisions, which remain unrecovered.
+after loop discovery.
+
+### Loop discovery and unroll candidate selection
+
+`IRO_LoopUnroller`'s body is `IRO_FindLoops_Unroll` at `0x0045f7c0`, named by
+its own trace `IRO_FindLoops_Unroll:Found loop with header %d\n` — a separate
+loop finder from `IRO_FindLoops`, which prints `IRO_FindLoops:Found loop with
+header %d\n`. `IRO_FindLoops_Unroll` runs in three phases:
+
+1. **Back-edge search.** It walks every flow node (list threaded through
+   `+0x32`) and each node's predecessor array (`+0x0a`, count at `+0x08`),
+   testing the predecessor's dominator bit vector at `+0x2e` for the header's
+   index. A hit is a back edge. Out-of-range bit indices trap through the
+   `BitVector.h` assertion at `0x00445780`.
+2. **Loop record construction.** The first back edge per header seeds the
+   scratch bit vector at `0x005880dc` with the header and latch blocks, then
+   collects the loop body through the self-recursive walker at `0x004614f0`.
+   Each loop gets an `0x12`-byte record from the arena at `0x00441f20`, pushed
+   onto the list headed at `0x00587104`.
+3. **Innermost selection.** Every pair of loop records is compared with the bit
+   vector predicate at `0x00462a20`; when it holds, the containing loop's flag
+   bit 0 is cleared (`AND byte ptr [ESI],0xfe`).
+
+The final walk then visits only records that still have bit 0 set — the
+innermost loops — and for each calls `0x0045cea0` with the sign-extended option
+byte at `0x005842f0` and the loop's header node, followed by
+`IRO_ExpressionPropagation`. `0x0045cea0` is therefore the unroll worker and
+`0x005842f0` its controlling option; neither is reconstructed yet.
+
+Loop record layout, as used by this function:
+
+| Offset | Field |
+| --- | --- |
+| `+0x00` | flag byte; bit 0 = still an unroll candidate (innermost) |
+| `+0x02` | pointer to the loop's block bit vector |
+| `+0x06` | next loop record |
+| `+0x0a` | header flow node |
+| `+0x0e` | initialized to 0; purpose not yet established |
+
+Total size `0x12`. The bit vector helpers around it — `0x00462c60` (allocate or
+resize to a bit count), `0x00462a80` (clear), `0x00462aa0` (copy), and
+`0x00462a20` (the containment predicate) — are named from their call shapes and
+remain **inferred**.
 
 ## Backend
 

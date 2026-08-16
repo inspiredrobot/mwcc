@@ -88,3 +88,14 @@ address,size,kind,name,source,status
 0x00456a60,,function,IRO_DoJumpChaining,IRO_Optimizer post-pass trace name,confirmed
 0x0044ade0,,function,RewriteBitFieldTemps,IRO_Optimizer Before/After trace bracket,confirmed
 0x0044d830,,function,IRO_Dump_0044d830,IRO_Optimizer stage-name print callee; exact operation not established,inferred
+0x0045f7c0,,function,IRO_FindLoops_Unroll,self-naming trace string in its own body,confirmed
+0x0045cea0,,function,IRO_UnrollLoop_0045cea0,sole per-innermost-loop call from IRO_FindLoops_Unroll; body not reconstructed,inferred
+0x004614f0,,function,IRO_CollectLoopBlocks_004614f0,self-recursive loop-body bit vector walker called from both loop finders,inferred
+0x00462c60,,function,IRO_BitVectorAllocate_00462c60,called with (vector slot, bit count) before use,inferred
+0x00462a80,,function,IRO_BitVectorClear_00462a80,19-byte leaf called on a vector before seeding bits,inferred
+0x00462aa0,,function,IRO_BitVectorCopy_00462aa0,called with (destination, source) vector pair,inferred
+0x00462a20,,function,IRO_BitVectorContains_00462a20,pairwise loop predicate; clears the innermost flag when true,inferred
+0x00445780,,function,IRO_BitVectorAssert_00445780,called with ("BitVector.h", line) on out-of-range bit index,inferred
+0x00587104,,data,IRO_LoopList_00587104,head of the loop record list built by IRO_FindLoops_Unroll,inferred
+0x005880dc,,data,IRO_LoopScratchVector_005880dc,scratch block bit vector reused per loop,inferred
+0x005842f0,,data,IRO_UnrollOption_005842f0,signed option byte passed to the unroll worker,inferred
