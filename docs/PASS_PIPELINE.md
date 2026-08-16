@@ -6,19 +6,70 @@ verification.
 
 ## Frontend
 
-The executable contains `IrOptimizer.c` and trace strings naming these stages:
+The executable contains `IrOptimizer.c` and trace strings naming its stages.
+These names are **confirmed**. The dispatcher is `IRO_Optimizer` at
+`0x0042cd10`; its bytes are unchanged in GC/1.2.5n. RootCubed's independently
+versioned GC/1.2.5 debugger breakpoint at `0x0042cd1f` corroborates the
+identification.
 
-- `IRO_LoopUnroller`
-- `IRO_FindLoops`
-- `IRO_CopyAndConstantPropagation`
-- `IRO_ConstantFolding`
-- `IRO_EvaluateConditionals`
-- `IRO_RangePropagateInFNode`
-- `IRO_ExpressionPropagation`
+### Recovering the pass-to-address mapping
 
-These names are **confirmed**. The dispatcher is at `0x0042cd10`; its bytes are
-unchanged in GC/1.2.5n. RootCubed's independently versioned GC/1.2.5 debugger
-breakpoint at `0x0042cd1f` corroborates the identification.
+`IRO_Optimizer` emits its stage names through the dump routine at `0x0044d830`,
+called as `PUSH 0; PUSH <string>; CALL 0x0044d830`. The dispatcher runs each
+pass, ORs the returned change flag into a running accumulator, then names the
+pass it just ran. Three independent readings of that structure agree:
+
+1. **Bracketed pairs.** `Before X` / `After X` traces enclose exactly the calls
+   belonging to `X`, which identifies `IRO_LoopUnroller`,
+   `IRO_CopyAndConstantPropagation`, and `RewriteBitFieldTemps` unambiguously.
+2. **The enumerating string.** `Second pass:IRO_CopyAndConstantPropagation,`
+   `IRO_ConstantFolding,IRO_EvaluateConditionals` is preceded by exactly three
+   calls in that order, fixing all three addresses at once and independently
+   reproducing the `IRO_CopyAndConstantPropagation` address from (1).
+3. **Self-naming trace.** `IRO_FindLoops` prints
+   `IRO_FindLoops:Found loop with header %d\n` from inside its own body.
+
+Passes reached from more than one call site (`IRO_RemoveUnreachable`,
+`IRO_RemoveRedundantJumps`, `IRO_RemoveLabels`, `IRO_UseDef`,
+`IRO_ConstantFolding`, `IRO_EvaluateConditionals`, `IRO_BuildflowGraph`) resolve
+to the same address at every site.
+
+### Confirmed pass order and addresses
+
+| Order | Pass | Address |
+| --- | --- | --- |
+| 1 | `IRO_BuildflowGraph` | `0x00449e30` |
+| 2 | `IRO_EvaluateConditionals` | `0x00455930` |
+| 3 | `IRO_RemoveUnreachable` | `0x00456860` |
+| 4 | `IRO_RemoveRedundantJumps` | `0x00456670` |
+| 5 | `IRO_RemoveLabels` | `0x00456620` |
+| 6 | `IRO_BuildflowGraph` (second build) | `0x00449e30` |
+| 7 | `IRO_ScalarizeClassDataMembers` | `0x0044ab00` |
+| 8 | `IRO_CopyAndConstantPropagation` | `0x00458970` |
+| 9 | copy/constant-propagation companion | `0x004582f0` |
+| 10 | `IRO_RangePropagateInFNode` | `0x00456ba0` |
+| 11 | `IRO_ExpressionPropagation` | `0x0042c9d0` |
+| 12 | `IRO_UseDef` | `0x00459b30` |
+| 13 | `IRO_ConstantFolding` | `0x00455a70` |
+| 14 | `IRO_LoopUnroller` | `0x0045fa80` |
+| 15 | `IRO_FindLoops` | `0x00461040` |
+| 16 | post-`FindLoops` loop pass (unnamed) | `0x00461360` |
+| 17 | second pass: copy/const prop, folding, conditionals | `0x00458970`, `0x00455a70`, `0x00455930` |
+| 18 | `IRO_CommonSubs` | `0x0044df00` |
+| 19 | `IRO_DoJumpChaining` | `0x00456a60` |
+| 20 | `RewriteBitFieldTemps` | `0x0044ade0` |
+
+Every stage is gated on an option byte in the `0x005842xx` block, so the
+sequence above is the maximal path rather than an unconditional one.
+`IRO_LoopUnroller` at `0x0045fa80` is a 21-byte wrapper: it sets the global at
+`0x0058800c` to 1, calls the unroller body at `0x0045f7c0`, then the shared
+teardown at `0x0044bb40`.
+
+`IRO_FindLoops` and the unnamed pass at `0x00461360` are both bracketed by the
+`Before/After IRO_FindLoops` traces, with the flag byte at `0x0057f6b5` set
+between them. `0x00461360` is therefore loop-structure work running immediately
+after loop discovery, and is the first place to look for the induction-variable
+and loop-transform decisions, which remain unrecovered.
 
 ## Backend
 

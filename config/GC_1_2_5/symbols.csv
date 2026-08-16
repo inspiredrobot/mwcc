@@ -71,3 +71,20 @@ address,size,kind,name,source,status
 0x00532520,,function,SpillCode_00532520,SpillCode.c xref,inferred
 0x00532790,,function,SpillCode_ComputeSpillCosts,block-weighted operand cost accumulation,inferred
 0x00540bbc,47,string,mwcc_version_banner,binary string,confirmed
+0x00449e30,,function,IRO_BuildflowGraph,IRO_Optimizer post-pass trace name,confirmed
+0x00455930,,function,IRO_EvaluateConditionals,IRO_Optimizer Second-pass trace enumeration,confirmed
+0x00456860,,function,IRO_RemoveUnreachable,IRO_Optimizer post-pass trace name,confirmed
+0x00456670,,function,IRO_RemoveRedundantJumps,IRO_Optimizer post-pass trace name,confirmed
+0x00456620,,function,IRO_RemoveLabels,IRO_Optimizer post-pass trace name,confirmed
+0x0044ab00,,function,IRO_ScalarizeClassDataMembers,IRO_Optimizer post-pass trace name,confirmed
+0x00458970,,function,IRO_CopyAndConstantPropagation,IRO_Optimizer Before/After trace bracket; IRO_Optimizer Second-pass trace enumeration,confirmed
+0x00456ba0,,function,IRO_RangePropagateInFNode,IRO_Optimizer post-pass trace name,confirmed
+0x0042c9d0,,function,IRO_ExpressionPropagation,IRO_Optimizer post-pass trace name,confirmed
+0x00459b30,,function,IRO_UseDef,IRO_Optimizer post-pass trace name,confirmed
+0x00455a70,,function,IRO_ConstantFolding,IRO_Optimizer Second-pass trace enumeration,confirmed
+0x0045fa80,,function,IRO_LoopUnroller,IRO_Optimizer Before/After trace bracket,confirmed
+0x00461040,,function,IRO_FindLoops,self-naming trace string in its own body,confirmed
+0x0044df00,,function,IRO_CommonSubs,IRO_Optimizer post-pass trace name,confirmed
+0x00456a60,,function,IRO_DoJumpChaining,IRO_Optimizer post-pass trace name,confirmed
+0x0044ade0,,function,RewriteBitFieldTemps,IRO_Optimizer Before/After trace bracket,confirmed
+0x0044d830,,function,IRO_Dump_0044d830,IRO_Optimizer stage-name print callee; exact operation not established,inferred
