@@ -99,3 +99,6 @@ address,size,kind,name,source,status
 0x00587104,,data,IRO_LoopList_00587104,head of the loop record list built by IRO_FindLoops_Unroll,inferred
 0x005880dc,,data,IRO_LoopScratchVector_005880dc,scratch block bit vector reused per loop,inferred
 0x005842f0,,data,IRO_UnrollOption_005842f0,signed option byte passed to the unroll worker,inferred
+0x004c60b0,,function,CodeGen_PostAllocationPeephole_004c60b0,runs between the AFTER MERGING EPILOGUE PROLOGUE and AFTER PEEPHOLE OPTIMIZATION dumps; observed merging an address chain,inferred
+0x004c6100,,function,CodeGen_MergeEpiloguePrologue_004c6100,runs before the AFTER MERGING EPILOGUE, PROLOGUE dump,inferred
+0x004c4bd0,,function,CodeGen_DumpPCode_004c4bd0,CodeGen_Generator stage-dump callee taking (name, label),inferred

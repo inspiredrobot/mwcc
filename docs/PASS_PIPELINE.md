@@ -145,6 +145,37 @@ yet reconstructed.
 
 ## Backend
 
+### CodeGen_Generator stage boundaries
+
+`CodeGen_Generator` names each of its own stages in the label it passes to the
+dump routine at `0x004c4bd0`. Each dump is conditional on the byte at
+`0x00584226`, so the reliable capture point for a stage is where its dump block
+reconverges:
+
+| Stage label | Reconvergence | Pass that produced it |
+| --- | --- | --- |
+| `INITIAL CODE` | `0x00435b04` | initial lowering |
+| `BEFORE SCHEDULING` | `0x00435b77` | backend optimizer |
+| `AFTER INSTRUCTION SCHEDULING` | `0x00435baf` | `0x004ccae0` |
+| `AFTER PEEPHOLE FORWARD` | `0x00435bfd` | forward peephole |
+| `AFTER REGISTER COLORING` | `0x00435c26` | `0x004cdef0` |
+| `AFTER GENERATING EPILOGUE, PROLOGUE` | `0x00435cdc` | stack frame and prologue emission |
+| `AFTER MERGING EPILOGUE, PROLOGUE` | `0x00435d1a` | `0x004c6100`, gated by `0x00584225` |
+| `AFTER PEEPHOLE OPTIMIZATION` | `0x00435d43` | `0x004c60b0`, gated by `0x005842d7` |
+| `FINAL CODE AFTER INSTRUCTION SCHEDULING` / `FINAL CODE` | `0x00435db6` | second `0x004ccae0` |
+
+The five boundaries from `AFTER REGISTER COLORING` onward are captured by
+`tools/gdb/allocator_snapshot.py` as the `register_coloring`,
+`epilogue_prologue`, `epilogue_merge`, `post_allocation_peephole`, and `final`
+PCode stages.
+
+The post-allocation peephole at `0x004c60b0` is confirmed to rewrite address
+chains. In a captured melee function it replaced the pair
+`addi rX,base,4` / `addi rX,rX,4` with a single `addi rX,base,8`, taking the
+block from seven walker `ADDI`s at `epilogue_merge` to six at
+`post_allocation_peephole`. Its exact trigger condition is not yet recovered.
+
+
 `CodeGen_Generator` is at `0x004351c0`. Its backend optimizer call is
 `0x004c4430`, which dispatches on the exact optimization-level byte:
 

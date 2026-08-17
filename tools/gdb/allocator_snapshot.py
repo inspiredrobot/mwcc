@@ -30,6 +30,16 @@ INITIAL_PCODE_ADDRESS = 0x00435B04
 OPTIMIZED_PCODE_ADDRESS = 0x00435B39
 POST_SCHEDULER_PCODE_ADDRESS = 0x00435BAF
 FORWARD_PEEPHOLE_PCODE_ADDRESS = 0x00435BFD
+# Post-register-allocation stages. Each address is the point where
+# CodeGen_Generator's conditional dump block for that stage reconverges, so the
+# breakpoint is reached whether or not the compiler's own dumping is enabled.
+# The stage names are the compiler's, taken from the labels it passes to the
+# dump routine at 0x004c4bd0.
+REGISTER_COLORING_PCODE_ADDRESS = 0x00435C26
+EPILOGUE_PROLOGUE_PCODE_ADDRESS = 0x00435CDC
+MERGED_EPILOGUE_PCODE_ADDRESS = 0x00435D1A
+PEEPHOLE_OPTIMIZATION_PCODE_ADDRESS = 0x00435D43
+FINAL_PCODE_ADDRESS = 0x00435DB6
 CODE_MOTION_INSTRUCTION_ADDRESS = 0x00524E04
 CODE_MOTION_DECISION_POINTS = {
     0x00524E40: "00526d80",
@@ -1078,6 +1088,32 @@ class CaptureSession:
             "forward_peephole",
             "register_allocation",
         )
+        self.post_allocation_pcode_breakpoints = [
+            PCodeStageBreakpoint(self, address, phase, next_epoch)
+            for address, phase, next_epoch in (
+                (
+                    REGISTER_COLORING_PCODE_ADDRESS,
+                    "register_coloring",
+                    "epilogue_prologue",
+                ),
+                (
+                    EPILOGUE_PROLOGUE_PCODE_ADDRESS,
+                    "epilogue_prologue",
+                    "epilogue_merge",
+                ),
+                (
+                    MERGED_EPILOGUE_PCODE_ADDRESS,
+                    "epilogue_merge",
+                    "post_allocation_peephole",
+                ),
+                (
+                    PEEPHOLE_OPTIMIZATION_PCODE_ADDRESS,
+                    "post_allocation_peephole",
+                    "final_scheduling",
+                ),
+                (FINAL_PCODE_ADDRESS, "final", "final"),
+            )
+        ]
         self.pcode_wrapper_breakpoints = [
             PCodeWrapperBreakpoint(self, address) for address in PCODE_WRAPPERS
         ]
