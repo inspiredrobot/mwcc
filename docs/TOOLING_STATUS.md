@@ -17,7 +17,7 @@ gap is not rediscovered under several function names.
 | Loop-carried scalar promotion | Open; highest frontend priority | Code-motion census, object index, type predicate, and first motion pass are reconstructed | Recover the later loop-transform decisions that choose named-object versus optimization-temp ownership |
 | Shadow-object grant and first-region ownership | Open | Initial object boundary, creation strata, and coalescing windows are captured | Recover the frontend/optimizer grant pass and predict the selected live region |
 | Offline source-edit delta prediction | Open | Origin comparison and source-rank search cover two constrained edit families | Join CST/AST scope edits to object births, optimization rewrites, and PCode deltas |
-| Post-register-allocation rewrites | Open; blocks a live case | Nothing yet: captures stop at the allocator input and the coloring snapshots | Snapshot PCode after coloring and spill rewriting, so the pass that merges address-chain instructions becomes observable |
+| Post-register-allocation rewrites | Capture implemented; rewrite rules open | `tools/gdb/allocator_snapshot.py` emits the `register_coloring`, `epilogue_prologue`, `epilogue_merge`, `post_allocation_peephole`, and `final` stages | Recover the trigger condition of the peephole at `0x004c60b0`, which merges address chains such as `addi rX,base,4; addi rX,rX,4` |
 
 ## Interpretation rules
 
