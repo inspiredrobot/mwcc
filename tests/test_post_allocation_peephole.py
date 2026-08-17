@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 
+import struct
 import sys
 from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
-from allocator_snapshot import TARGET_SHA256
-from post_allocation_peephole import ADDI_OPCODE, replay
+from allocator_snapshot import (
+    REACHING_DEFINITION_TABLE_ADDRESS,
+    TARGET_SHA256,
+    SnapshotReader,
+)
+from post_allocation_peephole import ADDI_OPCODE, replay, replay_trace
 
 
 def operand(kind, flags, register, value=None):
@@ -156,6 +161,94 @@ def test_prefers_the_captured_reaching_definition_table():
     linked = {"table_address": "0x00002000", "entries": {"7": "0x00001000"}}
     report = replay(snapshot(instructions, linked))
     assert report["fire_count"] == 1, report
+
+
+class SparseMemory:
+    """Byte-addressable stand-in for the debugger's inferior memory."""
+
+    def __init__(self):
+        self.data = {}
+
+    def write(self, address, data):
+        for offset, value in enumerate(data):
+            self.data[address + offset] = value
+
+    def read(self, address, size):
+        return bytes(self.data.get(address + offset, 0) for offset in range(size))
+
+
+def test_trace_supplies_the_reaching_definition_the_rule_used():
+    """A trace decides candidates a stage snapshot alone cannot resolve."""
+
+    a = addi("0x00001000", 0, 4, 5, 4)
+    b = addi("0x00001008", 0, 4, 4, 4)
+    b["definition_index"] = 9
+    instructions = chain(a, b)
+
+    unlinked = replay(snapshot(instructions, {"table_address": None, "entries": {}}))
+    assert unlinked["fire_count"] == 0
+
+    trace = {
+        "format": "mwcc-peephole-trace-v1",
+        "events": [
+            {
+                "sequence": 0,
+                "candidate": {"address": "0x00001008"},
+                "live_registers": "0x00000000",
+                "reaching_definition": {"address": "0x00001000"},
+            }
+        ],
+    }
+    report = replay_trace(snapshot(instructions), trace)
+    assert report["reaching_definitions"] == "traced"
+    assert report["fire_count"] == 1, report
+    assert report["removed_addresses"] == ["0x00001000"]
+
+
+def test_trace_applies_the_recorded_live_mask():
+    a = addi("0x00001000", 0, 3, 5, 4)
+    b = addi("0x00001008", 0, 4, 3, 4)
+    trace_event = {
+        "sequence": 0,
+        "candidate": {"address": "0x00001008"},
+        "reaching_definition": {"address": "0x00001000"},
+    }
+    instructions = chain(a, b)
+
+    free = {
+        "format": "mwcc-peephole-trace-v1",
+        "events": [{**trace_event, "live_registers": "0x00000000"}],
+    }
+    assert replay_trace(snapshot(instructions), free)["fire_count"] == 1
+
+    live = {
+        "format": "mwcc-peephole-trace-v1",
+        "events": [{**trace_event, "live_registers": "0x00000008"}],
+    }
+    report = replay_trace(snapshot(instructions), live)
+    assert report["decisions"][0]["rejected_by"] == "destination_reserved"
+
+
+def test_reaching_definition_table_read_tolerates_stale_indices():
+    """Stages captured before the pass builds the table must not abort."""
+
+    memory = SparseMemory()
+    table = 0x2000
+    memory.write(REACHING_DEFINITION_TABLE_ADDRESS, struct.pack("<I", table))
+    memory.write(table + 4 + 3 * 4, struct.pack("<I", 0x1234))
+    reader = SnapshotReader(memory.read)
+    blocks = [
+        {
+            "instructions": [
+                {"definition_index": 3},
+                {"definition_index": 0},
+                {"definition_index": 0x7FFFFFFF},
+            ]
+        }
+    ]
+    resolved = reader.reaching_definitions(blocks)
+    assert resolved["entries"] == {"3": "0x00001234"}
+    assert resolved["unreadable_indices"] == 1
 
 
 def main():
