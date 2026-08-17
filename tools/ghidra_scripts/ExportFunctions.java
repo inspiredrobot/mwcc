@@ -83,6 +83,16 @@ public class ExportFunctions extends GhidraScript {
             Function function = currentProgram.getFunctionManager()
                 .getFunctionContaining(address);
             if (function == null) {
+                // Routines reached only through a function-pointer table are
+                // never created by auto-analysis. Define one on demand so the
+                // caller can export it, and say so: the boundary comes from
+                // this disassembly pass, not from Ghidra's own analysis.
+                println("Creating function at " + address
+                    + " (not found by analysis)");
+                disassemble(address);
+                function = createFunction(address, null);
+            }
+            if (function == null) {
                 printerr("No function contains " + address);
             } else {
                 functions.put(function.getEntryPoint(), function);

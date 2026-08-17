@@ -169,11 +169,53 @@ The five boundaries from `AFTER REGISTER COLORING` onward are captured by
 `epilogue_prologue`, `epilogue_merge`, `post_allocation_peephole`, and `final`
 PCode stages.
 
-The post-allocation peephole at `0x004c60b0` is confirmed to rewrite address
-chains. In a captured melee function it replaced the pair
-`addi rX,base,4` / `addi rX,rX,4` with a single `addi rX,base,8`, taking the
-block from seven walker `ADDI`s at `epilogue_merge` to six at
-`post_allocation_peephole`. Its exact trigger condition is not yet recovered.
+### The post-allocation peephole is table driven
+
+`0x004c60b0` is only a 66-byte driver. It calls the registrar at `0x004c6320`
+once, then walks the block list at `0x00587c74` and, for every block whose
+`word +0x2c` is at least 1, runs `0x004cc180` followed by the per-block worker
+`0x004c7a30`.
+
+`0x004c7a30` is the dispatcher. For each instruction it first calls
+`0x004cc040`, deleting the instruction through `0x0049d010` when that returns
+non-zero. Otherwise it reads the instruction's opcode from `word +0x14`, indexes
+the handler table at `0x005813b0`, and walks that opcode's list, calling each
+record's `+0x4` function pointer. A handler returning non-zero restarts the walk
+for the instruction's (possibly rewritten) opcode.
+
+The registrar builds those lists with a fixed idiom: allocate eight bytes,
+store the handler at `+0x4`, then push onto `table[opcode]` through `+0x0`.
+Extracting that idiom from its disassembly recovers **90 registrations across
+41 opcodes** — the complete post-allocation rule set. Opcode `63` (`ADDI`) has
+exactly one handler, `0x004c8d90`.
+
+Handlers live only in this table, so Ghidra's auto-analysis never creates
+functions for them. `tools/ghidra_scripts/ExportFunctions.java` now disassembles
+and defines a function on demand when no analysis-created one contains the
+requested address, and prints a line saying it did.
+
+### The ADDI combine rule
+
+`0x004c8d90` is 351 bytes and implements the address-chain merge. Reading its
+preconditions, for a candidate instruction `B`:
+
+1. Its reaching definition `A` is fetched from the table at `0x00581af8`,
+   indexed by `B`'s `+0x10`, and rejected unless `A`'s opcode is also `0x3f`.
+2. When `A` and `B` name different registers at `+0x1e`, that register is tested
+   against a caller-supplied mask; a hit rejects the merge. Equal registers skip
+   the test.
+3. `A` is rejected when its `+0x16` flags carry `0x80`.
+4. Two backward scans then walk the instructions between `A` and `B`, comparing
+   each operand's kind byte and register word against `A`'s source operand
+   (`+0x28`/`+0x2a`) and its destination (`+0x1c`), rejecting on an intervening
+   definition.
+
+The field semantics above are read from the instruction stream and are not yet
+confirmed against captured PCode; the operand layout matches the 12-byte stride
+documented in `docs/DATA_MODEL.md`. The remaining work is to bind each field to
+a captured snapshot, which is now possible because the `epilogue_merge` and
+`post_allocation_peephole` stages bracket exactly one firing of this rule in the
+melee capture recorded in `docs/ALLOCATOR_CASEBOOK.md`.
 
 
 `CodeGen_Generator` is at `0x004351c0`. Its backend optimizer call is

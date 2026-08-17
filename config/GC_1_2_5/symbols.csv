@@ -102,3 +102,8 @@ address,size,kind,name,source,status
 0x004c60b0,,function,CodeGen_PostAllocationPeephole_004c60b0,runs between the AFTER MERGING EPILOGUE PROLOGUE and AFTER PEEPHOLE OPTIMIZATION dumps; observed merging an address chain,inferred
 0x004c6100,,function,CodeGen_MergeEpiloguePrologue_004c6100,runs before the AFTER MERGING EPILOGUE, PROLOGUE dump,inferred
 0x004c4bd0,,function,CodeGen_DumpPCode_004c4bd0,CodeGen_Generator stage-dump callee taking (name, label),inferred
+0x004c6320,,function,CodeGen_RegisterPeepholeRules_004c6320,clears the handler table at 0x005813b0 then pushes 90 handler records across 41 opcodes,inferred
+0x004c7a30,,function,CodeGen_PeepholeBlock_004c7a30,per-block dispatcher: indexes 0x005813b0 by opcode and calls each record +0x4,inferred
+0x004c8d90,,function,CodeGen_PeepholeCombineAddi_004c8d90,sole handler registered for opcode 0x3f; merges an ADDI pair into one,inferred
+0x005813b0,,data,CodeGen_PeepholeHandlers_005813b0,per-opcode handler lists used by 0x004c7a30,inferred
+0x00581af8,,data,CodeGen_ReachingDefTable_00581af8,indexed by an instruction field +0x10 to reach its defining instruction,inferred
