@@ -20,6 +20,11 @@ PCODE_OPCODE_DESCRIPTORS_ADDRESS = 0x005654B0
 PCODE_MAX_OPCODE = 0x01D1
 INTERFERENCE_GRAPH_ADDRESS = 0x00587E3C
 COALESCED_REGISTERS_ADDRESS = 0x0058308C
+# Pointer to the post-allocation reaching-definition array. Every rule handler
+# registered at 0x005813B0 reads it as `table[instruction.definition_index]`,
+# where entry zero is skipped, so the useful entries start at pointer + 4.
+REACHING_DEFINITION_TABLE_ADDRESS = 0x00581AF8
+REACHING_DEFINITION_INDEX_LIMIT = 0x10000
 VIRTUAL_REGISTER_COUNT_ADDRESSES = {
     "gpr": 0x0058846E,
     "fpr": 0x0058846C,
@@ -290,6 +295,10 @@ class SnapshotReader:
             "address": f"0x{address:08x}",
             "next": struct.unpack_from("<I", header, 0)[0],
             "previous": struct.unpack_from("<I", header, 4)[0],
+            "block": struct.unpack_from("<I", header, 8)[0],
+            # Index into the reaching-definition array read by the
+            # post-allocation rules; see REACHING_DEFINITION_TABLE_ADDRESS.
+            "definition_index": struct.unpack_from("<I", header, 0x10)[0],
             "opcode": opcode,
             "opcode_descriptor": self.opcode_descriptor(opcode),
             "flags": struct.unpack_from("<I", header, 0x16)[0],
@@ -446,7 +455,49 @@ class SnapshotReader:
         validate_coloring_snapshot(snapshot)
         return snapshot
 
+    def reaching_definitions(self, blocks: list[dict]) -> dict | None:
+        """Resolve every live instruction's reaching-definition table entry.
+
+        The post-allocation rules registered at 0x005813B0 read their candidate
+        predecessor as `table[instruction.definition_index]`, so the table is
+        what decides whether a rule sees a foldable pair at all. It is a heap
+        array whose entry zero is skipped.
+        """
+
+        try:
+            table = self.u32(REACHING_DEFINITION_TABLE_ADDRESS)
+        except SnapshotError:
+            return None
+        if table == 0:
+            return None
+        # The array is sized by the pass that fills it, so a stage captured
+        # before that pass runs carries stale indices that address unmapped
+        # memory. Record what reads cleanly and report the rest rather than
+        # aborting the capture.
+        entries = {}
+        unreadable = 0
+        for block in blocks:
+            for instruction in block["instructions"]:
+                index = instruction["definition_index"]
+                if index == 0 or index in entries:
+                    continue
+                if not 0 < index < REACHING_DEFINITION_INDEX_LIMIT:
+                    unreadable += 1
+                    continue
+                try:
+                    definition = self.u32(table + 4 + index * 4)
+                except Exception:
+                    unreadable += 1
+                    continue
+                entries[index] = f"0x{definition:08x}"
+        return {
+            "table_address": f"0x{table:08x}",
+            "unreadable_indices": unreadable,
+            "entries": {str(index): entries[index] for index in sorted(entries)},
+        }
+
     def snapshot(self, function_pointer: int = 0, program_counter: int = 0) -> dict:
+        blocks = self.blocks()
         snapshot = {
             "format": "mwcc-allocator-snapshot-v1",
             "compiler": self.compiler,
@@ -461,7 +512,8 @@ class SnapshotReader:
                 name: self.s16(address)
                 for name, address in INITIAL_OBJECT_REGISTER_LAST_ADDRESSES.items()
             },
-            "blocks": self.blocks(),
+            "blocks": blocks,
+            "reaching_definitions": self.reaching_definitions(blocks),
         }
         validate_snapshot(snapshot)
         return snapshot

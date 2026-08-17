@@ -17,7 +17,7 @@ gap is not rediscovered under several function names.
 | Loop-carried scalar promotion | Open; highest frontend priority | Code-motion census, object index, type predicate, and first motion pass are reconstructed | Recover the later loop-transform decisions that choose named-object versus optimization-temp ownership |
 | Shadow-object grant and first-region ownership | Open | Initial object boundary, creation strata, and coalescing windows are captured | Recover the frontend/optimizer grant pass and predict the selected live region |
 | Offline source-edit delta prediction | Open | Origin comparison and source-rank search cover two constrained edit families | Join CST/AST scope edits to object births, optimization rewrites, and PCode deltas |
-| Post-register-allocation rewrites | Capture implemented; rule set located | Stages `register_coloring` through `final` in `tools/gdb/allocator_snapshot.py`; the 90-registration handler table extracted from `0x004c6320`; `ADDI` combine isolated to `0x004c8d90` | Bind `0x004c8d90`'s operand fields to captured PCode so its accept/reject decision can be predicted, then invert it into a source-side condition |
+| Post-register-allocation rewrites | Implemented for the `ADDI` combine | Stages `register_coloring` through `final` in `tools/gdb/allocator_snapshot.py`; the 90-registration handler table extracted from `0x004c6320`; `tools/post_allocation_peephole.py` replays `0x004c8d90` and reproduced the melee ftKirby firing exactly; `peephole-NNNN.json` traces the rule's own decision points | Explain a rejection that depends on `0x004cc180`'s reaching-definition table, which is built inside the pass and so is empty at a stage breakpoint |
 
 ## Interpretation rules
 

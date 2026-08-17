@@ -176,12 +176,28 @@ once, then walks the block list at `0x00587c74` and, for every block whose
 `word +0x2c` is at least 1, runs `0x004cc180` followed by the per-block worker
 `0x004c7a30`.
 
-`0x004c7a30` is the dispatcher. For each instruction it first calls
-`0x004cc040`, deleting the instruction through `0x0049d010` when that returns
-non-zero. Otherwise it reads the instruction's opcode from `word +0x14`, indexes
-the handler table at `0x005813b0`, and walks that opcode's list, calling each
-record's `+0x4` function pointer. A handler returning non-zero restarts the walk
-for the instruction's (possibly rewritten) opcode.
+`0x004c7a30` is the dispatcher, and it walks each block **backwards**, from
+`block +0x18` along `instruction +0x4`, carrying a live-register set per
+register class. The four masks are seeded from the block's live-out sets, held
+in four parallel 16-byte-strided arrays at `0x005813a0`, `0x005813a4`,
+`0x005813a8`, and `0x005813ac`, each indexed by the block's own index at
+`+0x1c`. After each instruction the dispatcher clears the mask bits its operands
+define and then sets the bits they use, which is an ordinary backward liveness
+update.
+
+For each instruction it first calls `0x004cc040` with those masks, deleting the
+instruction through `0x0049d010` when that returns non-zero: that is
+liveness-driven dead-code elimination, not a peephole rule. Otherwise it reads
+the instruction's opcode from `word +0x14`, indexes the handler table at
+`0x005813b0`, and walks that opcode's list, calling each record's `+0x4`
+function pointer with `(instruction, gpr_live, fpr_live, live_3, live_9)`. A
+handler returning non-zero restarts the walk for the instruction's (possibly
+rewritten) opcode.
+
+Two consequences matter when reading a rule. A handler's second argument is the
+set of registers live *after* the candidate, not before it. And because the
+walk is backwards, a rule sees the block in reverse order while its own operand
+scans still run forwards through the instruction list.
 
 The registrar builds those lists with a fixed idiom: allocate eight bytes,
 store the handler at `+0x4`, then push onto `table[opcode]` through `+0x0`.
@@ -196,26 +212,44 @@ requested address, and prints a line saying it did.
 
 ### The ADDI combine rule
 
-`0x004c8d90` is 351 bytes and implements the address-chain merge. Reading its
-preconditions, for a candidate instruction `B`:
+`0x004c8d90` spans `0x004c8d90`–`0x004c8ef9` and implements the address-chain
+merge. Its fields are now bound to the captured PCode record layout: the header
+carries `next +0x00`, `previous +0x04`, `block +0x08`, a reaching-definition
+index at `+0x10`, `opcode +0x14`, `flags +0x16`, and the operand count at
+`+0x1a`; operands then run from `+0x1c` on a 12-byte stride as
+`kind, access, register/value, object`. So `+0x1c`/`+0x1e` is operand 0,
+`+0x28`/`+0x2a` is operand 1, and `+0x34`/`+0x36` is operand 2.
 
-1. Its reaching definition `A` is fetched from the table at `0x00581af8`,
-   indexed by `B`'s `+0x10`, and rejected unless `A`'s opcode is also `0x3f`.
-2. When `A` and `B` name different registers at `+0x1e`, that register is tested
-   against a caller-supplied mask; a hit rejects the merge. Equal registers skip
-   the test.
-3. `A` is rejected when its `+0x16` flags carry `0x80`.
-4. Two backward scans then walk the instructions between `A` and `B`, comparing
-   each operand's kind byte and register word against `A`'s source operand
-   (`+0x28`/`+0x2a`) and its destination (`+0x1c`), rejecting on an intervening
-   definition.
+For a candidate `B`, in order:
 
-The field semantics above are read from the instruction stream and are not yet
-confirmed against captured PCode; the operand layout matches the 12-byte stride
-documented in `docs/DATA_MODEL.md`. The remaining work is to bind each field to
-a captured snapshot, which is now possible because the `epilogue_merge` and
-`post_allocation_peephole` stages bracket exactly one firing of this rule in the
-melee capture recorded in `docs/ALLOCATOR_CASEBOOK.md`.
+1. Its reaching definition `A` is fetched from the table at `0x00581af8` as
+   `table[B +0x10]`, and rejected unless `A`'s opcode is also `0x3f`.
+2. When `A` and `B` define different registers, `A`'s destination is tested
+   against the dispatcher's live-after mask; a hit rejects the merge, because
+   `A` would still be needed. Equal destinations skip the test.
+3. `A` is rejected when its flags carry `0x80`.
+4. A backward scan from `B` to `A` rejects on any operand that **defines** `A`'s
+   base register.
+5. A second such scan rejects on any operand that **uses** `A`'s destination.
+6. Both immediates must be operand kind `4`, a plain constant.
+7. Their sum must fit a signed 16-bit field.
+
+On acceptance `B`'s base becomes `A`'s base, `B`'s immediate gains `A`'s,
+`table[B +0x10]` inherits `table[A +0x10]`, and `A` is deleted through
+`0x0049d010`.
+
+`tools/post_allocation_peephole.py` replays this decision over a captured stage.
+Against the melee ftKirby capture it evaluates 13 `ADDI` candidates, fires on
+exactly one, and names the same removed instruction and the same rewritten base
+and immediate that the `epilogue_merge` to `post_allocation_peephole` delta
+shows. `mwcc-auto-capture` additionally writes `peephole-NNNN.json`, an exact
+per-invocation trace taken from breakpoints on the rule's own decision points,
+so a rejected fold reports the precondition that stopped it rather than an
+inferred one.
+
+Reading the emitted assembly is **not** sufficient to predict this rule. A final
+scheduling stage runs after the peephole, so the order the rule saw is the
+`epilogue_merge` order, not the order in the object file.
 
 
 `CodeGen_Generator` is at `0x004351c0`. Its backend optimizer call is

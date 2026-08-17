@@ -13,6 +13,8 @@ if str(TOOLS_DIR) not in sys.path:
 from allocator_snapshot import (
     FIRST_VIRTUAL_REGISTER,
     OBJECT_VIRTUAL_REGISTER_ALLOCATOR_DETAILS,
+    REACHING_DEFINITION_INDEX_LIMIT,
+    REACHING_DEFINITION_TABLE_ADDRESS,
     TARGET_NINJI_SHA256,
     TARGET_SHA256,
     SnapshotError,
@@ -78,6 +80,8 @@ VIRTUAL_REGISTER_SITE_CATALOGS = {
     "ninji": "GC_1_2_5n",
 }
 VIRTUAL_REGISTER_COUNTER_RESET_ADDRESS = 0x004C23C0
+# The only rule the registrar at 0x004c6320 installs for opcode 0x3f (ADDI).
+PEEPHOLE_ADDI_RULE_ADDRESS = 0x004C8D90
 STACK_OBJECT_ALLOCATOR_ADDRESS = 0x004AC4A0
 STACK_OBJECT_ALIGNMENT_RETURN_ADDRESS = 0x004AC4AE
 STACK_OBJECT_ALLOCATOR_RETURN_ADDRESS = 0x004AC4D8
@@ -896,6 +900,48 @@ class CodeMotionFinishBreakpoint(gdb.Breakpoint):
         return False
 
 
+class PeepholeRuleEntryBreakpoint(gdb.Breakpoint):
+    """Record the inputs of one post-allocation ADDI combine invocation.
+
+    The dispatcher at `0x004c7a30` walks a block backwards and calls each rule
+    registered for the current opcode with `(instruction, gpr_live, fpr_live,
+    live_3, live_9)`. Only the rule's inputs are recorded here: its reaching
+    definition comes from a table that `0x004cc180` builds inside the pass, so
+    it cannot be read from a stage breakpoint, and every remaining precondition
+    is a function of the captured instruction stream. `replay_trace` in
+    `tools/post_allocation_peephole.py` decides the outcome from these inputs,
+    which keeps the capture to one stop per candidate.
+    """
+
+    def __init__(self, session):
+        super().__init__(f"*0x{PEEPHOLE_ADDI_RULE_ADDRESS:08x}", internal=True)
+        self.session = session
+
+    def stop(self):
+        if not self.session.capture_current:
+            return False
+        reader = snapshot_reader(self.session)
+        stack = int(gdb.parse_and_eval("$esp"))
+        candidate_address = reader.u32(stack + 4)
+        candidate = reader.instruction(candidate_address)
+        table = reader.u32(REACHING_DEFINITION_TABLE_ADDRESS)
+        definition = None
+        index = candidate["definition_index"]
+        if table and 0 < index < REACHING_DEFINITION_INDEX_LIMIT:
+            definition_address = reader.u32(table + 4 + index * 4)
+            if definition_address:
+                definition = reader.instruction(definition_address)
+        self.session.peephole_events.append(
+            {
+                "sequence": len(self.session.peephole_events),
+                "candidate": candidate,
+                "live_registers": f"0x{reader.u32(stack + 8):08x}",
+                "reaching_definition": definition,
+            }
+        )
+        return False
+
+
 class StackObjectAllocatorBreakpoint(gdb.Breakpoint):
     """Begin one exact StackFrameEABI_004ac4a0 allocation event."""
 
@@ -1017,6 +1063,7 @@ class CaptureSession:
         output,
         target_index=None,
         target_name=None,
+        trace_peephole=False,
         target="stock",
     ):
         self.output = output
@@ -1044,6 +1091,7 @@ class CaptureSession:
         }
         self.code_motion_events = []
         self.pending_code_motion_event = None
+        self.peephole_events = []
         self.stack_object_allocations = []
         self.local_home_list = []
         self.pending_stack_object_allocation = None
@@ -1135,6 +1183,14 @@ class CaptureSession:
                 CODE_MOTION_RETURN_ADDRESS,
             )
         ]
+        # Opt-in: the rule runs for every ADDI in every function of the
+        # translation unit, and each stop is a gdbstub round trip, so tracing
+        # it costs far more than the rest of the capture combined. It must also
+        # be created here rather than from a stop handler, because GDB hangs
+        # when a breakpoint is inserted while stopped inside one.
+        self.peephole_entry_breakpoint = (
+            PeepholeRuleEntryBreakpoint(self) if trace_peephole else None
+        )
         self.stack_object_allocator_breakpoint = StackObjectAllocatorBreakpoint(
             self
         )
@@ -1191,6 +1247,7 @@ class CaptureSession:
         }
         self.code_motion_events = []
         self.pending_code_motion_event = None
+        self.peephole_events = []
         self.stack_object_allocations = []
         self.pending_stack_object_allocation = None
         self.stack_frame_finalization = None
@@ -1251,6 +1308,11 @@ class CaptureSession:
                 trace,
             )
 
+        if phase == "post_allocation_peephole" and (
+            self.peephole_entry_breakpoint is not None
+        ):
+            self.write_peephole_trace()
+
         instruction_count = sum(
             len(block["instructions"]) for block in snapshot["blocks"]
         )
@@ -1258,6 +1320,27 @@ class CaptureSession:
             f"Captured {phase} PCode {self.function_index}: "
             f"{instruction_count} live instructions, "
             f"{len(self.creation_events)} creation events\n"
+        )
+
+    def write_peephole_trace(self):
+        """Write every ADDI rule invocation seen for this function."""
+
+        trace = {
+            "format": "mwcc-peephole-trace-v1",
+            "compiler": self.compiler,
+            "target_sha256": self.target_sha256,
+            "capture_index": self.function_index,
+            "function_pointer": f"0x{self.function_pointer:08x}",
+            "function_identity": self.function_identity,
+            "rule_address": f"0x{PEEPHOLE_ADDI_RULE_ADDRESS:08x}",
+            "events": self.peephole_events,
+        }
+        write_snapshot(
+            self.output / f"peephole-{self.function_index:04d}.json", trace
+        )
+        gdb.write(
+            f"Captured peephole trace {self.function_index}: "
+            f"{len(self.peephole_events)} ADDI rule invocations\n"
         )
 
     def write_creation_trace(self, phase, snapshot=None):
@@ -1363,7 +1446,7 @@ class CaptureSession:
 
 
 class MwccAutoCapture(gdb.Command):
-    """Capture passes: mwcc-auto-capture DIR [INDEX|NAME] [stock|ninji]"""
+    """Capture: mwcc-auto-capture DIR [INDEX|NAME] [stock|ninji] [peephole]"""
 
     def __init__(self):
         super().__init__("mwcc-auto-capture", gdb.COMMAND_DATA)
@@ -1372,10 +1455,13 @@ class MwccAutoCapture(gdb.Command):
     def invoke(self, argument, from_tty):
         del from_tty
         arguments = gdb.string_to_argv(argument)
+        trace_peephole = bool(arguments) and arguments[-1] == "peephole"
+        if trace_peephole:
+            arguments = arguments[:-1]
         if len(arguments) not in (1, 2, 3):
             raise gdb.GdbError(
                 "usage: mwcc-auto-capture DIRECTORY [FUNCTION_INDEX|NAME] "
-                "[stock|ninji]"
+                "[stock|ninji] [peephole]"
             )
         output = Path(arguments[0])
         target_index = None
@@ -1396,6 +1482,7 @@ class MwccAutoCapture(gdb.Command):
             target_index=target_index,
             target_name=target_name,
             target=target,
+            trace_peephole=trace_peephole,
         )
         if target_index is not None:
             selection = f"function {target_index}"
@@ -1404,7 +1491,8 @@ class MwccAutoCapture(gdb.Command):
         else:
             selection = "all functions"
         gdb.write(
-            f"Capturing {target} MWCC passes for {selection} in {output}\n"
+            f"Capturing {target} MWCC passes for {selection} in {output}"
+            f"{' with peephole trace' if trace_peephole else ''}\n"
         )
 
 
