@@ -14,6 +14,13 @@
 - Record whether every name or structure is proven by this binary, inferred
   from its strings/control flow, or borrowed as a hypothesis from an external
   reference.
+- This project's own contents are CC0 1.0 (public domain); anyone may reuse
+  them for anything, with no attribution or permission needed. Keep new files
+  under that dedication and do not add per-file copyright headers.
+- The compiler studied here is proprietary and is never redistributed by this
+  project. This is noncommercial research intended as fair use, and it will be
+  taken down at a rights holder's request; never commit anything that would
+  make the repository a substitute for the product.
 - Do not copy third-party code unless its license or explicit permission allows
   it. Record copied files and modifications in `docs/PROVENANCE.md`.
 - `mwcc-debugger` and Ninji's MWCC decomp are reference-only until their

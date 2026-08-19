@@ -6,6 +6,9 @@ frontend and backend optimization pipelines, register allocator, and stack
 allocator. The longer-term goal is a matching decompilation of
 `mwcceppc.exe`.
 
+This project is public domain (CC0 1.0). Use any part of it for anything,
+without attribution or permission — see [License](#license).
+
 The primary target is the stock compiler. The original executable is
 proprietary and is never committed. Place it at:
 
@@ -185,3 +188,30 @@ fresh disposable sandbox with networking disabled, a read-only root
 filesystem and input mounts, dropped capabilities, `no-new-privileges`, strict
 resource limits, and a dedicated writable scratch mount. Record the artifact
 hash and complete sandbox invocation so the experiment is auditable.
+
+## License
+
+Everything in this repository is released into the public domain under
+[CC0 1.0 Universal](LICENSE). Take any part of it — code, tooling, notes,
+documented findings, reverse-engineered structures — and do whatever you want
+with it. No permission needs to be asked for, and I do not care about
+attribution — credit me or don't, either is fine. Forking, vendoring, and
+relicensing any piece of this work are explicitly encouraged.
+
+The waiver covers this project's own contents only. The compiler executables
+and other proprietary inputs it analyzes are not covered and are never
+committed; external tools and references keep their own licenses, listed in
+[docs/PROVENANCE.md](docs/PROVENANCE.md).
+
+## Fair use and takedown
+
+This is noncommercial research into how a long-discontinued compiler behaves,
+kept up for interoperability, preservation, and study. No Metrowerks or
+Freescale binary, installer, or original source is distributed here, and
+nothing here substitutes for the original product. What is recorded are facts
+about observed behavior, written up independently. This use is intended as
+fair use. No affiliation with, or endorsement by, the original authors or
+rights holders is claimed or implied.
+
+If you hold rights in this software and would rather this material not be
+public, open an issue or get in touch and I'll take it down.

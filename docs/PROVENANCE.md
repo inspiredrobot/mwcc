@@ -1,6 +1,27 @@
 # Provenance and licensing
 
-No project-wide license has been selected yet.
+## Project license
+
+This project is dedicated to the public domain under CC0 1.0 Universal; the
+full text is in [`LICENSE`](../LICENSE). Every file authored here — source,
+tooling, configuration, documentation, and recorded findings — is covered.
+Anyone may copy, modify, redistribute, or relicense any part of it, for any
+purpose, without permission and without attribution.
+
+The waiver applies only to this repository's own contents. It does not grant
+rights in the proprietary compiler binaries analyzed here, which are never
+committed, and it does not alter the licenses of the external tools and
+references listed below.
+
+## Fair use and takedown
+
+This repository is noncommercial research: it describes how a discontinued
+compiler behaves so that its output can be understood and reproduced. No
+proprietary binary, installer, or original source is distributed here, and
+nothing here is a substitute for the original product. This use is intended
+as fair use. No affiliation with, or endorsement by, the original authors or
+rights holders is claimed or implied. If a rights holder objects, I'll take
+it down on request.
 
 ## Local proprietary inputs
 
